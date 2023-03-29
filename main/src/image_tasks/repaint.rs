@@ -1,7 +1,9 @@
 use anyhow::anyhow;
 use tiny_skia::{Pixmap, PremultipliedColorU8};
 use crate::image_tasks::color::ComparableColor;
+use crate::image_tasks::make_semitransparent::create_alpha_array;
 use cached::proc_macro::cached;
+use std::ops::Mul;
 
 #[derive(Clone, Eq, Hash, Ord, PartialOrd, PartialEq)]
 pub struct AlphaChannel {
@@ -11,8 +13,12 @@ pub struct AlphaChannel {
 }
 
 impl AlphaChannel {
-    fn pixels(&self) -> &[u8] {
+    pub(crate) fn pixels(&self) -> &[u8] {
         return self.pixels.as_slice();
+    }
+
+    pub(crate) fn pixels_mut(&mut self) -> &mut [u8] {
+        return self.pixels.as_mut_slice();
     }
 }
 
@@ -27,6 +33,28 @@ impl From<&Pixmap> for AlphaChannel {
             height: value.height(),
             pixels
         }
+    }
+}
+
+impl Mul<f32> for AlphaChannel {
+    type Output = AlphaChannel;
+
+    fn mul(self, rhs: f32) -> Self::Output {
+        let alpha_array = create_alpha_array(rhs.into());
+        let mut output = self.clone();
+        let output_pixels = output.pixels_mut();
+        for index in 0..output_pixels.len() {
+            output_pixels[index] = alpha_array[output_pixels[index] as usize];
+        }
+        return output;
+    }
+}
+
+impl Mul<ComparableColor> for AlphaChannel {
+    type Output = Pixmap;
+
+    fn mul(self, rhs: ComparableColor) -> Self::Output {
+        return paint(self, rhs).unwrap();
     }
 }
 
