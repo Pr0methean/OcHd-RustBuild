@@ -3,7 +3,7 @@ use std::path::Path;
 use anyhow::anyhow;
 use tiny_skia::Pixmap;
 
-pub fn png_output(image: Pixmap, mut files: Vec<Box<Path>>) -> Result<(), anyhow::Error> {
+pub fn png_output(image: Pixmap, mut files: Vec<&Path>) -> Result<(), anyhow::Error> {
     let mut files_iter = files.iter();
     let first_file = files_iter.next()
         .ok_or(anyhow!("Tried to write PNG to empty list of files"))?;

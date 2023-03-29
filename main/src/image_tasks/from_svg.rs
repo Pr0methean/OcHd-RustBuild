@@ -1,5 +1,4 @@
 use std::fs;
-use std::fs::DirEntry;
 use std::path::Path;
 use anyhow::anyhow;
 use resvg::{FitTo, render};
@@ -7,7 +6,7 @@ use tiny_skia::Pixmap;
 use tiny_skia_path::Transform;
 use usvg::{Options, Tree, TreeParsing};
 
-const COLOR_SVGS: Vec<&'static str> = vec![
+const COLOR_SVGS: &'static [&str] = &[
     "bed",
     "blastFurnaceHoles",
     "blastFurnaceHoles1",
@@ -29,7 +28,7 @@ const COLOR_SVGS: Vec<&'static str> = vec![
     "torchFlameSmall",
 ];
 
-pub fn from_svg(path: Box<Path>, width: u32) -> Result<Pixmap, anyhow::Error> {
+pub fn from_svg(path: &Path, width: u32) -> Result<Pixmap, anyhow::Error> {
     let svg_data = fs::read(path)?;
     let svg_tree = Tree::from_data(&svg_data, &Options::default())?;
     let view_box = svg_tree.view_box;

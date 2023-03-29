@@ -79,6 +79,25 @@ impl From<PremultipliedColorU8> for ComparableColor {
     }
 }
 
+impl From<u32> for ComparableColor {
+    fn from(value: u32) -> Self {
+        let red = (value >> 24) as u8;
+        let green = (value >> 16) as u8;
+        let blue = (value >> 8) as u8;
+        let alpha = value as u8;
+        return ComparableColor {
+            red, green, blue, alpha
+        }
+    }
+}
+
+#[test]
+fn test_from_u32() {
+    assert_eq!(ComparableColor::from(0x1337c0de),
+        ComparableColor { red: 0x13, green: 0x37, blue: 0xc0, alpha: 0xde }
+    )
+}
+
 impl Into<Color> for ComparableColor {
     fn into(self) -> Color {
         return Color::from_rgba8(self.red, self.green, self.blue, self.alpha);
