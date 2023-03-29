@@ -4,7 +4,7 @@ use crate::image_tasks::color::ComparableColor;
 use cached::proc_macro::cached;
 
 #[derive(Clone, Eq, Hash, Ord, PartialOrd, PartialEq)]
-struct AlphaChannel {
+pub struct AlphaChannel {
     pixels: Vec<u8>,
     width: u32,
     height: u32

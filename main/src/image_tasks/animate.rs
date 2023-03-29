@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use tiny_skia::{Pixmap, PixmapPaint};
 use tiny_skia_path::Transform;
 
-fn animate(background: Pixmap, frames: Box<dyn ExactSizeIterator<Item=Pixmap>>) -> Result<Pixmap, anyhow::Error> {
+pub fn animate(background: Pixmap, frames: Box<dyn ExactSizeIterator<Item=Pixmap>>) -> Result<Pixmap, anyhow::Error> {
     let background_copyable = background.as_ref();
     let frame_count = frames.len() as u32;
     let frame_height = background.height();

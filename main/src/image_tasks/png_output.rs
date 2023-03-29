@@ -3,12 +3,13 @@ use std::path::Path;
 use anyhow::anyhow;
 use tiny_skia::Pixmap;
 
-fn png_output(image: Pixmap, mut files: Box<dyn Iterator<Item=&Path>>) -> Result<(), anyhow::Error> {
-    let first_file = files.next()
+pub fn png_output(image: Pixmap, mut files: Vec<Box<Path>>) -> Result<(), anyhow::Error> {
+    let mut files_iter = files.iter();
+    let first_file = files_iter.next()
         .ok_or(anyhow!("Tried to write PNG to empty list of files"))?;
     image.save_png(first_file)?;
     drop(image);
-    for file in files {
+    for file in files_iter {
         symlink(first_file, file)?;
     }
     return Ok(());
