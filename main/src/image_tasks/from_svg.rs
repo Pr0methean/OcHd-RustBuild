@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use anyhow::anyhow;
 use resvg::{FitTo, render};
 use tiny_skia::Pixmap;
@@ -28,7 +28,7 @@ const COLOR_SVGS: &'static [&str] = &[
     "torchFlameSmall",
 ];
 
-pub fn from_svg(path: &Path, width: u32) -> Result<Pixmap, anyhow::Error> {
+pub fn from_svg(path: PathBuf, width: u32) -> Result<Pixmap, anyhow::Error> {
     let svg_data = fs::read(path)?;
     let svg_tree = Tree::from_data(&svg_data, &Options::default())?;
     let view_box = svg_tree.view_box;
