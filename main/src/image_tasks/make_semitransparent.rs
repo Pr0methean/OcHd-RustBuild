@@ -13,8 +13,8 @@ fn create_alpha_array(out_alpha: OrderedFloat<f32>) -> [u8; 256] {
 pub fn make_semitransparent(input: Pixmap, alpha: f32) -> Result<Pixmap, anyhow::Error> {
     let mut output = input.clone();
     let output_pixels = output.pixels_mut();
-    for mut pixel in output_pixels {
-        pixel = &mut((ComparableColor::from(*pixel) * alpha).into());
+    for index in 0..output_pixels.len() {
+        output_pixels[index] = (ComparableColor::from(output_pixels[index]) * alpha).into()
     }
     return Ok(output);
 }
