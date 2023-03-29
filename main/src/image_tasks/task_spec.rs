@@ -198,7 +198,7 @@ impl <'a, 'b> TaskSpec {
                 base.add_to::<F>(graph, existing_nodes, tile_width);
                 let node =
                     create_node!(name: name, (base: Pixmap) -> (output: AlphaChannel) {
-                        output = AlphaChannel::from(base)
+                        output = AlphaChannel::from(&base)
                 });
                 graph.add_node(node).unwrap();
                 graph.bind_asset(&*format!("{}::output", base),

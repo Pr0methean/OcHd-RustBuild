@@ -1,7 +1,8 @@
 use anyhow::anyhow;
-use tiny_skia::{Pixmap, PremultipliedColorU8};
+use tiny_skia::{FillRule, Paint, Pixmap, PremultipliedColorU8};
 use crate::image_tasks::color::ComparableColor;
 use cached::proc_macro::cached;
+use tiny_skia_path::{Path, PathBuilder, Transform};
 
 #[derive(Clone, Eq, Hash, Ord, PartialOrd, PartialEq)]
 pub struct AlphaChannel {
@@ -10,8 +11,14 @@ pub struct AlphaChannel {
     height: u32
 }
 
-impl From<Pixmap> for AlphaChannel {
-    fn from(value: Pixmap) -> Self {
+impl AlphaChannel {
+    fn pixels(&self) -> &[u8] {
+        return self.pixels.as_slice();
+    }
+}
+
+impl From<&Pixmap> for AlphaChannel {
+    fn from(value: &Pixmap) -> Self {
         let pixels =
             value.pixels().into_iter()
                 .map(|pixel| pixel.alpha())
@@ -21,6 +28,21 @@ impl From<Pixmap> for AlphaChannel {
             height: value.height(),
             pixels
         }
+    }
+}
+
+#[test]
+fn test_alpha_channel() {
+    let side_length = 128;
+    let pixmap = &mut Pixmap::new(side_length, side_length).unwrap();
+    let circle = PathBuilder::from_circle(64.0, 64.0, 50.0).unwrap();
+    pixmap.fill_path(&circle, &Paint::default(),
+                     FillRule::EvenOdd, Transform::default(), None);
+    let alpha_channel = AlphaChannel::from(&*pixmap);
+    let pixmap_pixels = pixmap.pixels();
+    let alpha_pixels = alpha_channel.pixels();
+    for index in 0usize..((side_length * side_length) as usize) {
+        assert_eq!(alpha_pixels[index], pixmap_pixels[index].alpha());
     }
 }
 
