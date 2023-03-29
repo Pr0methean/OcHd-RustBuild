@@ -77,46 +77,46 @@ impl <'a> TaskSpec<'a> {
         let name = self.to_string();
         match self {
             TaskSpec::Animate { background, frames } => {
+                let frame_count = frames.len();
                 background.add_to::<F>(graph, existing_nodes, tile_width);
                 frames.iter().for_each(|layer| layer.add_to::<F>(graph, existing_nodes, tile_width));
-                let frame_count = frames.len();
-                let frame_asset_strings: Vec<String> = (0..frame_count).map(|index| {
-                    format!("{}::frame{}", name, index)
-                }).collect();
+                let mut frame_asset_strings: Vec<String> = vec![];
+                for index in 0..frame_count {
+                    frame_asset_strings[index] = format!("{}::frame{}", name, index);
+                }
                 let background_asset_string = format!("{}::background", name);
-                let mut input_asset_strings = vec!(background_asset_string);
+                let mut input_asset_strings = vec![background_asset_string.clone()];
                 input_asset_strings.extend_from_slice(&*frame_asset_strings.into_boxed_slice());
                 let output_asset_string = format!("{}::output", name);
                 let node = Node::new(name, |solver: &mut GraphSolver| {
+                    let frame_count = frames.len();
+                    let (background_asset_string, frame_asset_strings) =
+                            input_asset_strings.split_first().unwrap();
+                    let background_asset_string = background_asset_string.clone();
                     let background_pixmap: Pixmap =
                         solver.get_value::<Pixmap>(&background_asset_string)?;
-                    let frame_pixmaps_by_name: Vec<(Pixmap, &String)> = frame_asset_strings.iter()
-                        .map(|asset_string| {
-                            (solver.get_value::<Pixmap>(&asset_string).unwrap(),
-                             asset_string)
-                        }).collect();
+                    let frame_pixmaps: Vec<Pixmap> = frame_asset_strings.iter()
+                        .map(|asset_string| (solver.get_value::<Pixmap>(&asset_string).unwrap())).collect();
                     if !solver.input_is_new(&background_pixmap, &background_asset_string)
-                        && !frame_pixmaps_by_name.iter().any(|(input_asset, asset_string)| {
-                        solver.input_is_new(&input_asset, &asset_string)
+                        && (0..frame_count).any(|index| {
+                            solver.input_is_new(&frame_pixmaps[index], &frame_asset_strings[index])
                     }) {
-                        let outs = vec!(output_asset_string.to_owned());
+                        let outs = vec!(output_asset_string.clone());
                         if solver.use_old_ouput(&outs) {
                             return Ok(SolverStatus::Cached);
                         }
                     }
-                    let frame_pixmaps =
-                        (0..frame_count).map(|index| frame_pixmaps_by_name[index].0).take(frame_count);
-                    let output = animate(background_pixmap, Box::new(frame_pixmaps)).unwrap();
+                    let output = animate(background_pixmap, Box::new(frame_pixmaps.into_iter())).unwrap();
                     solver.save_value(&output_asset_string, output);
                     return Ok(SolverStatus::Executed);
-                }, input_asset_strings, vec!(output_asset_string.to_owned()));
+                }, input_asset_strings.to_owned(), vec!(output_asset_string.to_owned()));
                 graph.add_node(node).unwrap();
                 graph.bind_asset(&*format!("{}::output", background), &*background_asset_string).unwrap();
-                (0..frame_count).for_each(|index| {
+                for index in 0..frame_count {
                     let source = &format!("{}::output", frames[index]);
                     let sink = &frame_asset_strings[index];
                     graph.bind_asset(source, sink).unwrap();
-                });
+                };
             },
             TaskSpec::FromSvg { source } => {
                 let node = create_node!(name: name, () -> (output: Pixmap)
@@ -152,36 +152,35 @@ impl <'a> TaskSpec<'a> {
                                  &*format!("{}::base", self)).unwrap();
             },
             TaskSpec::Stack { background, layers } => {
-                layers.iter().for_each(|layer| layer.add_to::<F>(graph, existing_nodes, tile_width));
                 let layer_count = layers.len();
+                layers.iter().for_each(|layer| layer.add_to::<F>(graph, existing_nodes, tile_width));
                 let layer_asset_strings: Vec<String> = (0..layer_count).map(|index| {
                     format!("{}::frame{}", name, index)
                 }).collect();
                 let output_asset_string = format!("{}::output", name);
                 let node = Node::new(name, |solver: &mut GraphSolver| {
-                    let layer_pixmaps_by_name: Vec<(&String, Pixmap)> = layer_asset_strings.iter().map(|asset_string| {
-                        (asset_string, solver.get_value::<Pixmap>(asset_string).unwrap())
+                    let layer_count = layers.len();
+                    let layer_pixmaps: Vec<Pixmap> = layer_asset_strings.iter().map(|asset_string| {
+                        solver.get_value::<Pixmap>(asset_string).unwrap()
                     }).collect();
-                    if !layer_pixmaps_by_name.iter().any(|(asset_string, input_asset)| {
-                        solver.input_is_new(input_asset, asset_string)
+                    if !(0..layer_count).any(|index| {
+                        solver.input_is_new(&layer_pixmaps[index], &layer_asset_strings[index])
                     }) {
                         let outs = vec!(output_asset_string.to_owned());
                         if solver.use_old_ouput(&outs) {
                             return Ok(SolverStatus::Cached);
                         }
                     }
-                    let layer_pixmaps =
-                        (0..layer_count).map(|index| layer_pixmaps_by_name[index].1).take(layer_count);
-                    let output = stack(*background, Box::new(layer_pixmaps)).unwrap();
+                    let output = stack(*background, Box::new(layer_pixmaps.into_iter())).unwrap();
                     solver.save_value(&output_asset_string, output);
                     return Ok(SolverStatus::Executed);
                 }, layer_asset_strings.to_owned(), vec!(output_asset_string.to_owned()));
                 graph.add_node(node).unwrap();
-                (0..layer_count).for_each(|index| {
+                for index in 0..layer_count {
                     let source = &format!("{}::output", layers[index]);
                     let sink = &layer_asset_strings[index];
                     graph.bind_asset(source, sink).unwrap();
-                });
+                };
             },
             TaskSpec::ToAlphaChannel { base } => {
                 base.add_to::<F>(graph, existing_nodes, tile_width);
