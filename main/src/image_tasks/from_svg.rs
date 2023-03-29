@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 use anyhow::anyhow;
 use resvg::{FitTo, render};
 use tiny_skia::Pixmap;

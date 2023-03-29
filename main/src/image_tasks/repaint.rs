@@ -1,8 +1,7 @@
 use anyhow::anyhow;
-use tiny_skia::{FillRule, Paint, Pixmap, PremultipliedColorU8};
+use tiny_skia::{Pixmap, PremultipliedColorU8};
 use crate::image_tasks::color::ComparableColor;
 use cached::proc_macro::cached;
-use tiny_skia_path::{Path, PathBuilder, Transform};
 
 #[derive(Clone, Eq, Hash, Ord, PartialOrd, PartialEq)]
 pub struct AlphaChannel {
@@ -33,6 +32,9 @@ impl From<&Pixmap> for AlphaChannel {
 
 #[test]
 fn test_alpha_channel() {
+    use tiny_skia::{FillRule, Paint};
+    use tiny_skia_path::{PathBuilder, Transform};
+
     let side_length = 128;
     let pixmap = &mut Pixmap::new(side_length, side_length).unwrap();
     let circle = PathBuilder::from_circle(64.0, 64.0, 50.0).unwrap();

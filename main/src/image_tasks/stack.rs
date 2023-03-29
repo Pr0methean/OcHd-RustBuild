@@ -1,6 +1,6 @@
 use anyhow::anyhow;
-use tiny_skia::{Paint, Pixmap, PixmapPaint};
-use tiny_skia_path::{Rect, Transform};
+use tiny_skia::{Pixmap, PixmapPaint};
+use tiny_skia_path::{Transform};
 use crate::image_tasks::color::ComparableColor;
 
 pub fn stack(background: ComparableColor, mut layers: Box<dyn Iterator<Item=Pixmap>>) -> Result<Pixmap, anyhow::Error> {
