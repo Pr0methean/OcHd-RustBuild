@@ -39,7 +39,11 @@ impl Mul<f32> for ComparableColor {
 
 impl Display for ComparableColor {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "#{:02x}{:02x}{:02x}{:02x}", self.red, self.green, self.blue, self.alpha)
+        if self.alpha == 0 {
+            write!(f, "transparent")
+        } else {
+            write!(f, "#{:02x}{:02x}{:02x}{:02x}", self.red, self.green, self.blue, self.alpha)
+        }
     }
 }
 
