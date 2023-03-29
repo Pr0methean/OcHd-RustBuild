@@ -80,13 +80,10 @@ impl <'a> TaskSpec<'a> {
                 let frame_count = frames.len();
                 background.add_to::<F>(graph, existing_nodes, tile_width);
                 frames.iter().for_each(|layer| layer.add_to::<F>(graph, existing_nodes, tile_width));
-                let mut frame_asset_strings: Vec<String> = vec![];
-                for index in 0..frame_count {
-                    frame_asset_strings[index] = format!("{}::frame{}", name, index);
-                }
+                let frame_asset_strings: Vec<String> = (0..frame_count).map(|index| format!("{name}::frame{index}")).collect();
                 let background_asset_string = format!("{}::background", name);
                 let mut input_asset_strings = vec![background_asset_string.clone()];
-                input_asset_strings.extend_from_slice(&*frame_asset_strings.into_boxed_slice());
+                input_asset_strings.extend_from_slice(&frame_asset_strings[..]);
                 let output_asset_string = format!("{}::output", name);
                 let node = Node::new(name, |solver: &mut GraphSolver| {
                     let frame_count = frames.len();
@@ -136,7 +133,7 @@ impl <'a> TaskSpec<'a> {
             TaskSpec::PngOutput { base, destinations } => {
                 base.add_to::<F>(graph, existing_nodes, tile_width);
                 let node = create_node!(name: name, (base: Pixmap) -> (output: ()) {
-                    output = png_output(base, *destinations).unwrap()
+                    output = png_output(base, destinations).unwrap()
                 });
                 graph.add_node(node).unwrap();
                 graph.bind_asset(&*format!("{}::output", base),
@@ -154,9 +151,7 @@ impl <'a> TaskSpec<'a> {
             TaskSpec::Stack { background, layers } => {
                 let layer_count = layers.len();
                 layers.iter().for_each(|layer| layer.add_to::<F>(graph, existing_nodes, tile_width));
-                let layer_asset_strings: Vec<String> = (0..layer_count).map(|index| {
-                    format!("{}::frame{}", name, index)
-                }).collect();
+                let layer_asset_strings: Vec<String> = (0..layer_count).map(|index| format!("{name}::frame{index}")).collect();
                 let output_asset_string = format!("{}::output", name);
                 let node = Node::new(name, |solver: &mut GraphSolver| {
                     let layer_count = layers.len();
