@@ -12,7 +12,7 @@ pub trait Material {
     fn get_output_tasks(&self) -> Vec<Arc<TaskSpec>>;
 }
 
-#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct MaterialGroup {
     pub(crate) members: Vec<Arc<dyn Material + Sync>>
 }
@@ -33,7 +33,7 @@ impl <E, F, G> Material for E where E: IntoEnumIterator<Iterator=F>, F : Iterato
     }
 }
 
-#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct SingleTextureMaterial {
     name: String,
     directory: String,
@@ -74,7 +74,7 @@ pub fn particle(name: String, texture: Arc<TaskSpec>) -> SingleTextureMaterial {
     }
 }
 
-#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct DoubleTallBlock {
     name: String,
     bottom_layers: Arc<TaskSpec>,
@@ -89,7 +89,7 @@ impl Material for DoubleTallBlock {
     }
 }
 
-#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 struct GroundCoverBlock {
     name: String,
     base: Arc<TaskSpec>,

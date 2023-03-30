@@ -5,7 +5,7 @@ use crate::image_tasks::make_semitransparent::create_alpha_array;
 use cached::proc_macro::cached;
 use std::ops::Mul;
 
-#[derive(Clone, Eq, Hash, Ord, PartialOrd, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialOrd, PartialEq)]
 pub struct AlphaChannel {
     pixels: Vec<u8>,
     width: u32,
