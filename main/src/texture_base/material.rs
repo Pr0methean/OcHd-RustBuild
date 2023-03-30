@@ -8,12 +8,13 @@ use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::task_spec::TaskSpec::PngOutput;
 use crate::image_tasks::task_spec::TaskSpec::Stack;
 
-trait Material {
+pub trait Material {
     fn get_output_tasks(&self) -> Vec<Arc<TaskSpec>>;
 }
 
-struct MaterialGroup {
-    members: Vec<Box<dyn Material>>
+#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+pub struct MaterialGroup {
+    pub(crate) members: Vec<Arc<dyn Material + Sync>>
 }
 
 impl Material for MaterialGroup {
@@ -32,6 +33,7 @@ impl <E, F, G> Material for E where E: IntoEnumIterator<Iterator=F>, F : Iterato
     }
 }
 
+#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct SingleTextureMaterial {
     name: String,
     directory: String,
@@ -72,6 +74,7 @@ pub fn particle(name: String, texture: Arc<TaskSpec>) -> SingleTextureMaterial {
     }
 }
 
+#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct DoubleTallBlock {
     name: String,
     bottom_layers: Arc<TaskSpec>,
@@ -86,21 +89,20 @@ impl Material for DoubleTallBlock {
     }
 }
 
-struct GroundCoverBlock<'a> {
+#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+struct GroundCoverBlock {
     name: String,
-    base: &'a TaskSpec,
+    base: Arc<TaskSpec>,
     cover_side_layers: Vec<Arc<TaskSpec>>,
-    top: &'a TaskSpec,
+    top: Arc<TaskSpec>,
 }
 
-impl <'a> Material for GroundCoverBlock<'a> {
+impl Material for GroundCoverBlock {
     fn get_output_tasks(&self) -> Vec<Arc<TaskSpec>> {
-        let mut side_layers: Vec<Arc<TaskSpec>> = vec!(Arc::new(self.base.clone()));
-        for cover_side_layer in self.cover_side_layers.clone() {
-            side_layers.push(cover_side_layer);
-        }
+        let mut side_layers: Vec<Arc<TaskSpec>> = vec!(self.base.clone());
+        side_layers.extend(self.cover_side_layers.clone());
         return vec!(Arc::new(PngOutput {
-            base: Arc::new(self.top.clone()),
+            base: self.top.clone(),
             destinations: Arc::new(vec!(PathBuf::from(format!("block/{}_top", self.name))))}),
         Arc::new(PngOutput {
             base: Arc::new(Stack {
@@ -125,12 +127,3 @@ pub fn redstone_off_and_on(name: String, generator: Box<dyn Fn(ComparableColor) 
     }));
     return out;
 }
-
-/*
-fun OutputTaskEmitter.redstoneOffAndOn(baseName: String,
-                                       layers: LayerListBuilder.(redstoneStateColor: Color) -> Unit) {
-    out(baseName) { layers(Color.BLACK) }
-    out(baseName + "_on") { layers(Ore.REDSTONE.highlight) }
-}
-
- */

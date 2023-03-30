@@ -1,6 +1,7 @@
 mod tasks;
 mod image_tasks;
 mod texture_base;
+mod materials;
 
 
 use std::env;
