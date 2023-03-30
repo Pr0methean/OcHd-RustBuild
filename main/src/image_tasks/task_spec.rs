@@ -17,11 +17,13 @@ use crate::image_tasks::repaint::AlphaChannel;
 use crate::image_tasks::animate::animate;
 use crate::image_tasks::repaint::paint;
 use crate::image_tasks::stack::stack;
+use crate::image_tasks::task_spec::TaskSpec::{FromSvg, PngOutput};
+use crate::image_tasks::task_spec::TaskSpecDecorator::{MakeSemitransparent, Repaint};
 
 /// Specification of a task that produces and/or consumes at least one [Pixmap]. Created
 /// to de-duplicate copies of the same task, since function closures don't implement [Eq] or [Hash].
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
-enum TaskSpec {
+pub enum TaskSpec {
     Animate {background: Arc<TaskSpec>, frames: Vec<Arc<TaskSpec>>},
     FromSvg {source: PathBuf},
     MakeSemitransparent {base: Arc<TaskSpec>, alpha: OrderedFloat<f32>},
@@ -37,13 +39,13 @@ impl Display for TaskSpec {
             TaskSpec::Animate { background, frames: _frames } => {
                 write!(f, "Animate({};", background)
             }
-            TaskSpec::FromSvg { source } => {
+            FromSvg { source } => {
                 write!(f, "{}", source.to_string_lossy())
             }
             TaskSpec::MakeSemitransparent { base, alpha } => {
                 write!(f, "{}@{}", base, alpha)
             }
-            TaskSpec::PngOutput { base: _base, destinations } => {
+            PngOutput { base: _base, destinations } => {
                 write!(f, "{}", destinations.iter().map({ |dest|
                     match dest.file_name() {
                         None => "Unknown PNG file",
@@ -119,7 +121,7 @@ impl <'a, 'b> TaskSpec {
                     graph.bind_asset(source, sink).unwrap();
                 };
             },
-            TaskSpec::FromSvg { source } => {
+            FromSvg { source } => {
                 let tile_width_ = tile_width;
                 let node = create_node!(name: name, (source: PathBuf) -> (output: Pixmap)
                     output = from_svg(source, tile_width_).unwrap()
@@ -138,7 +140,7 @@ impl <'a, 'b> TaskSpec {
                 graph.bind_asset(&*format!("{}::output", base),
                                  &*format!("{}::base", self)).unwrap();
             },
-            TaskSpec::PngOutput { base, destinations } => {
+            PngOutput { base, destinations } => {
                 base.add_to::<F>(graph, existing_nodes, tile_width);
                 let node = create_node!(name: name,
                     (destinations: Vec<PathBuf>, base: Pixmap) -> (output: ()) {
@@ -218,11 +220,11 @@ lazy_static! {
     static ref SVG_DIR: &'static Path = Path::new("./svg/");
 }
 
-fn name_to_out_path(name: String) -> Box<Path> {
+pub fn name_to_out_path(name: String) -> PathBuf {
     return OUT_DIR.with_file_name(format!("{}.png", name)).as_path().into();
 }
 
-fn name_to_svg_path(name: String) -> PathBuf {
+pub fn name_to_svg_path(name: String) -> PathBuf {
     return SVG_DIR.with_file_name(format!("{}.svg", name)).as_path().into();
 }
 
@@ -230,7 +232,7 @@ impl FromStr for TaskSpec {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(TaskSpec::FromSvg {
+        Ok(FromSvg {
             source: name_to_svg_path(s.to_string())
         })
     }
@@ -264,5 +266,33 @@ impl Mul<ComparableColor> for TaskSpec {
                 color: rhs
             }
         };
+    }
+}
+
+pub enum TaskSpecDecorator {
+    MakeSemitransparent {alpha: OrderedFloat<f32>},
+    Repaint {color: ComparableColor}
+}
+
+impl TaskSpecDecorator {
+    fn apply(&self, base: TaskSpec) -> TaskSpec {
+        return match self {
+            MakeSemitransparent { alpha }
+                => TaskSpec::MakeSemitransparent {base: Arc::new(base), alpha: *alpha },
+            Repaint { color }
+                => TaskSpec::Repaint {base: Arc::new(base), color: *color}
+        }
+    }
+}
+
+impl From<ComparableColor> for TaskSpecDecorator {
+    fn from(value: ComparableColor) -> Self {
+        Repaint {color: value}
+    }
+}
+
+impl From<f32> for TaskSpecDecorator {
+    fn from(value: f32) -> Self {
+        MakeSemitransparent {alpha: value.into()}
     }
 }

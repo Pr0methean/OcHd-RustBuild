@@ -17,10 +17,20 @@ pub struct ComparableColor {
 }
 
 impl ComparableColor {
-    pub(crate) fn red(&self) -> u8 { return self.red; }
-    pub(crate) fn green(&self) -> u8 { return self.green; }
-    pub(crate) fn blue(&self) -> u8 { return self.blue; }
-    pub(crate) fn alpha(&self) -> u8 { return self.alpha; }
+    pub fn red(&self) -> u8 { return self.red; }
+    pub fn green(&self) -> u8 { return self.green; }
+    pub fn blue(&self) -> u8 { return self.blue; }
+    pub fn alpha(&self) -> u8 { return self.alpha; }
+
+    pub const TRANSPARENT: ComparableColor = ComparableColor {red: 0, green: 0, blue: 0, alpha: 0};
+    pub const BLACK: ComparableColor = ComparableColor {red: 0, green: 0, blue: 0, alpha: u8::MAX};
+    pub const RED: ComparableColor = ComparableColor {red: u8::MAX, green: 0, blue: 0, alpha: u8::MAX};
+    pub const GREEN: ComparableColor = ComparableColor {red: 0, green: u8::MAX, blue: 0, alpha: u8::MAX};
+    pub const BLUE: ComparableColor = ComparableColor {red: 0, green: 0, blue: u8::MAX, alpha: u8::MAX};
+    pub const YELLOW: ComparableColor = ComparableColor {red: u8::MAX, green: u8::MAX, blue: 0, alpha: u8::MAX};
+    pub const MAGENTA: ComparableColor = ComparableColor {red: u8::MAX, green: 0, blue: u8::MAX, alpha: u8::MAX};
+    pub const CYAN: ComparableColor = ComparableColor {red: 0, green: u8::MAX, blue: u8::MAX, alpha: u8::MAX};
+    pub const WHITE: ComparableColor = ComparableColor {red: u8::MAX, green: u8::MAX, blue: u8::MAX, alpha: u8::MAX};
 }
 
 impl Mul<f32> for ComparableColor {
@@ -146,5 +156,17 @@ impl Hash for ComparableColor {
             self.green.hash(state);
             self.blue.hash(state);
         }
+    }
+}
+
+pub const fn c(r: u8, g: u8, b: u8) -> ComparableColor {
+    ComparableColor {
+        red: r, green: g, blue: b, alpha: u8::MAX
+    }
+}
+
+pub const fn ca(r: u8, g: u8, b: u8, a: u8) -> ComparableColor {
+    ComparableColor {
+        red: r, green: g, blue: b, alpha: a
     }
 }
