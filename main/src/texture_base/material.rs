@@ -39,7 +39,7 @@ pub struct SingleTextureMaterial {
     texture: Arc<TaskSpec>
 }
 
-impl <'a> Into<TaskSpec> for SingleTextureMaterial {
+impl Into<TaskSpec> for SingleTextureMaterial {
     fn into(self) -> TaskSpec {
         return self.texture.deref().clone();
     }
