@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
-use std::ops::Mul;
+use std::ops::{BitAnd, Mul, Shr};
 use tiny_skia::Color;
 use tiny_skia::ColorU8;
 use tiny_skia::PremultipliedColor;
@@ -17,20 +17,32 @@ pub struct ComparableColor {
 }
 
 impl ComparableColor {
-    pub fn red(&self) -> u8 { return self.red; }
-    pub fn green(&self) -> u8 { return self.green; }
-    pub fn blue(&self) -> u8 { return self.blue; }
-    pub fn alpha(&self) -> u8 { return self.alpha; }
+    pub fn red(&self) -> u8 { return self.red.to_owned(); }
+    pub fn green(&self) -> u8 { return self.green.to_owned(); }
+    pub fn blue(&self) -> u8 { return self.blue.to_owned(); }
+    pub fn alpha(&self) -> u8 { return self.alpha.to_owned(); }
 
-    pub const TRANSPARENT: ComparableColor = ComparableColor {red: 0, green: 0, blue: 0, alpha: 0};
-    pub const BLACK: ComparableColor = ComparableColor {red: 0, green: 0, blue: 0, alpha: u8::MAX};
-    pub const RED: ComparableColor = ComparableColor {red: u8::MAX, green: 0, blue: 0, alpha: u8::MAX};
-    pub const GREEN: ComparableColor = ComparableColor {red: 0, green: u8::MAX, blue: 0, alpha: u8::MAX};
-    pub const BLUE: ComparableColor = ComparableColor {red: 0, green: 0, blue: u8::MAX, alpha: u8::MAX};
-    pub const YELLOW: ComparableColor = ComparableColor {red: u8::MAX, green: u8::MAX, blue: 0, alpha: u8::MAX};
-    pub const MAGENTA: ComparableColor = ComparableColor {red: u8::MAX, green: 0, blue: u8::MAX, alpha: u8::MAX};
-    pub const CYAN: ComparableColor = ComparableColor {red: 0, green: u8::MAX, blue: u8::MAX, alpha: u8::MAX};
-    pub const WHITE: ComparableColor = ComparableColor {red: u8::MAX, green: u8::MAX, blue: u8::MAX, alpha: u8::MAX};
+    pub const TRANSPARENT: ComparableColor = rgba(0,0,0,0);
+    pub const BLACK: ComparableColor = gray(0);
+    pub const RED: ComparableColor = rgb(u8::max_value(),0,0);
+    pub const GREEN: ComparableColor = rgb(0,u8::max_value(),0);
+    pub const BLUE: ComparableColor = rgb(0,0,u8::max_value());
+    pub const YELLOW: ComparableColor = rgb(u8::max_value(),u8::max_value(),0);
+    pub const MAGENTA: ComparableColor = rgb(u8::max_value(),0,u8::max_value());
+    pub const CYAN: ComparableColor = rgb(0,u8::max_value(),u8::max_value());
+    pub const WHITE: ComparableColor = gray(u8::max_value());
+
+    pub const STONE_EXTREME_SHADOW: ComparableColor = gray(0x51);
+    pub const STONE_SHADOW: ComparableColor = gray(0x74);
+    pub const STONE: ComparableColor = gray(0x85);
+    pub const STONE_HIGHLIGHT: ComparableColor = gray(0xaa);
+    pub const STONE_EXTREME_HIGHLIGHT: ComparableColor = gray(0xba);
+
+    pub const EXTRA_DARK_BIOME_COLORABLE: ComparableColor = ComparableColor::STONE_SHADOW;
+    pub const DARK_BIOME_COLORABLE: ComparableColor = ComparableColor::STONE;
+    pub const MEDIUM_BIOME_COLORABLE: ComparableColor = gray(0x9d);
+    pub const LIGHT_BIOME_COLORABLE: ComparableColor = ComparableColor::STONE_EXTREME_HIGHLIGHT;
+    pub const EXTRA_LIGHT_BIOME_COLORABLE: ComparableColor = gray(0xc3);
 }
 
 impl Mul<f32> for ComparableColor {
@@ -57,7 +69,7 @@ impl Display for ComparableColor {
     }
 }
 
-const CHANNEL_MAX_F32: f32 = u8::MAX as f32;
+const CHANNEL_MAX_F32: f32 = u8::max_value() as f32;
 
 impl From<Color> for ComparableColor {
     fn from(value: Color) -> Self {
@@ -91,25 +103,6 @@ impl From<PremultipliedColorU8> for ComparableColor {
     fn from(value: PremultipliedColorU8) -> Self {
         return ComparableColor::from(value.demultiply());
     }
-}
-
-impl From<u32> for ComparableColor {
-    fn from(value: u32) -> Self {
-        let red = (value >> 24) as u8;
-        let green = (value >> 16) as u8;
-        let blue = (value >> 8) as u8;
-        let alpha = value as u8;
-        return ComparableColor {
-            red, green, blue, alpha
-        }
-    }
-}
-
-#[test]
-fn test_from_u32() {
-    assert_eq!(ComparableColor::from(0x1337c0de),
-        ComparableColor { red: 0x13, green: 0x37, blue: 0xc0, alpha: 0xde }
-    )
 }
 
 impl Into<Color> for ComparableColor {
@@ -159,14 +152,51 @@ impl Hash for ComparableColor {
     }
 }
 
-pub const fn c(r: u8, g: u8, b: u8) -> ComparableColor {
+pub const fn rgb(r: u8, g: u8, b: u8) -> ComparableColor {
     ComparableColor {
-        red: r, green: g, blue: b, alpha: u8::MAX
+        red: r, green: g, blue: b, alpha: u8::max_value()
     }
 }
 
-pub const fn ca(r: u8, g: u8, b: u8, a: u8) -> ComparableColor {
+pub const fn rgba(r: u8, g: u8, b: u8, a: u8) -> ComparableColor {
     ComparableColor {
         red: r, green: g, blue: b, alpha: a
     }
 }
+
+pub const fn gray(lightness: u8) -> ComparableColor {
+    rgb(lightness, lightness.to_owned(), lightness.to_owned())
+}
+
+pub const fn c(rgb: u32) -> ComparableColor {
+    ComparableColor {
+        red: u8::try_from(rgb.shr(16)).unwrap(),
+        green: u8::try_from(rgb.shr(8u32).bitand(u32::from(u8::max_value()))).unwrap(),
+        blue: u8::try_from(rgb.bitand(u32::from(u8::max_value()))).unwrap(),
+        alpha: u8::max_value()
+    }
+}
+
+#[test]
+fn test_c() {
+    assert_eq!(c(0xc0ffee),
+               ComparableColor { red: 0xc0, green: 0xff, blue: 0xee, alpha: u8::max_value() }
+    )
+}
+
+pub const fn ca(rgb: u32) -> ComparableColor {
+    ComparableColor {
+        red: u8::try_from(rgb.shr(24)).unwrap(),
+        green: u8::try_from(rgb.shr(16u32).bitand(u32::from(u8::max_value()))).unwrap(),
+        blue: u8::try_from(rgb.shr(8u32).bitand(u32::from(u8::max_value()))).unwrap(),
+        alpha: u8::try_from(rgb.bitand(u32::from(u8::max_value()))).unwrap()
+    }
+}
+
+#[test]
+fn test_ca() {
+    assert_eq!(ca(0x1337c0de),
+               ComparableColor { red: 0x13, green: 0x37, blue: 0xc0, alpha: 0xde }
+    )
+}
+

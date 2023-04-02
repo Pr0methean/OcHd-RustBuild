@@ -8,7 +8,7 @@ use std::env;
 
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
+    let args: Vec<&str> = env::args().collect();
     let tile_size: u32 = args[1]
         .parse::<u32>()
         .expect("Tile size must be an integer");

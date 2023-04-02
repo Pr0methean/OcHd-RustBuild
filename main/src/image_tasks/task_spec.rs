@@ -58,8 +58,8 @@ impl Display for TaskSpec {
             }
             TaskSpec::Stack { background, layers } => {
                 write!(f, "{{{};{}}}", background, layers.iter()
-                    .map(|spec| spec.to_string())
-                    .collect::<Vec<String>>().as_slice().join(","))
+                    .map(|spec| &*spec.to_string())
+                    .collect::<Vec<&str>>().as_slice().join(","))
             }
             TaskSpec::ToAlphaChannel { base } => {
                 write!(f, "Alpha({})", base)
@@ -76,35 +76,35 @@ impl <'a, 'b> TaskSpec {
         if existing_nodes.contains(self) {
             return;
         }
-        let name = self.to_string();
+        let name = self;
         match self {
             TaskSpec::Animate { background, frames } => {
                 let frame_count = frames.len();
                 background.add_to::<F>(graph, existing_nodes, tile_width);
                 for frame in frames {
-                    frame.add_to::<F>(graph, existing_nodes, tile_width);
+                    frame.add_to::<F>(graph, existing_nodes, tile_width.to_owned());
                 }
-                let frame_asset_strings: Vec<String> = (0..frame_count).map(|index| format!("{name}::frame{index}")).collect();
-                let background_asset_string = format!("{}::background", name);
-                let mut input_asset_strings = vec![background_asset_string.clone()];
-                input_asset_strings.extend_from_slice(&frame_asset_strings[..]);
-                let input_asset_s = input_asset_strings.clone();
+                let frame_asset_strings: Vec<&str> = (0..frame_count).map(|index| &*format!("{name}::frame{index}")).collect();
+                let background_asset_string = &*format!("{}::background", name);
+                let mut input_asset_s = vec![background_asset_string];
+                input_asset_s.extend_from_slice(&frame_asset_strings[..]);
+                let input_asset_strings: Vec<String> = input_asset_s.iter().map(|x| x.to_string()).collect();
                 let output_asset_string = format!("{}::output", name);
-                let output_asset_s = output_asset_string.clone();
+                let output_asset_s = output_asset_string.to_owned();
                 let frame_count_ = frame_count;
-                let node = Node::new(name, move |solver: &mut GraphSolver| {
+                let node = Node::new(name.to_string(), move |solver: &mut GraphSolver| {
                     let (background_asset_string, frame_asset_strings) =
                         input_asset_s.split_first().unwrap();
-                    let background_asset_string = background_asset_string.clone();
+                    let background_asset_string = background_asset_string.to_owned();
                     let background_pixmap: Pixmap =
                         solver.get_value::<Pixmap>(&background_asset_string)?;
                     let frame_pixmaps: Vec<Pixmap> = frame_asset_strings.iter()
                         .map(|asset_string| (Self::get_pixmap(solver, &asset_string))).collect();
-                    if !solver.input_is_new(&background_pixmap, &background_asset_string)
+                    if !solver.input_is_new(&background_pixmap, &background_asset_string.to_string())
                         && (0..frame_count_).any(|index| {
-                            solver.input_is_new(&frame_pixmaps[index], &frame_asset_strings[index])
+                            solver.input_is_new(&frame_pixmaps[index], &frame_asset_strings[index].to_string())
                     }) {
-                        let outs = vec!(output_asset_s.clone());
+                        let outs = vec!(output_asset_s.to_owned());
                         if solver.use_old_ouput(&outs) {
                             return Ok(SolverStatus::Cached);
                         }
@@ -123,17 +123,17 @@ impl <'a, 'b> TaskSpec {
             },
             FromSvg { source } => {
                 let tile_width_ = tile_width;
-                let node = create_node!(name: name, (source: PathBuf) -> (output: Pixmap)
+                let node = create_node!(name: name.to_string(), (source: PathBuf) -> (output: Pixmap)
                     output = from_svg(source, tile_width_).unwrap()
                 );
                 graph.add_node(node).unwrap();
                 graph.define_freestanding_asset(&*format!("{}::source", self),
-                                                source.clone()).unwrap();
+                                                source.to_owned()).unwrap();
             },
             TaskSpec::MakeSemitransparent { base, alpha } => {
                 base.add_to::<F>(graph, existing_nodes, tile_width);
                 let alpha_ = alpha.into_inner();
-                let node = create_node!(name: name, (base: Pixmap) -> (output: Pixmap)
+                let node = create_node!(name: name.to_string(), (base: Pixmap) -> (output: Pixmap)
                     output = make_semitransparent(base, alpha_).unwrap()
                 );
                 graph.add_node(node).unwrap();
@@ -142,7 +142,7 @@ impl <'a, 'b> TaskSpec {
             },
             PngOutput { base, destinations } => {
                 base.add_to::<F>(graph, existing_nodes, tile_width);
-                let node = create_node!(name: name,
+                let node = create_node!(name: name.to_string(),
                     (destinations: Vec<PathBuf>, base: Pixmap) -> (output: ()) {
                         output = png_output(base, destinations).unwrap()
                 });
@@ -150,12 +150,12 @@ impl <'a, 'b> TaskSpec {
                 graph.bind_asset(&*format!("{}::output", base),
                                  &*format!("{}::base", self)).unwrap();
                 graph.define_freestanding_asset(&*format!("{}::destinations", self),
-                        destinations.clone()).unwrap();
+                        destinations.to_owned()).unwrap();
             },
             TaskSpec::Repaint { base, color } => {
                 base.add_to::<F>(graph, existing_nodes, tile_width);
-                let color_ = color.clone();
-                let node = create_node!(name: name, (base: AlphaChannel) -> (output: Pixmap) {
+                let color_ = color.to_owned();
+                let node = create_node!(name: name.to_string(), (base: AlphaChannel) -> (output: Pixmap) {
                     output = paint(base, color_).unwrap()
                 });
                 graph.add_node(node).unwrap();
@@ -165,20 +165,20 @@ impl <'a, 'b> TaskSpec {
             TaskSpec::Stack { background, layers } => {
                 let layer_count = layers.len();
                 for layer in layers {
-                    layer.add_to::<F>(graph, existing_nodes, tile_width);
+                    layer.add_to::<F>(graph, existing_nodes, tile_width.to_owned());
                 }
-                let layer_asset_strings: Vec<String> = (0..layer_count).map(|index| format!("{name}::frame{index}")).collect();
-                let layer_asset_s = layer_asset_strings.clone();
+                let layer_asset_s: Vec<&str> = (0..layer_count).map(|index| &*format!("{name}::frame{index}")).collect();
+                let layer_asset_strings: Vec<String> = layer_asset_s.iter().map(|x| x.to_string()).collect();
                 let output_asset_string = format!("{}::output", name);
-                let output_asset_s = output_asset_string.clone();
+                let output_asset_s = output_asset_string.to_owned();
                 let layer_count_ = layer_count;
-                let background_ = background.clone();
-                let node = Node::new(name, move |solver: &mut GraphSolver| {
+                let background_ = background.to_owned();
+                let node = Node::new(name.to_string(), move |solver: &mut GraphSolver| {
                     let layer_pixmaps: Vec<Pixmap> = layer_asset_s.iter().map(|asset_string| {
                         solver.get_value::<Pixmap>(asset_string).unwrap()
                     }).collect();
                     if !(0..layer_count_).any(|index| {
-                        solver.input_is_new(&layer_pixmaps[index], &layer_asset_s[index])
+                        solver.input_is_new(&layer_pixmaps[index], &layer_asset_s[index].to_string())
                     }) {
                         let outs = vec!(output_asset_s.to_owned());
                         if solver.use_old_ouput(&outs) {
@@ -199,7 +199,7 @@ impl <'a, 'b> TaskSpec {
             TaskSpec::ToAlphaChannel { base } => {
                 base.add_to::<F>(graph, existing_nodes, tile_width);
                 let node =
-                    create_node!(name: name, (base: Pixmap) -> (output: AlphaChannel) {
+                    create_node!(name: name.to_string(), (base: Pixmap) -> (output: AlphaChannel) {
                         output = AlphaChannel::from(&base)
                 });
                 graph.add_node(node).unwrap();
@@ -210,7 +210,7 @@ impl <'a, 'b> TaskSpec {
         existing_nodes.insert(self);
     }
 
-    fn get_pixmap(solver: &mut GraphSolver, asset_string: &&String) -> Pixmap {
+    fn get_pixmap(solver: &mut GraphSolver, asset_string: &&&str) -> Pixmap {
         solver.get_value::<Pixmap>(&asset_string).unwrap()
     }
 }
@@ -220,12 +220,61 @@ lazy_static! {
     static ref SVG_DIR: &'static Path = Path::new("./svg/");
 }
 
-pub fn name_to_out_path(name: String) -> PathBuf {
+pub fn name_to_out_path(name: &str) -> PathBuf {
     return OUT_DIR.with_file_name(format!("{}.png", name)).as_path().into();
 }
 
-pub fn name_to_svg_path(name: String) -> PathBuf {
+pub fn name_to_svg_path(name: &str) -> PathBuf {
     return SVG_DIR.with_file_name(format!("{}.svg", name)).as_path().into();
+}
+
+pub fn from_svg_task(name: &str) -> Arc<TaskSpec> {
+    return Arc::new(FromSvg {source: name_to_svg_path(name)});
+}
+
+pub fn repaint_task(base: Arc<TaskSpec>, color: ComparableColor) -> Arc<TaskSpec> {
+    return Arc::new(TaskSpec::Repaint {base, color});
+}
+
+pub fn paint_svg_task(name: &str, color: ComparableColor) -> Arc<TaskSpec> {
+    return repaint_task(from_svg_task(name), color);
+}
+
+pub fn semitrans_svg_task(name: &str, alpha: f32) -> Arc<TaskSpec> {
+    return Arc::new(TaskSpec::MakeSemitransparent {base: from_svg_task(name),
+            alpha: alpha.into()});
+}
+
+pub fn path(name: &str) -> Arc<Vec<PathBuf>> {
+    return Arc::new(vec!(name_to_out_path(name)));
+}
+
+pub fn out_task(name: &str, base: Arc<TaskSpec>) -> Arc<TaskSpec> {
+    return Arc::new(PngOutput {base, destinations: path(name)});
+}
+
+#[macro_export]
+macro_rules! stack_on {
+    ( $background:expr, $( $layers:expr ),* ) => {
+        std::sync::Arc::new(crate::image_tasks::task_spec::TaskSpec::Stack {
+            background: $background.to_owned(),
+            layers: vec![$($layers),*]
+        })
+    }
+}
+
+#[macro_export]
+macro_rules! stack {
+    ( $( $layers:expr ),* ) => {
+        crate::stack_on!(crate::image_tasks::color::ComparableColor::TRANSPARENT, $($layers),*)
+    }
+}
+
+#[macro_export]
+macro_rules! repaint_stack {
+    ( $color:expr, $( $layers:expr ),* ) => {
+        crate::image_tasks::task_spec::repaint_task(crate::stack!($($layers),*), $color.to_owned())
+    }
 }
 
 impl FromStr for TaskSpec {
@@ -233,7 +282,7 @@ impl FromStr for TaskSpec {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(FromSvg {
-            source: name_to_svg_path(s.to_string())
+            source: name_to_svg_path(s)
         })
     }
 }
@@ -253,7 +302,7 @@ impl Mul<ComparableColor> for TaskSpec {
     type Output = TaskSpec;
 
     fn mul(self, rhs: ComparableColor) -> Self::Output {
-        let clone = self.clone();
+        let clone = self.to_owned();
         return match self {
             TaskSpec::ToAlphaChannel { base: _base } => {
                 TaskSpec::Repaint {
@@ -278,9 +327,9 @@ impl TaskSpecDecorator {
     fn apply(&self, base: TaskSpec) -> TaskSpec {
         return match self {
             MakeSemitransparent { alpha }
-                => TaskSpec::MakeSemitransparent {base: Arc::new(base), alpha: *alpha },
+                => TaskSpec::MakeSemitransparent {base: Arc::new(base), alpha: alpha.to_owned() },
             Repaint { color }
-                => TaskSpec::Repaint {base: Arc::new(base), color: *color}
+                => TaskSpec::Repaint {base: Arc::new(base), color: color.to_owned()}
         }
     }
 }

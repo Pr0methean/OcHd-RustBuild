@@ -33,11 +33,11 @@ pub fn from_svg(path: PathBuf, width: u32) -> Result<Pixmap, anyhow::Error> {
     let svg_tree = Tree::from_data(&svg_data, &Options::default())?;
     let view_box = svg_tree.view_box;
     let height = f64::from(width) * view_box.rect.height() / view_box.rect.width();
-    let mut out = Pixmap::new(width, height as u32)
+    let mut out = Pixmap::new(width.to_owned(), height as u32)
         .ok_or(anyhow!("Failed to create output Pixmap"))?;
     render(
         &svg_tree,
-        FitTo::Width(width),
+        FitTo::Width(width.to_owned()),
         Transform::default(),
         out.as_mut())
         .ok_or(anyhow!("Failed to render output Pixmap"))?;

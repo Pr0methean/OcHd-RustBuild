@@ -1,11 +1,11 @@
-use std::ops::Deref;
-use crate::image_tasks::task_spec::{name_to_out_path, TaskSpec};
+use std::ops::{Deref};
+use crate::image_tasks::task_spec::{out_task, paint_svg_task, TaskSpec};
 use strum::IntoEnumIterator;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::path::{PathBuf};
 use std::sync::Arc;
-use crate::image_tasks::color::c;
+use crate::image_tasks::color::rgb;
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::task_spec::TaskSpec::PngOutput;
 use crate::image_tasks::task_spec::TaskSpec::Stack;
@@ -27,6 +27,16 @@ impl Material for MaterialGroup {
     }
 }
 
+#[macro_export]
+macro_rules! group {
+    ($name:ident = $( $members:expr ),* ) => {
+        pub const $name: std::sync::Arc<crate::texture_base::material::MaterialGroup>
+        = std::sync::Arc::new(crate::texture_base::material::MaterialGroup {
+            members: vec![$(std::sync::Arc::new($members)),*]
+        })
+    }
+}
+
 impl <E, F, G> Material for E where E: IntoEnumIterator<Iterator=F> + Sync + Send,
                                     F : Iterator<Item=G>, G: Material {
     fn get_output_tasks(&self) -> Vec<Arc<TaskSpec>> {
@@ -38,63 +48,97 @@ impl <E, F, G> Material for E where E: IntoEnumIterator<Iterator=F> + Sync + Sen
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct SingleTextureMaterial {
-    name: String,
-    directory: String,
+    pub(crate) name: &'static str,
+    directory: &'static str,
     has_output: bool,
     texture: Arc<TaskSpec>
 }
 
 impl Into<TaskSpec> for SingleTextureMaterial {
     fn into(self) -> TaskSpec {
-        return self.texture.deref().clone();
+        return self.texture.deref().to_owned();
     }
 }
 
 impl Material for SingleTextureMaterial {
     fn get_output_tasks(&self) -> Vec<Arc<TaskSpec>> {
-        return if !self.has_output { vec!() } else {
-            vec!(Arc::new(PngOutput{base: self.texture.clone(),
-                destinations: Arc::new(vec!(name_to_out_path(format!("{}/{}", self.directory, self.name))))}))
+        return if !self.has_output.to_owned() { vec!() } else {
+            vec!(out_task(&*format!("{}/{}", self.directory, self.name),
+                          self.texture.to_owned()))
         };
     }
 }
 
-pub fn item(name: String, texture: Arc<TaskSpec>) -> SingleTextureMaterial {
-    return SingleTextureMaterial {
-        name, directory: "items".to_string(), has_output: true, texture
+#[macro_export]
+macro_rules! single_texture_material {
+    ($name:ident = $directory:expr, $texture:expr ) => {
+        pub const $name: std::sync::Arc<crate::texture_base::material::SingleTextureMaterial> =
+        std::sync::Arc::new(crate::texture_base::material::SingleTextureMaterial {
+            name: const_str::convert_ascii_case!(lower, &stringify!($name)),
+            directory: $directory,
+            has_output: true,
+            texture: $texture
+        });
     }
 }
 
-pub fn block(name: String, texture: Arc<TaskSpec>) -> SingleTextureMaterial {
+pub fn item(name: &str, texture: Arc<TaskSpec>) -> SingleTextureMaterial {
     return SingleTextureMaterial {
-        name, directory: "blocks".to_string(), has_output: true, texture
+        name, directory: "items", has_output: true, texture
     }
 }
 
-pub fn particle(name: String, texture: Arc<TaskSpec>) -> SingleTextureMaterial {
+#[macro_export]
+macro_rules! single_texture_item {
+    ($name:ident = $texture:expr ) => {
+        crate::single_texture_material!($name = "item", $texture);
+    }
+}
+
+pub fn block(name: &str, texture: Arc<TaskSpec>) -> SingleTextureMaterial {
     return SingleTextureMaterial {
-        name, directory: "particles".to_string(), has_output: true, texture
+        name, directory: "blocks", has_output: true, texture
+    }
+}
+
+#[macro_export]
+macro_rules! single_texture_block {
+    ($name:ident = $texture:expr ) => {
+        crate::single_texture_material!($name = "block", $texture);
+    }
+}
+
+pub fn particle(name: &str, texture: Arc<TaskSpec>) -> SingleTextureMaterial {
+    return SingleTextureMaterial {
+        name, directory: "particles", has_output: true, texture
+    }
+}
+
+#[macro_export]
+macro_rules! single_texture_particle {
+    ($name:ident = $texture:expr ) => {
+        crate::single_texture_material!($name = "particle", $texture);
     }
 }
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct DoubleTallBlock {
-    name: String,
+    name: &'static str,
     bottom_layers: Arc<TaskSpec>,
     top_layers: Arc<TaskSpec>
 }
 
 impl Material for DoubleTallBlock {
     fn get_output_tasks(&self) -> Vec<Arc<TaskSpec>> {
-        let mut output_tasks = block(format!("{}_bottom", self.name), self.bottom_layers.clone()).get_output_tasks();
-        output_tasks.extend(block(format!("{}_top", self.name), self.top_layers.clone()).get_output_tasks());
+        let mut output_tasks = block(&*format!("{}_bottom", self.name), self.bottom_layers.to_owned()).get_output_tasks();
+        output_tasks.extend(block(&*format!("{}_top", self.name), self.top_layers.to_owned()).get_output_tasks());
         return output_tasks;
     }
 }
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 struct GroundCoverBlock {
-    name: String,
+    name: &'static str,
     base: Arc<TaskSpec>,
     cover_side_layers: Vec<Arc<TaskSpec>>,
     top: Arc<TaskSpec>,
@@ -102,10 +146,10 @@ struct GroundCoverBlock {
 
 impl Material for GroundCoverBlock {
     fn get_output_tasks(&self) -> Vec<Arc<TaskSpec>> {
-        let mut side_layers: Vec<Arc<TaskSpec>> = vec!(self.base.clone());
-        side_layers.extend(self.cover_side_layers.clone());
+        let mut side_layers: Vec<Arc<TaskSpec>> = vec!(self.base.to_owned());
+        side_layers.extend(self.cover_side_layers.to_owned());
         return vec!(Arc::new(PngOutput {
-            base: self.top.clone(),
+            base: self.top.to_owned(),
             destinations: Arc::new(vec!(PathBuf::from(format!("block/{}_top", self.name))))}),
         Arc::new(PngOutput {
             base: Arc::new(Stack {
@@ -116,13 +160,27 @@ impl Material for GroundCoverBlock {
     }
 }
 
-pub const REDSTONE_ON: ComparableColor = c(0xff, 0x5e, 0x5e);
+#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
+struct SingleLayerMaterial {
+    name: &'static str,
+    layer_name: &'static str,
+    color: ComparableColor,
+}
 
-pub fn redstone_off_and_on(name: String, generator: Box<dyn Fn(ComparableColor) -> TaskSpec>) -> Vec<Arc<TaskSpec>> {
+impl Material for SingleLayerMaterial {
+    fn get_output_tasks(&self) -> Vec<Arc<TaskSpec>> {
+        return vec!(out_task(&*self.name,
+                             paint_svg_task(&*self.layer_name, self.color.to_owned())));
+    }
+}
+
+pub const REDSTONE_ON: ComparableColor = rgb(0xff, 0x5e, 0x5e);
+
+pub fn redstone_off_and_on(name: &str, generator: Box<dyn Fn(ComparableColor) -> TaskSpec>) -> Vec<Arc<TaskSpec>> {
     let mut out: Vec<Arc<TaskSpec>> = vec!();
     out.push(Arc::new(PngOutput {
         base: Arc::new(generator(ComparableColor::BLACK)),
-        destinations: Arc::new(vec!(PathBuf::from(&name)))
+        destinations: Arc::new(vec!(PathBuf::from(name)))
     }));
     out.push(Arc::new(PngOutput {
         base: Arc::new(generator(REDSTONE_ON)),

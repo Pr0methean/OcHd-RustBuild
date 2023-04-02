@@ -41,7 +41,7 @@ impl Mul<f32> for AlphaChannel {
 
     fn mul(self, rhs: f32) -> Self::Output {
         let alpha_array = create_alpha_array(rhs.into());
-        let mut output = self.clone();
+        let mut output = self.to_owned();
         let output_pixels = output.pixels_mut();
         for index in 0..output_pixels.len() {
             output_pixels[index] = alpha_array[output_pixels[index] as usize];
@@ -91,14 +91,14 @@ pub mod tests {
     #[test]
     fn test_alpha_channel() {
         let side_length = 128;
-        let pixmap = &mut Pixmap::new(side_length, side_length).unwrap();
+        let pixmap = &mut Pixmap::new(side_length, side_length.to_owned()).unwrap();
         let circle = PathBuilder::from_circle(64.0, 64.0, 50.0).unwrap();
         pixmap.fill_path(&circle, &Paint::default(),
                          FillRule::EvenOdd, Transform::default(), None);
         let alpha_channel = AlphaChannel::from(&*pixmap);
         let pixmap_pixels = pixmap.pixels();
         let alpha_pixels = alpha_channel.pixels();
-        for index in 0usize..((side_length * side_length) as usize) {
+        for index in 0usize..((side_length.to_owned() * side_length.to_owned()) as usize) {
             assert_eq!(alpha_pixels[index], pixmap_pixels[index].alpha());
         }
     }
@@ -106,7 +106,7 @@ pub mod tests {
     #[test]
     fn test_paint() {
         let side_length = 128;
-        let pixmap = &mut Pixmap::new(side_length, side_length).unwrap();
+        let pixmap = &mut Pixmap::new(side_length, side_length.to_owned()).unwrap();
         let circle = PathBuilder::from_circle(64.0, 64.0, 50.0).unwrap();
         pixmap.fill_path(&circle, &Paint::default(),
                          FillRule::EvenOdd, Transform::default(), None);
@@ -117,8 +117,8 @@ pub mod tests {
             .unwrap();
         let pixmap_pixels = pixmap.pixels();
         let repainted_pixels = repainted_red.pixels();
-        for index in 0usize..((side_length * side_length) as usize) {
-            let expected_alpha: u8 = (u16::from(repainted_alpha)
+        for index in 0usize..((side_length.to_owned() * side_length.to_owned()) as usize) {
+            let expected_alpha: u8 = (u16::from(repainted_alpha.to_owned())
                 * u16::from(pixmap_pixels[index].alpha()) / 0xff) as u8;
             assert_eq!(repainted_pixels[index].alpha(), expected_alpha);
             if expected_alpha > 0 {

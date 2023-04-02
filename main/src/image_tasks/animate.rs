@@ -4,7 +4,7 @@ use tiny_skia_path::Transform;
 
 pub fn animate(background: Pixmap, frames: Box<dyn ExactSizeIterator<Item=Pixmap>>) -> Result<Pixmap, anyhow::Error> {
     let frame_count = frames.len() as u32;
-    let frame_height = background.height();
+    let frame_height = background.height().to_owned();
     let mut out = Pixmap::new(background.width(),
                               frame_height * frame_count)
         .ok_or(anyhow!("Failed to create output Pixmap"))?;
@@ -16,7 +16,7 @@ pub fn animate(background: Pixmap, frames: Box<dyn ExactSizeIterator<Item=Pixmap
                         None);
     }
     drop(background);
-    let mut i = 0;
+    let mut i: &u32 = &0;
     for frame in frames {
         out.draw_pixmap(0, (i * frame_height) as i32,
                         frame.as_ref(),
@@ -24,7 +24,7 @@ pub fn animate(background: Pixmap, frames: Box<dyn ExactSizeIterator<Item=Pixmap
                         Transform::default(),
                         None);
         drop(frame);
-        i = i + 1;
+        i = &(i + 1);
     }
     return Ok(out);
 }

@@ -11,7 +11,7 @@ pub(crate) fn create_alpha_array(out_alpha: OrderedFloat<f32>) -> [u8; 256] {
 
 pub fn make_semitransparent(input: Pixmap, alpha: f32) -> Result<Pixmap, anyhow::Error> {
     let alpha_array = create_alpha_array(alpha.into());
-    let mut output = input.clone();
+    let mut output = input.to_owned();
     let output_pixels = output.pixels_mut();
     for index in 0..output_pixels.len() {
         let pixel = output_pixels[index].demultiply();
