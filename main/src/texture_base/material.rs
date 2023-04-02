@@ -1,6 +1,8 @@
 use std::ops::Deref;
 use crate::image_tasks::task_spec::{name_to_out_path, TaskSpec};
 use strum::IntoEnumIterator;
+use std::fmt::Debug;
+use std::hash::Hash;
 use std::path::{PathBuf};
 use std::sync::Arc;
 use crate::image_tasks::color::c;
@@ -8,13 +10,13 @@ use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::task_spec::TaskSpec::PngOutput;
 use crate::image_tasks::task_spec::TaskSpec::Stack;
 
-pub trait Material {
+pub trait Material: Sync + Send {
     fn get_output_tasks(&self) -> Vec<Arc<TaskSpec>>;
 }
 
-#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(Clone)]
 pub struct MaterialGroup {
-    pub(crate) members: Vec<Arc<dyn Material + Sync>>
+    pub(crate) members: Vec<Arc<dyn Material>>
 }
 
 impl Material for MaterialGroup {
@@ -25,7 +27,8 @@ impl Material for MaterialGroup {
     }
 }
 
-impl <E, F, G> Material for E where E: IntoEnumIterator<Iterator=F>, F : Iterator<Item=G>, G: Material {
+impl <E, F, G> Material for E where E: IntoEnumIterator<Iterator=F> + Sync + Send,
+                                    F : Iterator<Item=G>, G: Material {
     fn get_output_tasks(&self) -> Vec<Arc<TaskSpec>> {
         return E::iter()
             .flat_map(|material| material.get_output_tasks())
