@@ -4,8 +4,8 @@ mod tasks;
 mod image_tasks;
 mod texture_base;
 mod materials;
-use rgraph::{Graph, GraphSolver, ValuesCache, SolverStatus, SolverError};
-use std::collections::{HashSet};
+use fn_graph::{FnGraphBuilder, FnId};
+use std::collections::{HashMap};
 use std::env;
 use std::sync::Arc;
 use lazy_static::lazy_static;
@@ -23,7 +23,7 @@ fn main() {
         .expect("Tile size must be an integer");
     println!("Using {} pixels per tile", tile_size);
     let mut g = Graph::new();
-    let mut added_tasks: HashSet<&TaskSpec> = HashSet::new();
+    let mut added_tasks: HashMap<&TaskSpec, FnId> = HashMap::new();
     let mut cache = ValuesCache::new();
     TASKS.iter()
         .for_each(|task|

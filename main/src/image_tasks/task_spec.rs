@@ -1,13 +1,15 @@
-use std::collections::{HashSet};
+use std::any::TypeId;
+use fn_graph::{DataAccessDyn, FnGraphBuilder, FnId, TypeIds};
+use resman::{FnRes, IntoFnRes, IntoFnResource, Resources};
+use smallvec::SmallVec;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 use std::ops::Mul;
 use std::path::{Path, PathBuf};
-
 use std::str::FromStr;
 use std::sync::Arc;
 use cached::lazy_static::lazy_static;
 use ordered_float::OrderedFloat;
-use rgraph::*;
 use tiny_skia::Pixmap;
 use crate::image_tasks::from_svg::from_svg;
 use crate::image_tasks::color::ComparableColor;
@@ -33,6 +35,8 @@ pub enum TaskSpec {
     Stack {background: ComparableColor, layers: Vec<Arc<TaskSpec>>},
     ToAlphaChannel {base: Arc<TaskSpec>}
 }
+
+const PIXMAP: TypeId = TypeId::of::<Pixmap>();
 
 impl Display for TaskSpec {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -72,23 +76,23 @@ impl Display for TaskSpec {
     }
 }
 
-trait NodeType: Fn(&mut GraphSolver) -> Result<SolverStatus, SolverError> {}
-
 impl <'a, 'b> TaskSpec {
-    pub fn add_to(&'a self, graph: &mut Graph,
-                 existing_nodes: &'b mut HashSet<&'a TaskSpec>,
-                 tile_width: u32) -> () {
-        if existing_nodes.contains(self) {
-            return;
+    pub fn add_to<F>(&self,
+                     graph: &mut FnGraphBuilder<&'a F>,
+                     existing_nodes: &'b mut HashMap<&'a TaskSpec, FnId>,
+                     tile_width: u32) -> &FnId {
+        if existing_nodes.contains_key(self) {
+            return existing_nodes.get(self).unwrap();
         }
-        let name = self;
+        let name = self.to_string();
         match self {
             TaskSpec::Animate { background, frames } => {
                 let frame_count = frames.len();
-                background.add_to(graph, existing_nodes, tile_width);
-                for frame in frames {
-                    frame.add_to(graph, existing_nodes, tile_width.to_owned());
-                }
+                let background_id = background.add_to(graph, existing_nodes, tile_width);
+                let frame_ids: Vec<&FnId> = frames.iter()
+                    .map(|frame| frame.add_to(graph, existing_nodes, tile_width))
+                    .collect();
+                let animate_id = graph.add_fn(animate.into_fn_res());
                 let frame_asset_strings: Vec<String> = (0..frame_count)
                     .map(|index| format!("{name}::frame{index}"))
                     .collect();
