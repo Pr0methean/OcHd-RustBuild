@@ -16,7 +16,7 @@ use crate::image_tasks::png_output::png_output;
 use crate::image_tasks::repaint::AlphaChannel;
 use crate::image_tasks::animate::animate;
 use crate::image_tasks::repaint::paint;
-use crate::image_tasks::stack::stack;
+use crate::image_tasks::stack::{stack, stack_layer_on_background, stack_layer_on_layer};
 use crate::image_tasks::task_spec::TaskSpec::{FromSvg, PngOutput};
 use crate::image_tasks::task_spec::TaskSpecDecorator::{MakeSemitransparent, Repaint};
 
@@ -30,7 +30,8 @@ pub enum TaskSpec {
     MakeSemitransparent {base: Arc<TaskSpec>, alpha: OrderedFloat<f32>},
     PngOutput {base: Arc<TaskSpec>, destinations: Arc<Vec<PathBuf>>},
     Repaint {base: Arc<TaskSpec>, color: ComparableColor},
-    Stack {background: ComparableColor, layers: Vec<Arc<TaskSpec>>},
+    StackLayerOnColor {background: ComparableColor, foreground: Arc<TaskSpec>},
+    StackLayerOnLayer {background: Arc<TaskSpec>, foreground: Arc<TaskSpec>},
     ToAlphaChannel {base: Arc<TaskSpec>}
 }
 
@@ -57,10 +58,11 @@ impl Display for TaskSpec {
             TaskSpec::Repaint { base, color } => {
                 write!(f, "{}@{}", base, color)
             }
-            TaskSpec::Stack { background, layers } => {
-                write!(f, "{{{};{}}}", background, layers.iter()
-                    .map(|spec| spec.to_string())
-                    .collect::<Vec<String>>().as_slice().join(","))
+            TaskSpec::StackLayerOnColor { background, foreground } => {
+                write!(f, "{{{};{}}}", background, foreground.to_string())
+            }
+            TaskSpec::StackLayerOnLayer { background, foreground } => {
+                write!(f, "{{{};{}}}", background.to_string(), foreground.to_string())
             }
             TaskSpec::ToAlphaChannel { base } => {
                 write!(f, "Alpha({})", base)
@@ -148,7 +150,7 @@ impl <'a, 'b> TaskSpec {
             },
             PngOutput { base, destinations } => {
                 base.add_to(graph, existing_nodes, tile_width);
-                graph.add_node::<dyn NodeType<Output=()>>(create_node!(name: name.to_string(),
+                graph.add_node(create_node!(name: name.to_string(),
                     (destinations: Vec<PathBuf>, base: Pixmap) -> () {
                         png_output(base, destinations).unwrap();
                 })).unwrap();
@@ -167,41 +169,20 @@ impl <'a, 'b> TaskSpec {
                 graph.bind_asset(&*format!("{}::output", base),
                                  &*format!("{}::base", self)).unwrap();
             },
-            TaskSpec::Stack { background, layers } => {
-                let layer_count = layers.len();
-                for layer in layers {
-                    layer.add_to(graph, existing_nodes, tile_width.to_owned());
-                }
-                let layer_asset_strings: Vec<String> = (0..layer_count)
-                    .map(|index| format!("{name}::frame{index}"))
-                    .collect();
-                let layer_asset_s = layer_asset_strings.to_owned();
-                let output_asset_string = format!("{}::output", name);
-                let output_asset_s = output_asset_string.to_owned();
-                let layer_count_ = layer_count;
-                let background_ = background.to_owned();
-                let node = Node::new(name.to_string(), move |solver: &mut GraphSolver| {
-                    let layer_pixmaps: Vec<Pixmap> = layer_asset_strings.iter().map(|asset_string| {
-                        solver.get_value::<Pixmap>(asset_string).unwrap()
-                    }).collect();
-                    if !(0..layer_count_).any(|index| {
-                        solver.input_is_new(&layer_pixmaps[index], &layer_asset_strings[index])
-                    }) {
-                        let outs = vec!(output_asset_s.to_owned());
-                        if solver.use_old_ouput(&outs) {
-                            return Ok(SolverStatus::Cached);
-                        }
-                    }
-                    let output = stack(background_, Box::new(layer_pixmaps.into_iter())).unwrap();
-                    solver.save_value(&output_asset_s, output);
-                    return Ok(SolverStatus::Executed);
-                }, layer_asset_s.to_owned(), vec!(output_asset_string.to_owned()));
+            TaskSpec::StackLayerOnColor { background, foreground } => {
+                foreground.add_to(graph, existing_nodes, tile_width);
+                let node = create_node!(name: name.to_string(), (background: ComparableColor, foreground: Pixmap) -> (output: Pixmap) {
+                    output = stack_layer_on_background(background, foreground).unwrap();
+                });
                 graph.add_node(node).unwrap();
-                for index in 0..layer_count {
-                    let source = &format!("{}::output", layers[index]);
-                    let sink = &layer_asset_s[index];
-                    graph.bind_asset(source, sink).unwrap();
-                };
+            },
+            TaskSpec::StackLayerOnLayer { background, foreground } => {
+                background.add_to(graph, existing_nodes, tile_width);
+                foreground.add_to(graph, existing_nodes, tile_width);
+                let node = create_node!(name: name.to_string(), (background: Pixmap, foreground: Pixmap) -> (output: Pixmap) {
+                    output = stack_layer_on_layer(background, foreground).unwrap();
+                });
+                graph.add_node(node).unwrap();
             },
             TaskSpec::ToAlphaChannel { base } => {
                 base.add_to(graph, existing_nodes, tile_width);
@@ -264,20 +245,33 @@ pub fn out_task(name: &str, base: Arc<TaskSpec>) -> Arc<TaskSpec> {
 }
 
 #[macro_export]
-macro_rules! stack_on {
-    ( $background:expr, $( $layers:expr ),* ) => {
-        std::sync::Arc::new(crate::image_tasks::task_spec::TaskSpec::Stack {
-            background: $background.to_owned(),
-            layers: vec![$($layers),*]
+macro_rules! stack {
+    ( $first_layer:expr, $second_layer:expr ) => {
+        std::sync::Arc::new(crate::image_tasks::task_spec::TaskSpec::StackLayerOnLayer {
+            background: $first_layer,
+            foreground: $second_layer
         })
-    }
+    };
+    ( $first_layer:expr, $second_layer:expr, $( $more_layers:expr ),+ ) => {{
+        let mut layers_so_far = crate::stack!($first_layer, $second_layer);
+        $( layers_so_far = crate::stack!(layers_so_far, $more_layers); )+
+        layers_so_far
+    }};
 }
 
 #[macro_export]
-macro_rules! stack {
-    ( $( $layers:expr ),* ) => {
-        crate::stack_on!(crate::image_tasks::color::ComparableColor::TRANSPARENT, $($layers),*)
-    }
+macro_rules! stack_on {
+    ( $background:expr, $foreground:expr ) => {
+        std::sync::Arc::new(crate::image_tasks::task_spec::TaskSpec::StackLayerOnColor {
+            background: $background.to_owned(),
+            foreground: $foreground
+        })
+    };
+    ( $background:expr, $first_layer:expr, $( $more_layers:expr ),+ ) => {{
+        let mut layers_so_far = crate::stack_on!($background, $first_layer);
+        $( layers_so_far = crate::stack!(layers_so_far, $more_layers); )+
+        layers_so_far
+    }};
 }
 
 #[macro_export]
