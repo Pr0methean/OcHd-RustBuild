@@ -1,14 +1,13 @@
 use std::any::TypeId;
-use fn_graph::{DataAccessDyn, FnGraphBuilder, FnId, TypeIds};
-use resman::{FnRes, IntoFnRes, IntoFnResource, Resources};
-use smallvec::SmallVec;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 use std::ops::Mul;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
+use async_dag::TryGraph;
 use cached::lazy_static::lazy_static;
+use daggy::NodeIndex;
 use ordered_float::OrderedFloat;
 use tiny_skia::Pixmap;
 use crate::image_tasks::from_svg::from_svg;
@@ -78,9 +77,9 @@ impl Display for TaskSpec {
 
 impl <'a, 'b> TaskSpec {
     pub fn add_to<F>(&self,
-                     graph: &mut FnGraphBuilder<&'a F>,
-                     existing_nodes: &'b mut HashMap<&'a TaskSpec, FnId>,
-                     tile_width: u32) -> &FnId {
+                     graph: &mut TryGraph<anyhow::Error>,
+                     existing_nodes: &'b mut HashMap<&'a TaskSpec, NodeIndex>,
+                     tile_width: u32) -> &NodeIndex {
         if existing_nodes.contains_key(self) {
             return existing_nodes.get(self).unwrap();
         }
@@ -89,10 +88,11 @@ impl <'a, 'b> TaskSpec {
             TaskSpec::Animate { background, frames } => {
                 let frame_count = frames.len();
                 let background_id = background.add_to(graph, existing_nodes, tile_width);
-                let frame_ids: Vec<&FnId> = frames.iter()
+                let frame_ids: Vec<&NodeIndex> = frames.iter()
                     .map(|frame| frame.add_to(graph, existing_nodes, tile_width))
                     .collect();
-                let animate_id = graph.add_fn(animate.into_fn_res());
+                let animate_id = graph.add_try_task(|background, frames| animate(background, frames));
+
                 let frame_asset_strings: Vec<String> = (0..frame_count)
                     .map(|index| format!("{name}::frame{index}"))
                     .collect();

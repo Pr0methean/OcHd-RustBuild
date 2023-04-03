@@ -1,8 +1,9 @@
+use std::future::Future;
 use anyhow::anyhow;
 use tiny_skia::{Pixmap, PixmapPaint};
 use tiny_skia_path::Transform;
 
-pub fn animate(background: Pixmap, frames: Box<dyn ExactSizeIterator<Item=Pixmap>>)
+pub fn animate(background: Pixmap, frames: Vec<Box<dyn Future<Output=Pixmap>>>)
         -> Result<Pixmap, anyhow::Error> {
     let frame_count = frames.len() as u32;
     let frame_height = background.height().to_owned();
