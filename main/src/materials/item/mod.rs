@@ -1,3 +1,3 @@
-use crate::texture_base::material::MaterialGroup;
+use crate::group;
 
-pub const ALL_ITEMS: MaterialGroup = MaterialGroup { members: vec![] };
+group!(ALL_ITEMS =);

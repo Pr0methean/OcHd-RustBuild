@@ -16,7 +16,7 @@ pub fn animate(background: Pixmap, frames: Box<dyn ExactSizeIterator<Item=Pixmap
                         None);
     }
     drop(background);
-    let mut i: &u32 = &0;
+    let mut i: u32 = 0;
     for frame in frames {
         out.draw_pixmap(0, (i * frame_height) as i32,
                         frame.as_ref(),
@@ -24,7 +24,7 @@ pub fn animate(background: Pixmap, frames: Box<dyn ExactSizeIterator<Item=Pixmap
                         Transform::default(),
                         None);
         drop(frame);
-        i = &(i + 1);
+        i += 1;
     }
     return Ok(out);
 }

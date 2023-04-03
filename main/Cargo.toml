@@ -17,4 +17,4 @@ cached = "0.42.0"
 ordered-float = "3.6.0"
 lazy_static = "1.4.0"
 strum = "0.24.1"
-const-str = "0.5.4"
+const_format = {version = "0.2.30", features = ["fmt", "rust_1_64"]}

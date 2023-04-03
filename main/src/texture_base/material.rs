@@ -1,6 +1,5 @@
 use std::ops::{Deref};
 use crate::image_tasks::task_spec::{out_task, paint_svg_task, TaskSpec};
-use strum::IntoEnumIterator;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::path::{PathBuf};
@@ -15,11 +14,11 @@ pub trait Material: Sync + Send {
 }
 
 #[derive(Clone)]
-pub struct MaterialGroup {
-    pub(crate) members: Vec<Arc<dyn Material>>
+pub struct MaterialGroup<'a> {
+    pub(crate) members: Vec<Arc<&'a dyn Material>>
 }
 
-impl Material for MaterialGroup {
+impl <'a> Material for MaterialGroup<'a> {
     fn get_output_tasks(&self) -> Vec<Arc<TaskSpec>> {
         return self.members.iter()
             .flat_map(|material| material.get_output_tasks())
@@ -30,28 +29,19 @@ impl Material for MaterialGroup {
 #[macro_export]
 macro_rules! group {
     ($name:ident = $( $members:expr ),* ) => {
-        pub const $name: std::sync::Arc<crate::texture_base::material::MaterialGroup>
-        = std::sync::Arc::new(crate::texture_base::material::MaterialGroup {
-            members: vec![$(std::sync::Arc::new($members)),*]
-        })
-    }
-}
-
-impl <E, F, G> Material for E where E: IntoEnumIterator<Iterator=F> + Sync + Send,
-                                    F : Iterator<Item=G>, G: Material {
-    fn get_output_tasks(&self) -> Vec<Arc<TaskSpec>> {
-        return E::iter()
-            .flat_map(|material| material.get_output_tasks())
-            .collect();
+        lazy_static::lazy_static! {pub static ref $name: crate::texture_base::material::MaterialGroup<'static>
+        = crate::texture_base::material::MaterialGroup {
+            members: vec![$(std::sync::Arc::new(&*$members)),*]
+        };}
     }
 }
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct SingleTextureMaterial {
-    pub(crate) name: &'static str,
-    directory: &'static str,
-    has_output: bool,
-    texture: Arc<TaskSpec>
+    pub name: &'static str,
+    pub directory: &'static str,
+    pub has_output: bool,
+    pub texture: Arc<TaskSpec>
 }
 
 impl Into<TaskSpec> for SingleTextureMaterial {
@@ -71,18 +61,18 @@ impl Material for SingleTextureMaterial {
 
 #[macro_export]
 macro_rules! single_texture_material {
-    ($name:ident = $directory:expr, $texture:expr ) => {
-        pub const $name: std::sync::Arc<crate::texture_base::material::SingleTextureMaterial> =
-        std::sync::Arc::new(crate::texture_base::material::SingleTextureMaterial {
-            name: const_str::convert_ascii_case!(lower, &stringify!($name)),
+    ($name:ident = $directory:expr, $background:expr, $( $layers:expr ),* ) => {
+        lazy_static::lazy_static! {pub static ref $name: crate::texture_base::material::SingleTextureMaterial =
+        crate::texture_base::material::SingleTextureMaterial {
+            name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
             directory: $directory,
             has_output: true,
-            texture: $texture
-        });
+            texture: crate::stack_on!($background, $($layers),*)
+        };}
     }
 }
 
-pub fn item(name: &str, texture: Arc<TaskSpec>) -> SingleTextureMaterial {
+pub fn item(name: &'static str, texture: Arc<TaskSpec>) -> SingleTextureMaterial {
     return SingleTextureMaterial {
         name, directory: "items", has_output: true, texture
     }
@@ -90,12 +80,12 @@ pub fn item(name: &str, texture: Arc<TaskSpec>) -> SingleTextureMaterial {
 
 #[macro_export]
 macro_rules! single_texture_item {
-    ($name:ident = $texture:expr ) => {
-        crate::single_texture_material!($name = "item", $texture);
+    ($name:ident = $background:expr, $( $layers:expr ),* ) => {
+        crate::single_texture_material!($name = "item", $background, $($layers),*);
     }
 }
 
-pub fn block(name: &str, texture: Arc<TaskSpec>) -> SingleTextureMaterial {
+pub fn block(name: &'static str, texture: Arc<TaskSpec>) -> SingleTextureMaterial {
     return SingleTextureMaterial {
         name, directory: "blocks", has_output: true, texture
     }
@@ -103,12 +93,12 @@ pub fn block(name: &str, texture: Arc<TaskSpec>) -> SingleTextureMaterial {
 
 #[macro_export]
 macro_rules! single_texture_block {
-    ($name:ident = $texture:expr ) => {
-        crate::single_texture_material!($name = "block", $texture);
+    ($name:ident = $background:expr, $( $layers:expr ),* ) => {
+        crate::single_texture_material!($name = "block", $background, $($layers),*);
     }
 }
 
-pub fn particle(name: &str, texture: Arc<TaskSpec>) -> SingleTextureMaterial {
+pub fn particle(name: &'static str, texture: Arc<TaskSpec>) -> SingleTextureMaterial {
     return SingleTextureMaterial {
         name, directory: "particles", has_output: true, texture
     }
@@ -116,32 +106,38 @@ pub fn particle(name: &str, texture: Arc<TaskSpec>) -> SingleTextureMaterial {
 
 #[macro_export]
 macro_rules! single_texture_particle {
-    ($name:ident = $texture:expr ) => {
-        crate::single_texture_material!($name = "particle", $texture);
+    ($name:ident = $background:expr, $( $layers:expr ),* ) => {
+        crate::single_texture_material!($name = "particle", $background, $($layers),*);
     }
 }
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
-pub struct DoubleTallBlock {
-    name: &'static str,
+pub struct DoubleTallBlock<'a> {
+    name: &'a str,
     bottom_layers: Arc<TaskSpec>,
     top_layers: Arc<TaskSpec>
 }
 
-impl Material for DoubleTallBlock {
+/*
+FIXME: This doesn't compile:
+
+impl Material for DoubleTallBlock<'static> {
     fn get_output_tasks(&self) -> Vec<Arc<TaskSpec>> {
-        let mut output_tasks = block(&*format!("{}_bottom", self.name), self.bottom_layers.to_owned()).get_output_tasks();
-        output_tasks.extend(block(&*format!("{}_top", self.name), self.top_layers.to_owned()).get_output_tasks());
+        let mut output_tasks = block(&formatcp!("{}_bottom", self.name),
+                                     self.bottom_layers.to_owned()).get_output_tasks();
+        output_tasks.extend(block(&formatcp!("{}_top", self.name), self.top_layers.to_owned()).get_output_tasks());
         return output_tasks;
     }
 }
 
+*/
+
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
-struct GroundCoverBlock {
-    name: &'static str,
-    base: Arc<TaskSpec>,
-    cover_side_layers: Vec<Arc<TaskSpec>>,
-    top: Arc<TaskSpec>,
+pub struct GroundCoverBlock {
+    pub name: &'static str,
+    pub base: Arc<TaskSpec>,
+    pub cover_side_layers: Vec<Arc<TaskSpec>>,
+    pub top: Arc<TaskSpec>,
 }
 
 impl Material for GroundCoverBlock {
@@ -161,10 +157,10 @@ impl Material for GroundCoverBlock {
 }
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
-struct SingleLayerMaterial {
-    name: &'static str,
-    layer_name: &'static str,
-    color: ComparableColor,
+pub struct SingleLayerMaterial {
+    pub name: &'static str,
+    pub layer_name: &'static str,
+    pub color: ComparableColor,
 }
 
 impl Material for SingleLayerMaterial {

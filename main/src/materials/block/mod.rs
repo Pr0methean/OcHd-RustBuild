@@ -7,6 +7,6 @@ mod pickaxe;
 mod shears;
 mod shovel;
 
-use crate::texture_base::material::MaterialGroup;
+use crate::group;
 
-pub const ALL_BLOCKS: MaterialGroup = MaterialGroup { members: vec![] };
+group!(ALL_BLOCKS = axe::AXE_BLOCKS);

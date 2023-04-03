@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
-use std::ops::{BitAnd, Mul, Shr};
+use std::ops::Mul;
 use tiny_skia::Color;
 use tiny_skia::ColorU8;
 use tiny_skia::PremultipliedColor;
@@ -165,14 +165,15 @@ pub const fn rgba(r: u8, g: u8, b: u8, a: u8) -> ComparableColor {
 }
 
 pub const fn gray(lightness: u8) -> ComparableColor {
-    rgb(lightness, lightness.to_owned(), lightness.to_owned())
+    rgb(lightness, lightness, lightness)
 }
 
 pub const fn c(rgb: u32) -> ComparableColor {
+    let bytes = rgb.to_be_bytes();
     ComparableColor {
-        red: u8::try_from(rgb.shr(16)).unwrap(),
-        green: u8::try_from(rgb.shr(8u32).bitand(u32::from(u8::max_value()))).unwrap(),
-        blue: u8::try_from(rgb.bitand(u32::from(u8::max_value()))).unwrap(),
+        red: bytes[1],
+        green: bytes[2],
+        blue: bytes[3],
         alpha: u8::max_value()
     }
 }
@@ -185,11 +186,12 @@ fn test_c() {
 }
 
 pub const fn ca(rgb: u32) -> ComparableColor {
+    let bytes = rgb.to_be_bytes();
     ComparableColor {
-        red: u8::try_from(rgb.shr(24)).unwrap(),
-        green: u8::try_from(rgb.shr(16u32).bitand(u32::from(u8::max_value()))).unwrap(),
-        blue: u8::try_from(rgb.shr(8u32).bitand(u32::from(u8::max_value()))).unwrap(),
-        alpha: u8::try_from(rgb.bitand(u32::from(u8::max_value()))).unwrap()
+        red: bytes[0],
+        green: bytes[1],
+        blue: bytes[2],
+        alpha: bytes[3]
     }
 }
 
