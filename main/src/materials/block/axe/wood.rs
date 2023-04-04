@@ -551,10 +551,10 @@ lazy_static!{pub static ref WARPED: Wood = nether_fungus(
 
 impl Material for Wood {
     fn get_output_tasks(&self) -> Vec<Arc<TaskSpec>> {
-        let door_common_layers = &(self.door_common_layers)(self);
-        let door_bottom = &(self.door_bottom)(self, door_common_layers.to_owned());
-        let stripped_log_side = &(self.stripped_log_side)(self);
-        let stripped_log_top = &(self.stripped_log_top)(self, stripped_log_side.to_owned());
+        let door_common_layers: Arc<TaskSpec> = (self.door_common_layers)(self);
+        let door_bottom: Arc<TaskSpec> = (self.door_bottom)(self, door_common_layers.to_owned());
+        let stripped_log_side: Arc<TaskSpec> = (self.stripped_log_side)(self);
+        let stripped_log_top: Arc<TaskSpec> = (self.stripped_log_top)(self, stripped_log_side.to_owned());
         return vec![
             out_task(&*format!("block/{}_{}", self.name, self.log_synonym), (self.bark)(self)),
             out_task(&*format!("block/stripped_{}_{}", self.name, self.log_synonym), stripped_log_side.to_owned()),
