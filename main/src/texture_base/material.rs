@@ -1,5 +1,4 @@
 use std::ops::{Deref};
-use const_format::formatcp;
 use crate::image_tasks::task_spec::{out_task, paint_svg_task, TaskSpec};
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -145,15 +144,14 @@ impl Material for GroundCoverBlock {
     fn get_output_tasks(&self) -> Vec<Arc<TaskSpec>> {
         let mut side_layers: Vec<Arc<TaskSpec>> = vec!(self.base.to_owned());
         side_layers.push(self.cover_side_layers.to_owned());
-        return vec!(Arc::new(PngOutput {
+        return vec![Arc::new(PngOutput {
             base: self.top.to_owned(),
-            destinations: Arc::new(vec!(PathBuf::from(format!("block/{}_top", self.name))))}),
+            destinations: vec![PathBuf::from(format!("block/{}_top", self.name))]}),
         Arc::new(PngOutput {
             base: stack!(
                 self.base.to_owned(),
                 self.cover_side_layers.to_owned()),
-            destinations: Arc::new(vec![PathBuf::from(format!("block/{}_side", self.name))])
-        }));
+            destinations: vec![PathBuf::from(format!("block/{}_side", self.name))]})];
     }
 }
 
@@ -177,11 +175,11 @@ pub fn redstone_off_and_on(name: &str, generator: Box<dyn Fn(ComparableColor) ->
     let mut out: Vec<Arc<TaskSpec>> = vec!();
     out.push(Arc::new(PngOutput {
         base: Arc::new(generator(ComparableColor::BLACK)),
-        destinations: Arc::new(vec!(PathBuf::from(name)))
+        destinations: vec![PathBuf::from(name)]
     }));
     out.push(Arc::new(PngOutput {
         base: Arc::new(generator(REDSTONE_ON)),
-        destinations: Arc::new(vec!(PathBuf::from(format!("{}_on", name))))
+        destinations: vec![PathBuf::from(format!("{}_on", name))]
     }));
     return out;
 }

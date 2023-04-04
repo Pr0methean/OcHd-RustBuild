@@ -31,7 +31,7 @@ pub fn dyed_block(name: &str,
     for (dye_name, dye_color) in DYES {
         out.push(Arc::new(PngOutput {
             base: Arc::new(create_dyed_texture(dye_name, *dye_color)),
-            destinations: Arc::new(vec!(PathBuf::from(format!("blocks/{}_{}", dye_name, name))))
+            destinations: vec![PathBuf::from(format!("blocks/{}_{}", dye_name, name))]
         }));
     }
     return out;
