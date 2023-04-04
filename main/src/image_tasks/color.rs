@@ -7,7 +7,7 @@ use tiny_skia::PremultipliedColor;
 use tiny_skia::PremultipliedColorU8;
 
 /// Wrapper around [ColorU8] that implements important missing traits such as [Eq], [Hash], [Copy],
-/// [Clone] and [Ord].
+/// [Clone] and [Ord]. Represents a 24-bit sRGB color + 8-bit alpha value.
 #[derive(Eq, Debug, Copy, Clone, Ord, PartialOrd)]
 pub struct ComparableColor {
     red: u8,
@@ -24,13 +24,13 @@ impl ComparableColor {
 
     pub const TRANSPARENT: ComparableColor = rgba(0,0,0,0);
     pub const BLACK: ComparableColor = gray(0);
-    pub const RED: ComparableColor = rgb(u8::max_value(),0,0);
-    pub const GREEN: ComparableColor = rgb(0,u8::max_value(),0);
-    pub const BLUE: ComparableColor = rgb(0,0,u8::max_value());
-    pub const YELLOW: ComparableColor = rgb(u8::max_value(),u8::max_value(),0);
-    pub const MAGENTA: ComparableColor = rgb(u8::max_value(),0,u8::max_value());
-    pub const CYAN: ComparableColor = rgb(0,u8::max_value(),u8::max_value());
-    pub const WHITE: ComparableColor = gray(u8::max_value());
+    pub const RED: ComparableColor = rgb(u8::MAX,0,0);
+    pub const GREEN: ComparableColor = rgb(0,u8::MAX,0);
+    pub const BLUE: ComparableColor = rgb(0,0,u8::MAX);
+    pub const YELLOW: ComparableColor = rgb(u8::MAX,u8::MAX,0);
+    pub const MAGENTA: ComparableColor = rgb(u8::MAX,0,u8::MAX);
+    pub const CYAN: ComparableColor = rgb(0,u8::MAX,u8::MAX);
+    pub const WHITE: ComparableColor = gray(u8::MAX);
 
     pub const STONE_EXTREME_SHADOW: ComparableColor = gray(0x51);
     pub const STONE_SHADOW: ComparableColor = gray(0x74);
@@ -69,7 +69,7 @@ impl Display for ComparableColor {
     }
 }
 
-const CHANNEL_MAX_F32: f32 = u8::max_value() as f32;
+const CHANNEL_MAX_F32: f32 = u8::MAX as f32;
 
 impl From<Color> for ComparableColor {
     fn from(value: Color) -> Self {
@@ -154,7 +154,7 @@ impl Hash for ComparableColor {
 
 pub const fn rgb(r: u8, g: u8, b: u8) -> ComparableColor {
     ComparableColor {
-        red: r, green: g, blue: b, alpha: u8::max_value()
+        red: r, green: g, blue: b, alpha: u8::MAX
     }
 }
 
@@ -174,14 +174,14 @@ pub const fn c(rgb: u32) -> ComparableColor {
         red: bytes[1],
         green: bytes[2],
         blue: bytes[3],
-        alpha: u8::max_value()
+        alpha: u8::MAX
     }
 }
 
 #[test]
 fn test_c() {
     assert_eq!(c(0xc0ffee),
-               ComparableColor { red: 0xc0, green: 0xff, blue: 0xee, alpha: u8::max_value() }
+               ComparableColor { red: 0xc0, green: 0xff, blue: 0xee, alpha: u8::MAX }
     )
 }
 

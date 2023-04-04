@@ -18,7 +18,6 @@ use crate::image_tasks::animate::animate;
 use crate::image_tasks::repaint::paint;
 use crate::image_tasks::stack::{stack_layer_on_background, stack_layer_on_layer};
 use crate::image_tasks::task_spec::TaskSpec::{FromSvg, PngOutput};
-use crate::image_tasks::task_spec::TaskSpecDecorator::{MakeSemitransparent, Repaint};
 
 /// Specification of a task that produces and/or consumes at least one [Pixmap]. Created
 /// to de-duplicate copies of the same task, since function closures don't implement [Eq] or [Hash].
@@ -28,7 +27,7 @@ pub enum TaskSpec {
     Animate {background: Arc<TaskSpec>, frames: Vec<Arc<TaskSpec>>},
     FromSvg {source: PathBuf},
     MakeSemitransparent {base: Arc<TaskSpec>, alpha: OrderedFloat<f32>},
-    PngOutput {base: Arc<TaskSpec>, destinations: Arc<Vec<PathBuf>>},
+    PngOutput {base: Arc<TaskSpec>, destinations: Vec<PathBuf>},
     Repaint {base: Arc<TaskSpec>, color: ComparableColor},
     StackLayerOnColor {background: ComparableColor, foreground: Arc<TaskSpec>},
     StackLayerOnLayer {background: Arc<TaskSpec>, foreground: Arc<TaskSpec>},
@@ -150,10 +149,12 @@ impl <'a, 'b> TaskSpec {
             },
             PngOutput { base, destinations } => {
                 base.add_to(graph, existing_nodes, tile_width);
-                graph.add_node(create_node!(name: name.to_string(),
-                    (destinations: Vec<PathBuf>, base: Pixmap) -> () {
-                        png_output(base, destinations).unwrap();
-                })).unwrap();
+                let node: Node<fn(&mut GraphSolver) -> Result<SolverStatus, SolverError>>
+                    = create_node!(name: name.to_string(),
+                        (destinations_copy: Vec<PathBuf>, base_pixmap: Pixmap) -> ()
+                    png_output(base_pixmap, destinations_copy).unwrap();
+                );
+                graph.add_node(node).unwrap();
                 graph.bind_asset(&*format!("{}::output", base),
                                  &*format!("{}::base", self)).unwrap();
                 graph.define_freestanding_asset(&*format!("{}::destinations", self),
@@ -236,8 +237,8 @@ pub fn semitrans_svg_task(name: &str, alpha: f32) -> Arc<TaskSpec> {
             alpha: alpha.into()});
 }
 
-pub fn path(name: &str) -> Arc<Vec<PathBuf>> {
-    return Arc::new(vec!(name_to_out_path(name)));
+pub fn path(name: &str) -> Vec<PathBuf> {
+    return vec![name_to_out_path(name)];
 }
 
 pub fn out_task(name: &str, base: Arc<TaskSpec>) -> Arc<TaskSpec> {
@@ -321,33 +322,5 @@ impl Mul<ComparableColor> for TaskSpec {
                 color: rhs
             }
         };
-    }
-}
-
-pub enum TaskSpecDecorator {
-    MakeSemitransparent {alpha: OrderedFloat<f32>},
-    Repaint {color: ComparableColor}
-}
-
-impl TaskSpecDecorator {
-    fn apply(&self, base: TaskSpec) -> TaskSpec {
-        return match self {
-            MakeSemitransparent { alpha }
-                => TaskSpec::MakeSemitransparent {base: Arc::new(base), alpha: alpha.to_owned() },
-            Repaint { color }
-                => TaskSpec::Repaint {base: Arc::new(base), color: color.to_owned()}
-        }
-    }
-}
-
-impl From<ComparableColor> for TaskSpecDecorator {
-    fn from(value: ComparableColor) -> Self {
-        Repaint {color: value}
-    }
-}
-
-impl From<f32> for TaskSpecDecorator {
-    fn from(value: f32) -> Self {
-        MakeSemitransparent {alpha: value.into()}
     }
 }

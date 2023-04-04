@@ -542,7 +542,11 @@ lazy_static!{pub static ref WARPED: Wood = nether_fungus(
         paint_stack!(WARPED.leaves_shadow, "leaves3", "borderSolid"),
         paint_stack!(WARPED.leaves_highlight, "leaves3a", "leaves3b", "borderShortDashes")
     )),
-    Box::new(/*sapling*/ |_wood| stack!())
+    Box::new(/*sapling*/ |_wood| stack!(
+        paint_svg_task("mushroomStem", WARPED.bark_shadow),
+        paint_svg_task("warpedFungusCap", WARPED.leaves_color),
+        paint_svg_task("warpedFungusSpots", FUNGUS_SPOT_COLOR)
+    ))
 );}
 
 impl Material for Wood {

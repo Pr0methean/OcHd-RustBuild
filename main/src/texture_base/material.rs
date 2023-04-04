@@ -1,4 +1,5 @@
 use std::ops::{Deref};
+use const_format::formatcp;
 use crate::image_tasks::task_spec::{out_task, paint_svg_task, TaskSpec};
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -7,7 +8,7 @@ use std::sync::Arc;
 use crate::image_tasks::color::rgb;
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::task_spec::TaskSpec::PngOutput;
-use crate::image_tasks::task_spec::TaskSpec::Stack;
+use crate::stack;
 
 pub trait Material: Sync + Send {
     fn get_output_tasks(&self) -> Vec<Arc<TaskSpec>>;
@@ -136,23 +137,23 @@ impl Material for DoubleTallBlock<'static> {
 pub struct GroundCoverBlock {
     pub name: &'static str,
     pub base: Arc<TaskSpec>,
-    pub cover_side_layers: Vec<Arc<TaskSpec>>,
+    pub cover_side_layers: Arc<TaskSpec>,
     pub top: Arc<TaskSpec>,
 }
 
 impl Material for GroundCoverBlock {
     fn get_output_tasks(&self) -> Vec<Arc<TaskSpec>> {
         let mut side_layers: Vec<Arc<TaskSpec>> = vec!(self.base.to_owned());
-        side_layers.extend(self.cover_side_layers.to_owned());
+        side_layers.push(self.cover_side_layers.to_owned());
         return vec!(Arc::new(PngOutput {
             base: self.top.to_owned(),
             destinations: Arc::new(vec!(PathBuf::from(format!("block/{}_top", self.name))))}),
         Arc::new(PngOutput {
-            base: Arc::new(Stack {
-                background: ComparableColor::TRANSPARENT,
-                layers: side_layers}),
-            destinations: Arc::new(vec!(PathBuf::from(format!("block/{}_side", self.name))))})
-        );
+            base: stack!(
+                self.base.to_owned(),
+                self.cover_side_layers.to_owned()),
+            destinations: Arc::new(vec![PathBuf::from(format!("block/{}_side", self.name))])
+        }));
     }
 }
 
