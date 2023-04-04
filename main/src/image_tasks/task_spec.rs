@@ -16,7 +16,7 @@ use crate::image_tasks::png_output::png_output;
 use crate::image_tasks::repaint::AlphaChannel;
 use crate::image_tasks::animate::animate;
 use crate::image_tasks::repaint::paint;
-use crate::image_tasks::stack::{stack, stack_layer_on_background, stack_layer_on_layer};
+use crate::image_tasks::stack::{stack_layer_on_background, stack_layer_on_layer};
 use crate::image_tasks::task_spec::TaskSpec::{FromSvg, PngOutput};
 use crate::image_tasks::task_spec::TaskSpecDecorator::{MakeSemitransparent, Repaint};
 
