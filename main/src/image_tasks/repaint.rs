@@ -1,9 +1,10 @@
-use anyhow::anyhow;
+use anyhow::{anyhow, Error};
 use tiny_skia::{Pixmap, PremultipliedColorU8};
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::make_semitransparent::create_alpha_array;
 use cached::proc_macro::cached;
 use std::ops::Mul;
+use std::sync::Arc;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialOrd, PartialEq)]
 pub struct AlphaChannel {
@@ -36,6 +37,12 @@ impl From<&Pixmap> for AlphaChannel {
     }
 }
 
+pub fn to_alpha_channel(pixmap: &Pixmap) -> Result<AlphaChannel,Error> {
+    let alpha = AlphaChannel::from(pixmap);
+    drop(pixmap);
+    return Ok(alpha);
+}
+
 impl Mul<f32> for AlphaChannel {
     type Output = AlphaChannel;
 
@@ -54,7 +61,7 @@ impl Mul<ComparableColor> for AlphaChannel {
     type Output = Pixmap;
 
     fn mul(self, rhs: ComparableColor) -> Self::Output {
-        return paint(self, rhs).unwrap();
+        return paint(&self, &rhs).unwrap();
     }
 }
 
@@ -69,9 +76,9 @@ fn create_paint_array(color: ComparableColor) -> [PremultipliedColorU8; 256] {
         .collect::<Vec<PremultipliedColorU8>>().try_into().unwrap();
 }
 
-pub fn paint(input: AlphaChannel, color: ComparableColor) -> Result<Pixmap, anyhow::Error> {
-    let paint_array = create_paint_array(color);
-    let input_pixels = input.pixels;
+pub fn paint(input: &AlphaChannel, color: &ComparableColor) -> Result<Pixmap, anyhow::Error> {
+    let paint_array = create_paint_array(color.to_owned());
+    let input_pixels = input.pixels();
     let mut output = Pixmap::new(input.width, input.height)
         .ok_or(anyhow!("Failed to create output Pixmap"))?;
     let output_pixels = output.pixels_mut();
@@ -79,6 +86,7 @@ pub fn paint(input: AlphaChannel, color: ComparableColor) -> Result<Pixmap, anyh
         .map(|input_pixel| {
             paint_array[usize::from(*input_pixel)]
         }).collect::<Vec<PremultipliedColorU8>>()[..]));
+    drop(input);
     return Ok(output);
 }
 

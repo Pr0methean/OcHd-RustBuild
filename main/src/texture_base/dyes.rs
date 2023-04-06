@@ -26,13 +26,13 @@ pub static DYES: &'static [(&str, ComparableColor)] = &[
 
 pub fn dyed_block(name: &str,
                   create_dyed_texture: Box<dyn Fn(&str, ComparableColor) -> TaskSpec>)
-        -> Vec<Arc<TaskSpec>>{
-    let mut out: Vec<Arc<TaskSpec>> = vec!();
+        -> Vec<TaskSpec>{
+    let mut out: Vec<TaskSpec> = vec!();
     for (dye_name, dye_color) in DYES {
-        out.push(Arc::new(PngOutput {
-            base: Arc::new(create_dyed_texture(dye_name, *dye_color)),
+        out.push(PngOutput {
+            base: Box::new(create_dyed_texture(dye_name, *dye_color)),
             destinations: vec![PathBuf::from(format!("blocks/{}_{}", dye_name, name))]
-        }));
+        });
     }
     return out;
 }

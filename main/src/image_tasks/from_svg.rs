@@ -5,6 +5,7 @@ use resvg::{FitTo, render};
 use tiny_skia::Pixmap;
 use tiny_skia_path::Transform;
 use usvg::{Options, Tree, TreeParsing};
+use crate::image_tasks::task_spec::CloneableResult;
 
 const COLOR_SVGS: &'static [&str] = &[
     "bed",
@@ -28,7 +29,7 @@ const COLOR_SVGS: &'static [&str] = &[
     "torchFlameSmall",
 ];
 
-pub fn from_svg(path: PathBuf, width: u32) -> Result<Pixmap, anyhow::Error> {
+pub fn from_svg(path: &PathBuf, width: u32) -> CloneableResult<Pixmap> {
     let svg_data = fs::read(path)?;
     let svg_tree = Tree::from_data(&svg_data, &Options::default())?;
     let view_box = svg_tree.view_box;
