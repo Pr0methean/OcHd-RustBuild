@@ -5,7 +5,8 @@ use resvg::{FitTo, render};
 use tiny_skia::Pixmap;
 use tiny_skia_path::Transform;
 use usvg::{Options, Tree, TreeParsing};
-use crate::image_tasks::task_spec::CloneableResult;
+use crate::anyhoo;
+use crate::image_tasks::task_spec::{TaskResult};
 
 const COLOR_SVGS: &'static [&str] = &[
     "bed",
@@ -29,18 +30,18 @@ const COLOR_SVGS: &'static [&str] = &[
     "torchFlameSmall",
 ];
 
-pub fn from_svg(path: &PathBuf, width: u32) -> CloneableResult<Pixmap> {
-    let svg_data = fs::read(path)?;
-    let svg_tree = Tree::from_data(&svg_data, &Options::default())?;
+pub fn from_svg(path: PathBuf, width: u32) -> TaskResult {
+    let svg_data = fs::read(path).map_err(|error| anyhoo!(error))?;
+    let svg_tree = Tree::from_data(&svg_data, &Options::default()).map_err(|error| anyhoo!(error))?;
     let view_box = svg_tree.view_box;
     let height = f64::from(width) * view_box.rect.height() / view_box.rect.width();
     let mut out = Pixmap::new(width.to_owned(), height as u32)
-        .ok_or(anyhow!("Failed to create output Pixmap"))?;
+        .ok_or(anyhoo!("Failed to create output Pixmap"))?;
     render(
         &svg_tree,
         FitTo::Width(width.to_owned()),
         Transform::default(),
         out.as_mut())
-        .ok_or(anyhow!("Failed to render output Pixmap"))?;
-    return Ok(out);
+        .ok_or(anyhoo!("Failed to render output Pixmap"))?;
+    return TaskResult::Pixmap {value: out};
 }

@@ -2,6 +2,7 @@ use tiny_skia::{ColorU8, Pixmap};
 use cached::proc_macro::cached;
 use ordered_float::OrderedFloat;
 use std::sync::Arc;
+use crate::image_tasks::task_spec::TaskResult;
 
 #[cached(sync_writes = true)]
 pub(crate) fn create_alpha_array(out_alpha: OrderedFloat<f32>) -> [u8; 256] {
@@ -10,7 +11,7 @@ pub(crate) fn create_alpha_array(out_alpha: OrderedFloat<f32>) -> [u8; 256] {
         .collect::<Vec<u8>>().try_into().unwrap();
 }
 
-pub fn make_semitransparent(input: &Pixmap, alpha: f32) -> Result<Pixmap, anyhow::Error> {
+pub fn make_semitransparent(input: Pixmap, alpha: f32) -> TaskResult {
     let alpha_array = create_alpha_array(alpha.into());
     let mut output = input.to_owned();
     let output_pixels = output.pixels_mut();
@@ -20,5 +21,5 @@ pub fn make_semitransparent(input: &Pixmap, alpha: f32) -> Result<Pixmap, anyhow
                 alpha_array[pixel.alpha() as usize]).premultiply();
     }
     drop(input);
-    return Ok(output);
+    return TaskResult::Pixmap {value: output};
 }

@@ -5,6 +5,8 @@ use crate::image_tasks::make_semitransparent::create_alpha_array;
 use cached::proc_macro::cached;
 use std::ops::Mul;
 use std::sync::Arc;
+use crate::anyhoo;
+use crate::image_tasks::task_spec::TaskResult;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialOrd, PartialEq)]
 pub struct AlphaChannel {
@@ -37,10 +39,10 @@ impl From<&Pixmap> for AlphaChannel {
     }
 }
 
-pub fn to_alpha_channel(pixmap: &Pixmap) -> Result<AlphaChannel,Error> {
-    let alpha = AlphaChannel::from(pixmap);
+pub fn to_alpha_channel(pixmap: Pixmap) -> TaskResult {
+    let alpha = AlphaChannel::from(&pixmap);
     drop(pixmap);
-    return Ok(alpha);
+    return TaskResult::AlphaChannel {value: alpha};
 }
 
 impl Mul<f32> for AlphaChannel {
@@ -58,10 +60,10 @@ impl Mul<f32> for AlphaChannel {
 }
 
 impl Mul<ComparableColor> for AlphaChannel {
-    type Output = Pixmap;
+    type Output = TaskResult;
 
     fn mul(self, rhs: ComparableColor) -> Self::Output {
-        return paint(&self, &rhs).unwrap();
+        return paint(self, &rhs);
     }
 }
 
@@ -76,18 +78,18 @@ fn create_paint_array(color: ComparableColor) -> [PremultipliedColorU8; 256] {
         .collect::<Vec<PremultipliedColorU8>>().try_into().unwrap();
 }
 
-pub fn paint(input: &AlphaChannel, color: &ComparableColor) -> Result<Pixmap, anyhow::Error> {
+pub fn paint(input: AlphaChannel, color: &ComparableColor) -> TaskResult {
     let paint_array = create_paint_array(color.to_owned());
     let input_pixels = input.pixels();
     let mut output = Pixmap::new(input.width, input.height)
-        .ok_or(anyhow!("Failed to create output Pixmap"))?;
+        .ok_or(anyhoo!("Failed to create output Pixmap"))?;
     let output_pixels = output.pixels_mut();
     output_pixels.copy_from_slice(&(input_pixels.iter()
         .map(|input_pixel| {
             paint_array[usize::from(*input_pixel)]
         }).collect::<Vec<PremultipliedColorU8>>()[..]));
     drop(input);
-    return Ok(output);
+    return TaskResult::Pixmap {value: output};
 }
 
 #[cfg(test)]
@@ -121,8 +123,8 @@ pub mod tests {
         let alpha_channel = AlphaChannel::from(&*pixmap);
         let repainted_alpha: u8 = 0xcf;
         let red = ColorU8::from_rgba(0xff, 0, 0, repainted_alpha);
-        let repainted_red = paint(alpha_channel, ComparableColor::from(red))
-            .unwrap();
+        let repainted_red: Pixmap = paint(alpha_channel, &ComparableColor::from(red))
+            .try_into().unwrap();
         let pixmap_pixels = pixmap.pixels();
         let repainted_pixels = repainted_red.pixels();
         for index in 0usize..((side_length.to_owned() * side_length.to_owned()) as usize) {
