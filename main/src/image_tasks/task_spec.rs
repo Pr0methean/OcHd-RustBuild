@@ -268,57 +268,6 @@ impl <'a, T> Future for CloneableFutureWrapper<'a, T> where T: Clone + Send {
             }
         }
     }
-
-    /*
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        return match self.result.try_lock() {
-            Ok(mut locked_result) => {
-                let mut locked_result = locked_result.deref_mut();
-                match locked_result {
-                    Some(result) => Poll::Ready(result.to_owned()),
-                    None => {
-                        let mut future = self.future.get_mut().unwrap();
-                        let new_result = future.poll_unpin(cx);
-                        match new_result {
-                            Poll::Ready(new_result) => {
-                                *locked_result = Some(new_result.to_owned());
-                                Poll::Ready(new_result)
-                            },
-                            Poll::Pending => Poll::Pending
-                        }
-                    }
-                }
-            }
-            Err(TryLockError::WouldBlock) => {
-                let weak_self = Arc::downgrade(&mut Arc::new(self.deref()));
-                self.waker = Arc::downgrade(&Arc::new(cx.waker()));
-                tokio::spawn(async move {
-                    let maybe_self = weak_self.upgrade();
-                    match maybe_self {
-                        Some(live_self) => {
-                            let &mut mut locked_result = live_self.result.get_mut().unwrap();
-                            if locked_result.is_none() {
-                                let &mut locked_future = live_self.future.get_mut().unwrap();
-                                locked_result = Some(locked_future.await);
-                                let maybe_waker = live_self.waker.upgrade();
-                                match maybe_waker {
-                                    Some(live_waker) => {
-                                        live_waker.wake_by_ref();
-                                    }
-                                    None => {}
-                                }
-                            }
-                        }
-                        None => {}
-                    }
-                });
-                Poll::Pending
-            }
-            Err(TryLockError::Poisoned(e)) => {
-                panic!("{}", e)
-            }
-        }
-    }*/
 }
 
 impl IntoFuture for TaskSpec {
@@ -328,8 +277,10 @@ impl IntoFuture for TaskSpec {
         let mut results_map = RESULTS.lock().unwrap();
         let entry = results_map.entry(Arc::new(self.clone()));
         let owned_self = self.to_owned();
-        return entry.or_insert_with(|| CloneableFutureWrapper::new(Box::pin(async {
-            match owned_self {
+        let name = owned_self.to_string();
+        return entry.or_insert_with(|| CloneableFutureWrapper::new(Box::pin(async move {
+            println!("Starting task {}", name);
+            let result = match owned_self {
                 TaskSpec::None { .. } => {
                     TaskResult::Err { value: anyhoo!("Call to into_future() on a None task") }
                 },
@@ -367,7 +318,9 @@ impl IntoFuture for TaskSpec {
                     let base: Pixmap = base.into_future().await.try_into()?;
                     to_alpha_channel(base)
                 }
-            }
+            };
+            println!("Finished task {}", name);
+            result
         }))).clone();
     }
 }
