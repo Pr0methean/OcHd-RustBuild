@@ -19,12 +19,12 @@ use std::path::absolute;
 use std::time::Instant;
 use async_std::fs::{create_dir, remove_dir_all};
 use fn_graph::{FnGraph, FnGraphBuilder, FnId};
-use futures::future::{FutureExt, join_all};
+use futures::future::{FutureExt};
 use lazy_static::lazy_static;
-use tokio::task::{JoinError, JoinHandle};
+
 use texture_base::material::Material;
 
-use crate::image_tasks::task_spec::{OUT_DIR, SVG_DIR, TaskResult, TaskSpec};
+use crate::image_tasks::task_spec::{OUT_DIR, SVG_DIR, TaskSpec};
 
 mod image_tasks;
 mod texture_base;
