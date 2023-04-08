@@ -2,17 +2,19 @@ use std::future::Future;
 use std::ops::Deref;
 use std::pin::Pin;
 use std::sync::Arc;
+
 use anyhow::{anyhow, Error};
 use async_std::future::IntoFuture;
 use futures::future::{BoxFuture, Shared};
 use futures::TryFutureExt;
 use tiny_skia::{Pixmap, PixmapPaint, PixmapRef};
 use tiny_skia_path::Transform;
-use crate::image_tasks::task_spec::{CloneableError, TaskResult, TaskSpec};
-use crate::anyhoo;
 
-pub async fn animate(background: Pixmap, frames: Vec<TaskSpec>)
-                     -> TaskResult {
+use crate::anyhoo;
+use crate::image_tasks::task_spec::{CloneableError, CloneableFutureWrapper, TaskResult, TaskSpec};
+
+pub async fn animate<'a>(background: Pixmap, frames: Vec<CloneableFutureWrapper<'a, TaskResult>>)
+                         -> TaskResult {
     let frame_count = frames.len() as u32;
     let frame_height = background.height().to_owned();
     let mut out = Pixmap::new(background.width(),
@@ -27,7 +29,7 @@ pub async fn animate(background: Pixmap, frames: Vec<TaskSpec>)
     }
     let mut i: u32 = 0;
     for frame in frames {
-        let frame_pixmap: Pixmap = frame.get().await.clone().try_into()?;
+        let frame_pixmap: Pixmap = frame.await.clone().try_into()?;
         out.draw_pixmap(0, (i * frame_height) as i32,
                         frame_pixmap.as_ref(),
                         &PixmapPaint::default(),

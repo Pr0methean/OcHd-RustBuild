@@ -8,6 +8,8 @@
 #![feature(try_trait_v2)]
 #![feature(is_some_and)]
 #![feature(absolute_path)]
+#![feature(result_option_inspect)]
+#![feature(let_chains)]
 
 mod image_tasks;
 mod texture_base;
@@ -16,11 +18,12 @@ use std::any::{Any, TypeId};
 use fn_graph::{FnGraphBuilder, FnGraph, FnId, TypeIds};
 use std::collections::{HashMap};
 use std::env;
-use std::future::Future;
+use std::future::{Future, IntoFuture};
 use std::io::ErrorKind::NotFound;
 use std::ops::DerefMut;
 use std::path::absolute;
 use std::sync::{Arc, RwLock};
+use std::time::Instant;
 use async_std::fs::{remove_dir_all, create_dir};
 use tokio::task::JoinHandle;
 use cached::once_cell::sync::Lazy;
@@ -54,6 +57,7 @@ lazy_static! {
 async fn main() {
     println!("Looking for SVGs in {}", absolute(SVG_DIR.to_path_buf()).unwrap().to_string_lossy());
     println!("Writing output to {}", absolute(OUT_DIR.to_path_buf()).unwrap().to_string_lossy());
+    let start_time = Instant::now();
     let result = remove_dir_all(OUT_DIR.to_owned()).await;
     if result.is_err_and(|err| err.kind() != NotFound) {
         panic!("Failed to delete old output directory");
@@ -65,11 +69,13 @@ async fn main() {
     println!("Graph contains {} total tasks", num_total_tasks);
     let mut futures: Vec<JoinHandle<()>> = vec![];
     for task in GRAPH.iter() {
+        let owned_task = task.to_owned();
         futures.push(tokio::spawn(
             async move {
-                let success: () = task.get().await.try_into().expect(&*format!("Error getting {}", task));
+                let success: () = owned_task.clone().into_future().await.try_into().expect(&*format!("Error getting {}", task));
                 success
             }));
     }
     join_all(futures).await;
+    println!("Finished after {} ns", start_time.elapsed().as_nanos())
 }

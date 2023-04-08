@@ -1,44 +1,51 @@
+use core::borrow::BorrowMut;
+use std::any::Any;
 use std::any::TypeId;
-use fn_graph::{DataAccessDyn, FnGraphBuilder, FnId, TypeIds};
-use resman::{FnRes, IntoFnRes, IntoFnResource, Resources};
-use smallvec::SmallVec;
 use std::collections::{HashMap, HashSet};
+use std::convert::Infallible;
 use std::fmt::{Display, Formatter};
 use std::future::{Future, IntoFuture};
-use futures::future::{BoxFuture, Shared, WeakShared, MapOk};
 use std::ops::{ControlFlow, Deref, DerefMut, FromResidual, Mul, Residual, Try};
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
-use std::sync::{Arc, RwLock, Weak};
-use std::any::Any;
-use std::convert::Infallible;
 use std::pin::{pin, Pin};
 use std::ptr::DynMetadata;
-use tokio::sync::oneshot::{Receiver, Sender, channel};
-use tokio::sync::OnceCell;
-use anyhow::Error;
+use std::rc::Rc;
+use std::str::FromStr;
+use std::sync::{Arc, LockResult, MutexGuard, PoisonError, RwLock, RwLockWriteGuard, TryLockError, TryLockResult, Weak};
+use std::sync::OnceLock;
+use std::task::{Context, Poll, Waker};
+
 use anyhow::anyhow;
+use anyhow::Error;
+use async_recursion::async_recursion;
 use async_std::stream;
-use chashmap_next::CHashMap;
-use cached::lazy_static::lazy_static;
-use fn_meta::{FnMetadata, FnMetadataExt};
-use futures::{FutureExt, TryFutureExt, TryStreamExt};
-use ordered_float::OrderedFloat;
-use tiny_skia::Pixmap;
-use weak_table::{WeakKeyHashMap, WeakValueHashMap};
 use async_std::stream::ExactSizeStream;
 use async_std::stream::from_iter;
 use async_std::stream::StreamExt;
-use std::sync::OnceLock;
-use async_recursion::async_recursion;
-use cached::once_cell::sync::{Lazy};
-use core::borrow::BorrowMut;
-use crate::image_tasks::from_svg::from_svg;
+use cached::lazy_static::lazy_static;
+use cached::once_cell::sync::Lazy;
+use chashmap_next::CHashMap;
+use fn_graph::{DataAccessDyn, FnGraphBuilder, FnId, TypeIds};
+use fn_meta::{FnMetadata, FnMetadataExt};
+use futures::{FutureExt, TryFutureExt, TryStreamExt};
+use futures::executor::block_on;
+use futures::future::{BoxFuture, MapOk, ready, Shared, WeakShared};
+use futures::lock::Mutex;
+use futures::task::WakerRef;
+use ordered_float::OrderedFloat;
+use resman::{FnRes, IntoFnRes, IntoFnResource, Resources};
+use smallvec::SmallVec;
+use tiny_skia::Pixmap;
+use tokio::sync::OnceCell;
+use tokio::sync::oneshot::{channel, Receiver, Sender};
+use weak_table::{WeakKeyHashMap, WeakValueHashMap};
+
+use crate::image_tasks::animate::animate;
 use crate::image_tasks::color::ComparableColor;
+use crate::image_tasks::from_svg::from_svg;
 use crate::image_tasks::make_semitransparent::make_semitransparent;
 use crate::image_tasks::png_output::png_output;
 use crate::image_tasks::repaint::{AlphaChannel, to_alpha_channel};
-use crate::image_tasks::animate::animate;
 use crate::image_tasks::repaint::paint;
 use crate::image_tasks::stack::{stack_layer_on_background, stack_layer_on_layer};
 use crate::image_tasks::task_spec::TaskSpec::{FromSvg, PngOutput};
@@ -237,6 +244,158 @@ impl DataAccessDyn for &TaskSpec {
     }
 }
 
+type SyncMutex<T> = std::sync::Mutex<T>;
+type ResultMap = SyncMutex<WeakKeyHashMap<Weak<TaskSpec>, CloneableFutureWrapper<'static, TaskResult>>>;
+
+#[derive(Clone)]
+pub struct CloneableFutureWrapper<'a, T> where T: Clone + Send {
+    result: Arc<SyncMutex<Option<T>>>,
+    future: Arc<SyncMutex<BoxFuture<'a, T>>>,
+    waker: Weak<&'a Waker>
+}
+
+impl <'a, T> CloneableFutureWrapper<'a, T> where T: Clone + Send {
+    pub fn new<U>(base: U) -> CloneableFutureWrapper<'a, T>
+            where U : Future<Output=T> + Send + 'a {
+        return CloneableFutureWrapper {
+            result: Arc::new(SyncMutex::new(None)),
+            future: Arc::new(SyncMutex::new(Box::pin(base.into_future()))),
+            waker: Weak::new()
+        }
+    }
+}
+
+impl <'a, T> Future for CloneableFutureWrapper<'a, T> where T: Clone + Send {
+    type Output = T;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        return match self.result.lock() {
+            Ok(mut locked_result) => {
+                let locked_result = locked_result.deref_mut();
+                match locked_result {
+                    Some(result) => Poll::Ready(result.to_owned()),
+                    None => {
+                        let mut future = self.future.lock().unwrap();
+                        let new_result = future.poll_unpin(cx);
+                        match new_result {
+                            Poll::Ready(new_result) => {
+                                *locked_result = Some(new_result.to_owned());
+                                Poll::Ready(new_result)
+                            },
+                            Poll::Pending => Poll::Pending
+                        }
+                    }
+                }
+            }
+            Err(PoisonError {..}) => {
+                panic!("Got a PoisonError while polling self")
+            }
+        }
+    }
+
+    /*
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        return match self.result.try_lock() {
+            Ok(mut locked_result) => {
+                let mut locked_result = locked_result.deref_mut();
+                match locked_result {
+                    Some(result) => Poll::Ready(result.to_owned()),
+                    None => {
+                        let mut future = self.future.get_mut().unwrap();
+                        let new_result = future.poll_unpin(cx);
+                        match new_result {
+                            Poll::Ready(new_result) => {
+                                *locked_result = Some(new_result.to_owned());
+                                Poll::Ready(new_result)
+                            },
+                            Poll::Pending => Poll::Pending
+                        }
+                    }
+                }
+            }
+            Err(TryLockError::WouldBlock) => {
+                let weak_self = Arc::downgrade(&mut Arc::new(self.deref()));
+                self.waker = Arc::downgrade(&Arc::new(cx.waker()));
+                tokio::spawn(async move {
+                    let maybe_self = weak_self.upgrade();
+                    match maybe_self {
+                        Some(live_self) => {
+                            let &mut mut locked_result = live_self.result.get_mut().unwrap();
+                            if locked_result.is_none() {
+                                let &mut locked_future = live_self.future.get_mut().unwrap();
+                                locked_result = Some(locked_future.await);
+                                let maybe_waker = live_self.waker.upgrade();
+                                match maybe_waker {
+                                    Some(live_waker) => {
+                                        live_waker.wake_by_ref();
+                                    }
+                                    None => {}
+                                }
+                            }
+                        }
+                        None => {}
+                    }
+                });
+                Poll::Pending
+            }
+            Err(TryLockError::Poisoned(e)) => {
+                panic!("{}", e)
+            }
+        }
+    }*/
+}
+
+impl IntoFuture for TaskSpec {
+    type Output = TaskResult;
+    type IntoFuture = CloneableFutureWrapper<'static, TaskResult>;
+    fn into_future(self) -> CloneableFutureWrapper<'static, TaskResult> {
+        let mut results_map = RESULTS.lock().unwrap();
+        let entry = results_map.entry(Arc::new(self.clone()));
+        let owned_self = self.to_owned();
+        return entry.or_insert_with(|| CloneableFutureWrapper::new(Box::pin(async {
+            match owned_self {
+                TaskSpec::None { .. } => {
+                    TaskResult::Err { value: anyhoo!("Call to into_future() on a None task") }
+                },
+                TaskSpec::Animate { background, frames } => {
+                    let background: Pixmap = background.to_owned().into_future().await.try_into()?;
+                    let frames: Vec<CloneableFutureWrapper<TaskResult>>
+                        = frames.iter().map(|task_spec| task_spec.to_owned().into_future()).collect();
+                    animate(background, frames).await
+                },
+                FromSvg { source } => {
+                    from_svg(source.to_owned(), *TILE_SIZE)
+                },
+                TaskSpec::MakeSemitransparent { base, alpha } => {
+                    let base: Pixmap = base.into_future().await.try_into()?;
+                    make_semitransparent(base, alpha.0)
+                },
+                PngOutput { base, destinations } => {
+                    let base: Pixmap = base.into_future().await.try_into()?;
+                    png_output(base, &destinations)
+                },
+                TaskSpec::Repaint { base, color } => {
+                    let base: AlphaChannel = base.into_future().await.try_into()?;
+                    paint(base, &color)
+                },
+                TaskSpec::StackLayerOnColor { background, foreground } => {
+                    let foreground: Pixmap = foreground.into_future().await.try_into()?;
+                    stack_layer_on_background(&background, foreground)
+                },
+                TaskSpec::StackLayerOnLayer { background, foreground } => {
+                    let background: Pixmap = background.into_future().await.try_into()?;
+                    let foreground: Pixmap = foreground.into_future().await.try_into()?;
+                    stack_layer_on_layer(background, foreground)
+                },
+                TaskSpec::ToAlphaChannel { base } => {
+                    let base: Pixmap = base.into_future().await.try_into()?;
+                    to_alpha_channel(base)
+                }
+            }
+        }))).clone();
+    }
+}
+
 impl TaskSpec {
     pub fn add_to(&'static self,
                   graph: &mut FnGraphBuilder<&TaskSpec>,
@@ -316,11 +475,13 @@ lazy_static! {
 }
 
         pub fn name_to_out_path(name: &str) -> PathBuf {
-            return OUT_DIR.with_file_name(format!("{}.png", name)).as_path().into();
+            let mut out_file_path = OUT_DIR.to_path_buf();
+            out_file_path.push(format!("{}.png", name));
+            return out_file_path;
         }
 
         pub fn name_to_svg_path(name: &str) -> PathBuf {
-            let mut svg_file_path: PathBuf = SVG_DIR.to_path_buf();
+            let mut svg_file_path = SVG_DIR.to_path_buf();
             svg_file_path.push(format!("{}.svg", name));
             return svg_file_path;
         }
@@ -430,83 +591,6 @@ impl Mul<ComparableColor> for TaskSpec {
     }
 }
 
-type ResultMap = RwLock<WeakKeyHashMap<Weak<TaskSpec>, OnceLock<RwLock<Pin<Box<dyn Future<Output=TaskResult> + Send + Sync>>>>>>;
+type SyncBoxFuture<'a, T> = Pin<Box<dyn Future<Output=T> + Send + Sync + 'a>>;
 
-static RESULTS: Lazy<ResultMap> = Lazy::new(|| RwLock::new(WeakKeyHashMap::new()));
-
-macro_rules! create_result_obtainer {
-    ($task_impl:expr) => {{
-        let (sender, receiver) = channel::<CloneableResult<Pixmap>>();
-        spawn(async move {
-            sender.send($task_impl).expect("Error from send()");
-        });
-        receiver
-    }}
-}
-
-
-impl TaskSpec {
-    async fn into_pixmap(&self) -> Result<Pixmap,CloneableError> {
-        let result = self.get().await.to_owned();
-        return result.try_into();
-    }
-
-    pub async fn get(&self) -> TaskResult {
-        let mut results = RESULTS.write()
-            .map_err(|err| anyhoo!(err.to_string()));
-        match results {
-            Err(e) => {
-                return TaskResult::Err {value: e};
-            }
-            _ => {}
-        }
-        let mut result_cell = results.unwrap().entry(Arc::new(self.to_owned()))
-            .or_insert_with(OnceLock::new);
-        let result_lock = result_cell.get_or_init(|| RwLock::new(Box::pin(async { match self {
-                TaskSpec::None { .. } => {
-                    TaskResult::Err { value: anyhoo!("Call to register() on a None task") }
-                },
-                TaskSpec::Animate { background, frames } => {
-                    let background: Pixmap = background.get().await.try_into()?;
-                    animate(background, frames.clone()).await
-                },
-                FromSvg { source } => {
-                    from_svg(source.to_owned(), *TILE_SIZE)
-                },
-                TaskSpec::MakeSemitransparent { base, alpha } => {
-                    let base: Pixmap = base.get().await.try_into()?;
-                    make_semitransparent(base, alpha.0)
-                },
-                PngOutput { base, destinations } => {
-                    let base: Pixmap = base.get().await.try_into()?;
-                    png_output(base, destinations)
-                },
-                TaskSpec::Repaint { base, color } => {
-                    let base: AlphaChannel = base.get().await.try_into()?;
-                    paint(base, color)
-                },
-                TaskSpec::StackLayerOnColor { background, foreground } => {
-                    let foreground: Pixmap = foreground.get().await.try_into()?;
-                    stack_layer_on_background(background, foreground)
-                },
-                TaskSpec::StackLayerOnLayer { background, foreground } => {
-                    let background: Pixmap = background.get().await.try_into()?;
-                    let foreground: Pixmap = foreground.get().await.try_into()?;
-                    stack_layer_on_layer(background, foreground)
-                },
-                TaskSpec::ToAlphaChannel { base } => {
-                    let base: Pixmap = base.get().await.try_into()?;
-                    to_alpha_channel(base)
-                }
-            }})));
-        let result_future_lock_result = result_lock.write();
-        return match result_future_lock_result {
-            Err(e) => {
-                TaskResult::Err { value: anyhoo!(e.to_string()) }
-            }
-            Ok(mut result_future) => {
-                result_future.deref_mut().await
-            }
-        }
-    }
-}
+static RESULTS: Lazy<ResultMap> = Lazy::new(|| SyncMutex::new(WeakKeyHashMap::new()));
