@@ -1,11 +1,12 @@
 use lazy_static::lazy_static;
+
 use crate::group;
+use crate::image_tasks::color::ComparableColor;
+use crate::image_tasks::task_spec::{from_svg_task, paint_svg_task};
+use crate::materials::block::axe::wood::{DARK_OAK, OAK};
 use crate::paint_stack;
 use crate::single_texture_block;
 use crate::stack_on;
-use crate::image_tasks::color::{ComparableColor};
-use crate::image_tasks::task_spec::{from_svg_task, paint_svg_task};
-use crate::materials::block::axe::wood::{DARK_OAK, OAK};
 use crate::texture_base::material::SingleLayerMaterial;
 
 single_texture_block!(CRAFTING_TABLE_SIDE = ComparableColor::TRANSPARENT,

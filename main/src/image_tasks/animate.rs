@@ -1,17 +1,8 @@
-use std::future::Future;
-use std::ops::Deref;
-use std::pin::Pin;
-use std::sync::Arc;
-
-use anyhow::{anyhow, Error};
-use async_std::future::IntoFuture;
-use futures::future::{BoxFuture, Shared};
-use futures::TryFutureExt;
-use tiny_skia::{Pixmap, PixmapPaint, PixmapRef};
+use tiny_skia::{Pixmap, PixmapPaint};
 use tiny_skia_path::Transform;
 
 use crate::anyhoo;
-use crate::image_tasks::task_spec::{CloneableError, CloneableFutureWrapper, TaskResult, TaskSpec};
+use crate::image_tasks::task_spec::{CloneableFutureWrapper, TaskResult};
 
 pub async fn animate<'a>(background: Pixmap, frames: Vec<CloneableFutureWrapper<'a, TaskResult>>)
                          -> TaskResult {

@@ -1,6 +1,6 @@
-use crate::image_tasks::color::{ComparableColor, c};
-use crate::image_tasks::task_spec::{paint_svg_task};
 use crate::{group, single_texture_block};
+use crate::image_tasks::color::{c, ComparableColor};
+use crate::image_tasks::task_spec::paint_svg_task;
 use crate::paint_stack;
 
 single_texture_block!(RED_MUSHROOM_BLOCK = ComparableColor::RED,

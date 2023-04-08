@@ -1,6 +1,7 @@
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::ops::Mul;
+
 use tiny_skia::Color;
 use tiny_skia::ColorU8;
 use tiny_skia::PremultipliedColor;

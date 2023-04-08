@@ -1,7 +1,6 @@
-use anyhow::anyhow;
-use std::sync::Arc;
 use tiny_skia::{Pixmap, PixmapPaint};
-use tiny_skia_path::{Transform};
+use tiny_skia_path::Transform;
+
 use crate::anyhoo;
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::task_spec::TaskResult;

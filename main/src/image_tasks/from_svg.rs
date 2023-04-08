@@ -1,12 +1,13 @@
 use std::fs;
-use std::path::{PathBuf};
-use anyhow::anyhow;
+use std::path::PathBuf;
+
 use resvg::{FitTo, render};
 use tiny_skia::Pixmap;
 use tiny_skia_path::Transform;
 use usvg::{Options, Tree, TreeParsing};
+
 use crate::anyhoo;
-use crate::image_tasks::task_spec::{TaskResult};
+use crate::image_tasks::task_spec::TaskResult;
 
 const COLOR_SVGS: &'static [&str] = &[
     "bed",

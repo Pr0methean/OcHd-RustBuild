@@ -1,44 +1,22 @@
-use core::borrow::BorrowMut;
-use std::any::Any;
-use std::any::TypeId;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 use std::convert::Infallible;
 use std::fmt::{Display, Formatter};
 use std::future::{Future, IntoFuture};
-use std::ops::{ControlFlow, Deref, DerefMut, FromResidual, Mul, Residual, Try};
+use std::ops::{DerefMut, FromResidual, Mul};
 use std::path::{Path, PathBuf};
-use std::pin::{pin, Pin};
-use std::ptr::DynMetadata;
-use std::rc::Rc;
+use std::pin::{Pin};
 use std::str::FromStr;
-use std::sync::{Arc, LockResult, MutexGuard, PoisonError, RwLock, RwLockWriteGuard, TryLockError, TryLockResult, Weak};
-use std::sync::OnceLock;
-use std::task::{Context, Poll, Waker};
-
-use anyhow::anyhow;
+use std::sync::{Arc, PoisonError, Weak};
+use std::task::{Context, Poll};
 use anyhow::Error;
-use async_recursion::async_recursion;
-use async_std::stream;
-use async_std::stream::ExactSizeStream;
-use async_std::stream::from_iter;
-use async_std::stream::StreamExt;
 use cached::lazy_static::lazy_static;
 use cached::once_cell::sync::Lazy;
-use chashmap_next::CHashMap;
 use fn_graph::{DataAccessDyn, FnGraphBuilder, FnId, TypeIds};
-use fn_meta::{FnMetadata, FnMetadataExt};
-use futures::{FutureExt, TryFutureExt, TryStreamExt};
-use futures::executor::block_on;
-use futures::future::{BoxFuture, MapOk, ready, Shared, WeakShared};
-use futures::lock::Mutex;
-use futures::task::WakerRef;
+use futures::{FutureExt};
+use futures::future::{BoxFuture};
 use ordered_float::OrderedFloat;
-use resman::{FnRes, IntoFnRes, IntoFnResource, Resources};
-use smallvec::SmallVec;
 use tiny_skia::Pixmap;
-use tokio::sync::OnceCell;
-use tokio::sync::oneshot::{channel, Receiver, Sender};
-use weak_table::{WeakKeyHashMap, WeakValueHashMap};
+use weak_table::{WeakKeyHashMap};
 
 use crate::image_tasks::animate::animate;
 use crate::image_tasks::color::ComparableColor;
@@ -251,7 +229,6 @@ type ResultMap = SyncMutex<WeakKeyHashMap<Weak<TaskSpec>, CloneableFutureWrapper
 pub struct CloneableFutureWrapper<'a, T> where T: Clone + Send {
     result: Arc<SyncMutex<Option<T>>>,
     future: Arc<SyncMutex<BoxFuture<'a, T>>>,
-    waker: Weak<&'a Waker>
 }
 
 impl <'a, T> CloneableFutureWrapper<'a, T> where T: Clone + Send {
@@ -260,7 +237,6 @@ impl <'a, T> CloneableFutureWrapper<'a, T> where T: Clone + Send {
         return CloneableFutureWrapper {
             result: Arc::new(SyncMutex::new(None)),
             future: Arc::new(SyncMutex::new(Box::pin(base.into_future()))),
-            waker: Weak::new()
         }
     }
 }
@@ -590,7 +566,5 @@ impl Mul<ComparableColor> for TaskSpec {
         };
     }
 }
-
-type SyncBoxFuture<'a, T> = Pin<Box<dyn Future<Output=T> + Send + Sync + 'a>>;
 
 static RESULTS: Lazy<ResultMap> = Lazy::new(|| SyncMutex::new(WeakKeyHashMap::new()));

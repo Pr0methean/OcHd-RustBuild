@@ -11,31 +11,24 @@
 #![feature(result_option_inspect)]
 #![feature(let_chains)]
 
+use std::collections::HashMap;
+use std::env;
+use std::future::{IntoFuture};
+use std::io::ErrorKind::NotFound;
+use std::path::absolute;
+use std::time::Instant;
+use async_std::fs::{create_dir, remove_dir_all};
+use fn_graph::{FnGraph, FnGraphBuilder, FnId};
+use futures::future::join_all;
+use lazy_static::lazy_static;
+use tokio::task::JoinHandle;
+use texture_base::material::Material;
+
+use crate::image_tasks::task_spec::{OUT_DIR, SVG_DIR, TaskSpec};
+
 mod image_tasks;
 mod texture_base;
 mod materials;
-use std::any::{Any, TypeId};
-use fn_graph::{FnGraphBuilder, FnGraph, FnId, TypeIds};
-use std::collections::{HashMap};
-use std::env;
-use std::future::{Future, IntoFuture};
-use std::io::ErrorKind::NotFound;
-use std::ops::DerefMut;
-use std::path::absolute;
-use std::sync::{Arc, RwLock};
-use std::time::Instant;
-use async_std::fs::{remove_dir_all, create_dir};
-use tokio::task::JoinHandle;
-use cached::once_cell::sync::Lazy;
-use chashmap_next::CHashMap;
-use fn_meta::{FnMetaDyn};
-use resman::Resources;
-use lazy_static::lazy_static;
-use texture_base::material::Material;
-use threadpool::ThreadPool;
-use crate::image_tasks::task_spec::{OUT_DIR, SVG_DIR, TaskSpec};
-use futures::future::join_all;
-
 lazy_static! {
     static ref TASKS: Vec<TaskSpec> = materials::ALL_MATERIALS.get_output_tasks();
     static ref TILE_SIZE: u32 = {

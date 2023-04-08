@@ -1,8 +1,9 @@
-use std::os::unix::fs::symlink;
-use std::path::{PathBuf};
-use std::sync::Arc;
 use std::fs::create_dir_all;
+use std::os::unix::fs::symlink;
+use std::path::PathBuf;
+
 use tiny_skia::Pixmap;
+
 use crate::anyhoo;
 use crate::image_tasks::task_spec::TaskResult;
 use crate::image_tasks::task_spec::TaskResult::Empty;

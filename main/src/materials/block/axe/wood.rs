@@ -1,9 +1,9 @@
 use lazy_static::lazy_static;
-use crate::image_tasks::color::{ComparableColor, c};
-use crate::image_tasks::task_spec::{paint_svg_task, from_svg_task, TaskSpec, out_task};
-use crate::texture_base::material::Material;
+
 use crate::{group, paint_stack, stack, stack_on};
-use std::sync::Arc;
+use crate::image_tasks::color::{c, ComparableColor};
+use crate::image_tasks::task_spec::{from_svg_task, out_task, paint_svg_task, TaskSpec};
+use crate::texture_base::material::Material;
 
 pub struct Wood {
     pub color: ComparableColor,

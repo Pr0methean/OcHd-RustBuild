@@ -1,11 +1,10 @@
-use anyhow::{anyhow, Error};
+use std::ops::Mul;
+use cached::proc_macro::cached;
 use tiny_skia::{Pixmap, PremultipliedColorU8};
+
+use crate::anyhoo;
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::make_semitransparent::create_alpha_array;
-use cached::proc_macro::cached;
-use std::ops::Mul;
-use std::sync::Arc;
-use crate::anyhoo;
 use crate::image_tasks::task_spec::TaskResult;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialOrd, PartialEq)]
@@ -96,6 +95,7 @@ pub fn paint(input: AlphaChannel, color: &ComparableColor) -> TaskResult {
 pub mod tests {
     use tiny_skia::{ColorU8, FillRule, Paint};
     use tiny_skia_path::{PathBuilder, Transform};
+
     use super::*;
 
     #[test]

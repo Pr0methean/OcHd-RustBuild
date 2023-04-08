@@ -1,11 +1,11 @@
-use std::ops::{Deref};
-use crate::image_tasks::task_spec::{out_task, paint_svg_task, TaskSpec};
 use std::fmt::Debug;
 use std::hash::Hash;
-use std::path::{PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
-use crate::image_tasks::color::rgb;
+
 use crate::image_tasks::color::ComparableColor;
+use crate::image_tasks::color::rgb;
+use crate::image_tasks::task_spec::{out_task, paint_svg_task, TaskSpec};
 use crate::image_tasks::task_spec::TaskSpec::PngOutput;
 use crate::stack;
 

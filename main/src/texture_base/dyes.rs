@@ -1,9 +1,9 @@
-use crate::image_tasks::color::ComparableColor;
+use std::path::PathBuf;
+
 use crate::image_tasks::color::{gray, rgb};
+use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::task_spec::TaskSpec;
 use crate::image_tasks::task_spec::TaskSpec::PngOutput;
-use std::path::{PathBuf};
-use std::sync::Arc;
 
 pub static DYES: &'static [(&str, ComparableColor)] = &[
     ("black",       ComparableColor::BLACK),

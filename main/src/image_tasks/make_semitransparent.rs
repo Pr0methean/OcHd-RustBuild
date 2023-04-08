@@ -1,7 +1,7 @@
-use tiny_skia::{ColorU8, Pixmap};
 use cached::proc_macro::cached;
 use ordered_float::OrderedFloat;
-use std::sync::Arc;
+use tiny_skia::{ColorU8, Pixmap};
+
 use crate::image_tasks::task_spec::TaskResult;
 
 #[cached(sync_writes = true)]
