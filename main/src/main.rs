@@ -19,12 +19,12 @@ use std::path::absolute;
 use std::time::Instant;
 use async_std::fs::{create_dir, remove_dir_all};
 use fn_graph::{FnGraph, FnGraphBuilder, FnId};
-use futures::future::join_all;
+use futures::future::{FutureExt, join_all};
 use lazy_static::lazy_static;
-use tokio::task::JoinHandle;
+use tokio::task::{JoinError, JoinHandle};
 use texture_base::material::Material;
 
-use crate::image_tasks::task_spec::{OUT_DIR, SVG_DIR, TaskSpec};
+use crate::image_tasks::task_spec::{OUT_DIR, SVG_DIR, TaskResult, TaskSpec};
 
 mod image_tasks;
 mod texture_base;
@@ -60,15 +60,8 @@ async fn main() {
     println!("Using {:?} pixels per tile", tile_size);
     let num_total_tasks = GRAPH.node_count();
     println!("Graph contains {} total tasks", num_total_tasks);
-    let mut futures: Vec<JoinHandle<()>> = vec![];
-    for task in GRAPH.iter() {
-        let owned_task = task.to_owned();
-        futures.push(tokio::spawn(
-            async move {
-                let success: () = owned_task.clone().into_future().await.try_into().expect(&*format!("Error getting {}", task));
-                success
-            }));
-    }
-    join_all(futures).await;
+    GRAPH.for_each_concurrent(None,
+        |task| tokio::spawn((*task).to_owned().into_future())
+            .map(|result| { result.expect(&*task.to_string()); () })).await;
     println!("Finished after {} ns", start_time.elapsed().as_nanos())
 }
