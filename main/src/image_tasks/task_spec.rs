@@ -234,7 +234,7 @@ impl <'a, T> CloneableFutureWrapper<'a, T> where T: Clone + Send {
             where U : Future<Output=T> + Send + 'a {
         return CloneableFutureWrapper {
             result: Arc::new(Mutex::new(None)),
-            future: Arc::new(Mutex::new(Box::pin(base.into_future()))),
+            future: Arc::new(Mutex::new(Box::pin(base))),
             wakers: Arc::new(Mutex::new(vec![]))
         }
     }
