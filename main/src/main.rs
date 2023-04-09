@@ -10,27 +10,30 @@
 #![feature(absolute_path)]
 #![feature(result_option_inspect)]
 #![feature(let_chains)]
+#![feature(hash_set_entry)]
 
-use std::collections::HashMap;
+use std::collections::{HashMap};
 use std::env;
-use std::future::{IntoFuture};
+use std::future::Future;
 use std::io::ErrorKind::NotFound;
+use std::ops::DerefMut;
 use std::path::absolute;
+use std::sync::{Arc};
 use std::time::Instant;
+
 use async_std::fs::{create_dir, remove_dir_all};
 use fn_graph::{FnGraph, FnGraphBuilder, FnId};
-use futures::future::{FutureExt};
+use futures::future::join_all;
 use lazy_static::lazy_static;
-
 use texture_base::material::Material;
 
-use crate::image_tasks::task_spec::{OUT_DIR, SVG_DIR, TaskSpec};
+use crate::image_tasks::task_spec::{CloneableFutureWrapper, OUT_DIR, SVG_DIR, TaskResult, TaskSpec};
 
 mod image_tasks;
 mod texture_base;
 mod materials;
 lazy_static! {
-    static ref TASKS: Vec<TaskSpec> = materials::ALL_MATERIALS.get_output_tasks();
+    static ref TASKS: Vec<Arc<TaskSpec>> = materials::ALL_MATERIALS.get_output_tasks();
     static ref TILE_SIZE: u32 = {
         let args: Vec<String> = env::args().collect();
         args[1].parse::<u32>()
@@ -41,7 +44,7 @@ lazy_static! {
         let mut added_tasks: HashMap<&'static TaskSpec, FnId> = HashMap::new();
         TASKS.iter()
             .for_each(|task| {
-                task.add_to(&mut g, &mut added_tasks, *TILE_SIZE);});
+                task.add_to(&mut g, &mut added_tasks);});
         g.build().to_owned()
     };
 }
@@ -58,10 +61,8 @@ async fn main() {
     create_dir(OUT_DIR.to_owned()).await.expect("Failed to create output directory");
     let tile_size: u32 = *TILE_SIZE;
     println!("Using {:?} pixels per tile", tile_size);
-    let num_total_tasks = GRAPH.node_count();
-    println!("Graph contains {} total tasks", num_total_tasks);
-    GRAPH.for_each_concurrent(None,
-        |task| tokio::spawn((*task).to_owned().into_future())
-            .map(|result| { result.expect(&*task.to_string()); () })).await;
+    let futures: Vec<CloneableFutureWrapper<TaskResult>>
+        = GRAPH.clone().map(|task| task.as_future()).collect();
+    join_all(futures.into_iter().map(|future| tokio::spawn(future))).await;
     println!("Finished after {} ns", start_time.elapsed().as_nanos())
 }

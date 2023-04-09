@@ -1,8 +1,13 @@
+use std::sync::Arc;
 use lazy_static::lazy_static;
+use ordered_float::OrderedFloat;
 
 use crate::{group, paint_stack, stack, stack_on};
 use crate::image_tasks::color::{c, ComparableColor};
-use crate::image_tasks::task_spec::{from_svg_task, out_task, paint_svg_task, TaskSpec};
+use crate::image_tasks::make_semitransparent::make_semitransparent;
+use crate::image_tasks::repaint::paint;
+use crate::image_tasks::task_spec::{from_svg_task, out_task, paint_svg_task, paint_task, TaskSpec};
+use crate::image_tasks::task_spec::TaskSpec::MakeSemitransparent;
 use crate::texture_base::material::Material;
 
 pub struct Wood {
@@ -19,30 +24,31 @@ pub struct Wood {
     leaves_synonym: &'static str,
     sapling_synonym: &'static str,
     name: &'static str,
-    bark: Box<dyn (Fn(&Self) -> TaskSpec) + Sync + Send>,
-    stripped_log_side: Box<dyn (Fn(&Self) -> TaskSpec) + Sync + Send>,
-    log_top: Box<dyn (Fn(&Self, TaskSpec) -> TaskSpec) + Sync + Send>,
-    stripped_log_top: Box<dyn (Fn(&Self, TaskSpec) -> TaskSpec) + Sync + Send>,
-    trapdoor: Box<dyn (Fn(&Self, TaskSpec) -> TaskSpec) + Sync + Send>,
-    door_top: Box<dyn (Fn(&Self, TaskSpec, TaskSpec) -> TaskSpec) + Sync + Send>,
-    door_bottom: Box<dyn (Fn(&Self, TaskSpec) -> TaskSpec) + Sync + Send>,
-    leaves: Box<dyn (Fn(&Self) -> TaskSpec) + Sync + Send>,
-    sapling: Box<dyn (Fn(&Self) -> TaskSpec) + Sync + Send>,
-    door_common_layers: Box<dyn (Fn(&Self) -> TaskSpec) + Sync + Send>,
+    bark: Box<dyn (Fn(&Self) -> Arc<TaskSpec>) + Sync + Send>,
+    stripped_log_side: Box<dyn (Fn(&Self) -> Arc<TaskSpec>) + Sync + Send>,
+    log_top: Box<dyn (Fn(&Self, Arc<TaskSpec>) -> Arc<TaskSpec>) + Sync + Send>,
+    stripped_log_top: Box<dyn (Fn(&Self, Arc<TaskSpec>) -> Arc<TaskSpec>) + Sync + Send>,
+    trapdoor: Box<dyn (Fn(&Self, Arc<TaskSpec>) -> Arc<TaskSpec>) + Sync + Send>,
+    door_top: Box<dyn (Fn(&Self, Arc<TaskSpec>, Arc<TaskSpec>) -> Arc<TaskSpec>) + Sync + Send>,
+    door_bottom: Box<dyn (Fn(&Self, Arc<TaskSpec>) -> Arc<TaskSpec>) + Sync + Send>,
+    leaves: Box<dyn (Fn(&Self) -> Arc<TaskSpec>) + Sync + Send>,
+    sapling: Box<dyn (Fn(&Self) -> Arc<TaskSpec>) + Sync + Send>,
+    door_common_layers: Box<dyn (Fn(&Self) -> Arc<TaskSpec>) + Sync + Send>,
 }
 
 impl Wood {
-    pub fn planks(&self) -> TaskSpec {
+    pub fn planks(&self) -> Arc<TaskSpec> {
         return stack!(
             stack_on!(self.color,
-                paint_svg_task("waves2", self.highlight),
-                paint_stack!(self.shadow, "waves", "planksTopBorder")
-            ),
+                paint_svg_task("waves2", self.highlight * 0.5),
+                paint_task(stack!(
+                    Arc::new(MakeSemitransparent { base: from_svg_task("waves"), alpha: OrderedFloat::from(0.5)}),
+                    from_svg_task("planksTopBorder")), self.shadow)),
             paint_svg_task("borderShortDashes", self.highlight)
         );
     }
 
-    pub fn overworld_bark(&self) -> TaskSpec {
+    pub fn overworld_bark(&self) -> Arc<TaskSpec> {
         return stack_on!(self.bark_color,
             paint_svg_task("borderSolid", self.bark_shadow),
             paint_svg_task("borderDotted", self.bark_highlight),
@@ -51,35 +57,35 @@ impl Wood {
         );
     }
 
-    pub fn fungus_bark(&self) -> TaskSpec {
+    pub fn fungus_bark(&self) -> Arc<TaskSpec> {
         return stack_on!(self.bark_color,
             paint_svg_task("borderSolid", self.bark_shadow),
             paint_svg_task("waves", self.bark_highlight)
         );
     }
 
-    pub fn overworld_stripped_log_side(&self) -> TaskSpec {
+    pub fn overworld_stripped_log_side(&self) -> Arc<TaskSpec> {
         return stack_on!(self.color,
             paint_svg_task("borderSolid", self.shadow),
             paint_svg_task("borderShortDashes", self.highlight)
         );
     }
 
-    pub fn fungus_stripped_log_side(&self) -> TaskSpec {
+    pub fn fungus_stripped_log_side(&self) -> Arc<TaskSpec> {
         return stack_on!(self.color,
             paint_svg_task("borderSolid", self.shadow),
             paint_svg_task("borderDotted", self.highlight));
     }
 
-    pub fn overworld_stripped_log_top(&self, stripped_log_side: TaskSpec) -> TaskSpec {
+    pub fn overworld_stripped_log_top(&self, stripped_log_side: Arc<TaskSpec>) -> Arc<TaskSpec> {
         return stack!(
             stripped_log_side,
             paint_svg_task("ringsCentralBullseye", self.highlight),
             paint_svg_task("rings", self.shadow)
-        )
+        );
     }
 
-    pub fn fungus_stripped_log_top(&self, stripped_log_side: TaskSpec) -> TaskSpec {
+    pub fn fungus_stripped_log_top(&self, stripped_log_side: Arc<TaskSpec>) -> Arc<TaskSpec> {
         return stack!(
             stripped_log_side,
             stack!(
@@ -89,7 +95,7 @@ impl Wood {
         );
     }
 
-    pub fn overworld_log_top(&self, stripped_log_top: TaskSpec) -> TaskSpec {
+    pub fn overworld_log_top(&self, stripped_log_top: Arc<TaskSpec>) -> Arc<TaskSpec> {
         return stack!(
             stripped_log_top,
             paint_svg_task("borderSolid", self.bark_color),
@@ -97,7 +103,7 @@ impl Wood {
         );
     }
 
-    pub fn fungus_log_top(&self, _stripped_log_top: TaskSpec) -> TaskSpec {
+    pub fn fungus_log_top(&self, _stripped_log_top: Arc<TaskSpec>) -> Arc<TaskSpec> {
         return stack_on!(self.color,
             stack!(
                 paint_svg_task("ringsCentralBullseye", self.shadow),
@@ -108,7 +114,7 @@ impl Wood {
         );
     }
 
-    pub fn default_door_top(&self, door_bottom: TaskSpec, _: TaskSpec) -> TaskSpec {
+    pub fn default_door_top(&self, door_bottom: Arc<TaskSpec>, _: Arc<TaskSpec>) -> Arc<TaskSpec> {
         return stack!(
             door_bottom,
             from_svg_task("doorKnob")
@@ -116,20 +122,20 @@ impl Wood {
     }
 }
 
-pub fn empty_task() -> Box<dyn (Fn(&Wood) -> TaskSpec) + Sync + Send> {
-    return Box::new(/*door_common_layers*/ |_wood| TaskSpec::None {});
+pub fn empty_task() -> Box<dyn (Fn(&Wood) -> Arc<TaskSpec>) + Sync + Send> {
+    return Box::new(/*door_common_layers*/ |_wood| Arc::new(TaskSpec::None {}));
 }
 
 pub fn overworld_wood(name: &'static str, color: ComparableColor,
                       highlight: ComparableColor, shadow: ComparableColor,
                       bark_color: ComparableColor, bark_highlight: ComparableColor,
                       bark_shadow: ComparableColor,
-                      door_common_layers: Box<dyn (Fn(&Wood) -> TaskSpec) + Sync + Send>,
-                      trapdoor: Box<dyn (Fn(&Wood, TaskSpec) -> TaskSpec) + Sync + Send>,
-                      door_bottom: Box<dyn (Fn(&Wood, TaskSpec) -> TaskSpec) + Sync + Send>,
-                      door_top: Box<dyn (Fn(&Wood, TaskSpec, TaskSpec) -> TaskSpec) + Sync + Send>,
-                      leaves: Box<dyn (Fn(&Wood) -> TaskSpec) + Sync + Send>,
-                      sapling: Box<dyn (Fn(&Wood) -> TaskSpec) + Sync + Send>) -> Wood {
+                      door_common_layers: Box<dyn (Fn(&Wood) -> Arc<TaskSpec>) + Sync + Send>,
+                      trapdoor: Box<dyn (Fn(&Wood, Arc<TaskSpec>) -> Arc<TaskSpec>) + Sync + Send>,
+                      door_bottom: Box<dyn (Fn(&Wood, Arc<TaskSpec>) -> Arc<TaskSpec>) + Sync + Send>,
+                      door_top: Box<dyn (Fn(&Wood, Arc<TaskSpec>, Arc<TaskSpec>) -> Arc<TaskSpec>) + Sync + Send>,
+                      leaves: Box<dyn (Fn(&Wood) -> Arc<TaskSpec>) + Sync + Send>,
+                      sapling: Box<dyn (Fn(&Wood) -> Arc<TaskSpec>) + Sync + Send>) -> Wood {
     return Wood {
         color,
         highlight,
@@ -162,10 +168,10 @@ pub fn nether_fungus(name: &'static str, color: ComparableColor,
                      bark_color: ComparableColor, bark_highlight: ComparableColor,
                      bark_shadow: ComparableColor, leaves_color: ComparableColor,
                      leaves_highlight: ComparableColor, leaves_shadow: ComparableColor,
-                     trapdoor: Box<dyn (Fn(&Wood, TaskSpec) -> TaskSpec) + Sync + Send>,
-                     door_bottom: Box<dyn (Fn(&Wood, TaskSpec) -> TaskSpec) + Sync + Send>,
-                     leaves: Box<dyn (Fn(&Wood) -> TaskSpec) + Sync + Send>,
-                     sapling: Box<dyn (Fn(&Wood) -> TaskSpec) + Sync + Send>) -> Wood {
+                     trapdoor: Box<dyn (Fn(&Wood, Arc<TaskSpec>) -> Arc<TaskSpec>) + Sync + Send>,
+                     door_bottom: Box<dyn (Fn(&Wood, Arc<TaskSpec>) -> Arc<TaskSpec>) + Sync + Send>,
+                     leaves: Box<dyn (Fn(&Wood) -> Arc<TaskSpec>) + Sync + Send>,
+                     sapling: Box<dyn (Fn(&Wood) -> Arc<TaskSpec>) + Sync + Send>) -> Wood {
     return Wood {
         color,
         highlight,
@@ -550,11 +556,11 @@ lazy_static!{pub static ref WARPED: Wood = nether_fungus(
 );}
 
 impl Material for Wood {
-    fn get_output_tasks(&self) -> Vec<TaskSpec> {
-        let door_common_layers: TaskSpec = (self.door_common_layers)(self);
-        let door_bottom: TaskSpec = (self.door_bottom)(self, door_common_layers.to_owned());
-        let stripped_log_side: TaskSpec = (self.stripped_log_side)(self);
-        let stripped_log_top: TaskSpec = (self.stripped_log_top)(self, stripped_log_side.to_owned());
+    fn get_output_tasks(&self) -> Vec<Arc<TaskSpec>> {
+        let door_common_layers: Arc<TaskSpec> = (self.door_common_layers)(self);
+        let door_bottom: Arc<TaskSpec> = (self.door_bottom)(self, door_common_layers.to_owned());
+        let stripped_log_side: Arc<TaskSpec> = (self.stripped_log_side)(self);
+        let stripped_log_top: Arc<TaskSpec> = (self.stripped_log_top)(self, stripped_log_side.to_owned());
         return vec![
             out_task(&*format!("block/{}_{}", self.name, self.log_synonym), (self.bark)(self)),
             out_task(&*format!("block/stripped_{}_{}", self.name, self.log_synonym), stripped_log_side.to_owned()),
