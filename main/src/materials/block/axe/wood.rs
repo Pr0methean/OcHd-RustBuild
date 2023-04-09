@@ -22,6 +22,8 @@ pub struct Wood {
     leaves_synonym: &'static str,
     sapling_synonym: &'static str,
     name: &'static str,
+    planks_highlight_strength: f32,
+    planks_shadow_strength: f32,
     bark: Box<dyn (Fn(&Self) -> Arc<TaskSpec>) + Sync + Send>,
     stripped_log_side: Box<dyn (Fn(&Self) -> Arc<TaskSpec>) + Sync + Send>,
     log_top: Box<dyn (Fn(&Self, Arc<TaskSpec>) -> Arc<TaskSpec>) + Sync + Send>,
@@ -38,9 +40,9 @@ impl Wood {
     pub fn planks(&self) -> Arc<TaskSpec> {
         return stack!(
             stack_on!(self.color,
-                paint_svg_task("waves2", self.highlight * 0.5),
+                paint_svg_task("waves2", self.highlight * self.planks_highlight_strength),
                 paint_task(stack!(
-                    Arc::new(MakeSemitransparent { base: from_svg_task("waves"), alpha: OrderedFloat::from(0.5)}),
+                    Arc::new(MakeSemitransparent { base: from_svg_task("waves"), alpha: OrderedFloat::from(self.planks_shadow_strength)}),
                     from_svg_task("planksTopBorder")), self.shadow)),
             paint_svg_task("borderShortDashes", self.highlight)
         );
@@ -148,6 +150,8 @@ pub fn overworld_wood(name: &'static str, color: ComparableColor,
         leaves_synonym: "leaves",
         sapling_synonym: "sapling",
         name,
+        planks_highlight_strength: 0.5,
+        planks_shadow_strength: 0.5,
         bark: Box::new(Wood::overworld_bark),
         stripped_log_side: Box::new(Wood::overworld_stripped_log_side),
         log_top: Box::new(Wood::overworld_log_top),
@@ -183,6 +187,8 @@ pub fn nether_fungus(name: &'static str, color: ComparableColor,
         log_synonym: "stem",
         leaves_synonym: "wart_block",
         sapling_synonym: "fungus",
+        planks_highlight_strength: 0.75,
+        planks_shadow_strength: 0.75,
         name,
         bark: Box::new(Wood::fungus_bark),
         stripped_log_side: Box::new(Wood::fungus_stripped_log_side),
@@ -234,46 +240,50 @@ lazy_static! {pub static ref ACACIA: Wood = overworld_wood(
         paint_svg_task("acaciaSapling2", c(0xc9d7a5))
     )),
 );}
-lazy_static! {pub static ref BIRCH: Wood = overworld_wood(
-    "birch",
-    c(0xc8b77a),
-    c(0xD7C187),
-    c(0x915431),
-    c(0xeeffea),
-    ComparableColor::WHITE,
-    c(0x5f5f4f),
-    Box::new(/*door_common_layers*/ |_wood| stack_on!(BIRCH.bark_highlight,
-        paint_svg_task("borderSolidExtraThick", BIRCH.color),
-        paint_svg_task("craftingGridSquare", BIRCH.highlight),
-        paint_svg_task("craftingGridSpaces", BIRCH.bark_highlight),
-        paint_svg_task("borderSolid", BIRCH.shadow)
-    )),
-    Box::new(/*trapdoor*/ |_wood, door_common_layers| stack!(
-        door_common_layers,
-        paint_svg_task("trapdoorHingesBig", ComparableColor::STONE_SHADOW)
-    )),
-    Box::new(/*door_bottom*/ |_wood, _door_common_layers| stack_on!(BIRCH.highlight,
+lazy_static! {pub static ref BIRCH: Wood = {
+    let mut base = overworld_wood(
+        "birch",
+        c(0xc8b77a),
+        c(0xD7C187),
+        c(0x915431),
+        c(0xeeffea),
+        ComparableColor::WHITE,
+        c(0x5f5f4f),
+        Box::new(/*door_common_layers*/ |_wood| stack_on!(BIRCH.bark_highlight,
             paint_svg_task("borderSolidExtraThick", BIRCH.color),
-            paint_svg_task("craftingGridSquare", BIRCH.shadow),
-            paint_svg_task("borderSolid", BIRCH.shadow),
-            paint_svg_task("craftingGridSpaces", BIRCH.highlight),
-            paint_svg_task("doorHingesBig", ComparableColor::STONE_SHADOW)
-    )),
-    Box::new(/*door_top*/ |_wood, _, door_common_layers| stack!(
-        door_common_layers,
-        paint_svg_task("doorHingesBig", ComparableColor::STONE_SHADOW),
-        from_svg_task("doorKnob")
-    )),
-    Box::new(/*leaves*/ |_wood| stack!(
-        paint_svg_task("leaves2", BIRCH.leaves_highlight),
-        paint_svg_task("leaves2a", BIRCH.leaves_shadow)
-    )),
-    Box::new(/*sapling*/ |_wood| stack!(
-        paint_svg_task("saplingStem", BIRCH.bark_color),
-        paint_svg_task("flowerStemBottomBorder", BIRCH.bark_shadow),
-        paint_svg_task("saplingLeaves", c(0x6c9e38))
-    )),
-);}
+            paint_svg_task("craftingGridSquare", BIRCH.highlight),
+            paint_svg_task("craftingGridSpaces", BIRCH.bark_highlight),
+            paint_svg_task("borderSolid", BIRCH.shadow)
+        )),
+        Box::new(/*trapdoor*/ |_wood, door_common_layers| stack!(
+            door_common_layers,
+            paint_svg_task("trapdoorHingesBig", ComparableColor::STONE_SHADOW)
+        )),
+        Box::new(/*door_bottom*/ |_wood, _door_common_layers| stack_on!(BIRCH.highlight,
+                paint_svg_task("borderSolidExtraThick", BIRCH.color),
+                paint_svg_task("craftingGridSquare", BIRCH.shadow),
+                paint_svg_task("borderSolid", BIRCH.shadow),
+                paint_svg_task("craftingGridSpaces", BIRCH.highlight),
+                paint_svg_task("doorHingesBig", ComparableColor::STONE_SHADOW)
+        )),
+        Box::new(/*door_top*/ |_wood, _, door_common_layers| stack!(
+            door_common_layers,
+            paint_svg_task("doorHingesBig", ComparableColor::STONE_SHADOW),
+            from_svg_task("doorKnob")
+        )),
+        Box::new(/*leaves*/ |_wood| stack!(
+            paint_svg_task("leaves2", BIRCH.leaves_highlight),
+            paint_svg_task("leaves2a", BIRCH.leaves_shadow)
+        )),
+        Box::new(/*sapling*/ |_wood| stack!(
+            paint_svg_task("saplingStem", BIRCH.bark_color),
+            paint_svg_task("flowerStemBottomBorder", BIRCH.bark_shadow),
+            paint_svg_task("saplingLeaves", c(0x6c9e38))
+        )),
+    );
+    base.planks_highlight_strength = 1.0;
+    base
+};}
 lazy_static! {pub static ref DARK_OAK: Wood = overworld_wood(
     "dark_oak",
     c(0x3f2d23),
@@ -306,44 +316,49 @@ lazy_static! {pub static ref DARK_OAK: Wood = overworld_wood(
         paint_svg_task("bigCircleTwoQuarters", c(0x57ad3f))
     )),
 );}
-lazy_static!{pub static ref JUNGLE: Wood = overworld_wood(
-    "jungle",
-    c(0x915431),
-    c(0x795b4b),
-    c(0x8A593A),
-    c(0x483800),
-    c(0x2B2000),
-    c(0x8A593A),
-    Box::new(/*door_common_layers*/ |_wood| stack!(
-        paint_svg_task("doorHingesBig", ComparableColor::STONE_SHADOW),
-        paint_svg_task("doorHinges", ComparableColor::STONE)
-    )),
-    Box::new(/*trapdoor*/ |_wood, _door_common_layers| stack!(
-        paint_svg_task("trapdoor2", JUNGLE.color),
-        paint_svg_task("borderSolid", JUNGLE.shadow),
-        paint_svg_task("borderShortDashes", JUNGLE.highlight),
-        paint_svg_task("trapdoorHingesBig", ComparableColor::STONE_SHADOW),
-        paint_svg_task("trapdoorHinges", ComparableColor::STONE)
-    )),
-    Box::new(/*door_bottom*/ |_wood, door_common_layers| stack!(
-        JUNGLE.planks(),
-        door_common_layers
-    )),
-    Box::new(/*door_top*/ |_wood, _, door_common_layers| stack!(
-        paint_svg_task("trapdoor2", JUNGLE.color),
-        paint_svg_task("borderShortDashes", JUNGLE.highlight),
-        door_common_layers,
-        from_svg_task("doorKnob")
-    )),
-    Box::new(/*leaves*/ |_wood| stack!(
-        paint_svg_task("leaves6", JUNGLE.leaves_highlight),
-        paint_svg_task("leaves6a", JUNGLE.leaves_shadow)
-    )),
-    Box::new(/*sapling*/ |_wood| stack!(
-        paint_svg_task("saplingStem", JUNGLE.bark_color),
-        paint_svg_task("acaciaSapling", c(0x378020))
-    )),
-);}
+lazy_static!{pub static ref JUNGLE: Wood = {
+    let mut base = overworld_wood(
+        "jungle",
+        c(0x915431),
+        c(0x795b4b),
+        c(0x8A593A),
+        c(0x483800),
+        c(0x2B2000),
+        c(0x8A593A),
+        Box::new(/*door_common_layers*/ |_wood| stack!(
+            paint_svg_task("doorHingesBig", ComparableColor::STONE_SHADOW),
+            paint_svg_task("doorHinges", ComparableColor::STONE)
+        )),
+        Box::new(/*trapdoor*/ |_wood, _door_common_layers| stack!(
+            paint_svg_task("trapdoor2", JUNGLE.color),
+            paint_svg_task("borderSolid", JUNGLE.shadow),
+            paint_svg_task("borderShortDashes", JUNGLE.highlight),
+            paint_svg_task("trapdoorHingesBig", ComparableColor::STONE_SHADOW),
+            paint_svg_task("trapdoorHinges", ComparableColor::STONE)
+        )),
+        Box::new(/*door_bottom*/ |_wood, door_common_layers| stack!(
+            JUNGLE.planks(),
+            door_common_layers
+        )),
+        Box::new(/*door_top*/ |_wood, _, door_common_layers| stack!(
+            paint_svg_task("trapdoor2", JUNGLE.color),
+            paint_svg_task("borderShortDashes", JUNGLE.highlight),
+            door_common_layers,
+            from_svg_task("doorKnob")
+        )),
+        Box::new(/*leaves*/ |_wood| stack!(
+            paint_svg_task("leaves6", JUNGLE.leaves_highlight),
+            paint_svg_task("leaves6a", JUNGLE.leaves_shadow)
+        )),
+        Box::new(/*sapling*/ |_wood| stack!(
+            paint_svg_task("saplingStem", JUNGLE.bark_color),
+            paint_svg_task("acaciaSapling", c(0x378020))
+        )),
+    );
+    base.planks_shadow_strength = 1.0;
+    base.planks_highlight_strength = 1.0;
+    base
+};}
 lazy_static!{pub static ref MANGROVE: Wood = {
     let mut base = overworld_wood(
         "mangrove",
