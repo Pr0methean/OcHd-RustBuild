@@ -441,46 +441,46 @@ lazy_static! {
     pub static ref SVG_DIR: &'static Path = Path::new("./svg/");
 }
 
-        pub fn name_to_out_path(name: &str) -> PathBuf {
-            let mut out_file_path = OUT_DIR.to_path_buf();
-            out_file_path.push(format!("{}.png", name));
-            return out_file_path;
-        }
+pub fn name_to_out_path(name: &str) -> PathBuf {
+    let mut out_file_path = OUT_DIR.to_path_buf();
+    out_file_path.push(format!("{}.png", name));
+    return out_file_path;
+}
 
-        pub fn name_to_svg_path(name: &str) -> PathBuf {
-            let mut svg_file_path = SVG_DIR.to_path_buf();
-            svg_file_path.push(format!("{}.svg", name));
-            return svg_file_path;
-        }
+pub fn name_to_svg_path(name: &str) -> PathBuf {
+    let mut svg_file_path = SVG_DIR.to_path_buf();
+    svg_file_path.push(format!("{}.svg", name));
+    return svg_file_path;
+}
 
-        pub fn from_svg_task(name: &str) -> Arc<TaskSpec> {
-            return Arc::new(FromSvg {source: name_to_svg_path(name)});
-        }
+pub fn from_svg_task(name: &str) -> Arc<TaskSpec> {
+    return Arc::new(FromSvg {source: name_to_svg_path(name)});
+}
 
-        pub fn paint_task(base: Arc<TaskSpec>, color: ComparableColor) -> Arc<TaskSpec> {
-            return Arc::new(
-                TaskSpec::Repaint {base: Arc::new(TaskSpec::ToAlphaChannel { base }), color});
-        }
+pub fn paint_task(base: Arc<TaskSpec>, color: ComparableColor) -> Arc<TaskSpec> {
+    return Arc::new(
+        TaskSpec::Repaint {base: Arc::new(TaskSpec::ToAlphaChannel { base }), color});
+}
 
-        pub fn paint_svg_task(name: &str, color: ComparableColor) -> Arc<TaskSpec> {
-            return paint_task(from_svg_task(name), color);
-        }
+pub fn paint_svg_task(name: &str, color: ComparableColor) -> Arc<TaskSpec> {
+    return paint_task(from_svg_task(name), color);
+}
 
-        pub fn semitrans_svg_task(name: &str, alpha: f32) -> Arc<TaskSpec> {
-            return Arc::new(TaskSpec::MakeSemitransparent {base: from_svg_task(name),
-                alpha: alpha.into()});
-        }
+pub fn semitrans_svg_task(name: &str, alpha: f32) -> Arc<TaskSpec> {
+    return Arc::new(TaskSpec::MakeSemitransparent {base: from_svg_task(name),
+        alpha: alpha.into()});
+}
 
-        pub fn path(name: &str) -> Vec<PathBuf> {
-            return vec![name_to_out_path(name)];
-        }
+pub fn path(name: &str) -> Vec<PathBuf> {
+    return vec![name_to_out_path(name)];
+}
 
-        pub fn out_task(name: &str, base: Arc<TaskSpec>) -> Arc<TaskSpec> {
-            return Arc::new(PngOutput {base, destinations: path(name)});
-        }
+pub fn out_task(name: &str, base: Arc<TaskSpec>) -> Arc<TaskSpec> {
+    return Arc::new(PngOutput {base, destinations: path(name)});
+}
 
-        #[macro_export]
-        macro_rules! stack {
+#[macro_export]
+macro_rules! stack {
     ( $first_layer:expr, $second_layer:expr ) => {
         std::sync::Arc::new(crate::image_tasks::task_spec::TaskSpec::StackLayerOnLayer {
             background: $first_layer.into(),
