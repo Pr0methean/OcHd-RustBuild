@@ -251,10 +251,10 @@ impl <'a, T> Future for CloneableFutureWrapper<'a, T> where T: Clone + Send {
                     Some(result) => Poll::Ready(result.to_owned()),
                     None => {
                         let mut future = self.future.lock().unwrap();
+                        let mut wakers_lock = self.wakers.lock().unwrap();
                         let new_result = future.poll_unpin(cx);
                         match new_result {
                             Poll::Ready(new_result) => {
-                                let mut wakers_lock = self.wakers.lock().unwrap();
                                 let wakers = wakers_lock.deref_mut();
                                 for waker in wakers.to_owned() {
                                     waker.wake_by_ref();
@@ -264,7 +264,6 @@ impl <'a, T> Future for CloneableFutureWrapper<'a, T> where T: Clone + Send {
                                 Poll::Ready(new_result)
                             },
                             Poll::Pending => {
-                                let mut wakers_lock = self.wakers.lock().unwrap();
                                 let wakers = wakers_lock.deref_mut();
                                 for waker in wakers.to_owned() {
                                     let _ = future.poll_unpin(&mut Context::from_waker(&waker));
