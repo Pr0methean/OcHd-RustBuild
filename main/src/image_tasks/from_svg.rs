@@ -9,26 +9,26 @@ use usvg::{Options, Tree, TreeParsing};
 use crate::anyhoo;
 use crate::image_tasks::task_spec::TaskResult;
 
-const COLOR_SVGS: &'static [&str] = &[
-    "bed",
-    "blastFurnaceHoles",
-    "blastFurnaceHoles1",
-    "bonemeal",
-    "bonemealSmall",
-    "bonemealSmallNoBorder",
-    "bookShelves",
-    "chain",
-    "commandBlockChains",
-    "commandBlockChains4x",
-    "commandBlockGrid",
-    "commandBlockGridFront",
-    "doorKnob",
-    "furnaceFrontLit",
-    "loopArrow4x",
-    "soulFlameTorch",
-    "soulFlameTorchSmall",
-    "torchFlame",
-    "torchFlameSmall",
+pub const COLOR_SVGS: &'static [&str] = &[
+    "./svg/bed.svg",
+    "./svg/blastFurnaceHoles.svg",
+    "./svg/blastFurnaceHoles1.svg",
+    "./svg/bonemeal.svg",
+    "./svg/bonemealSmall.svg",
+    "./svg/bonemealSmallNoBorder.svg",
+    "./svg/bookShelves.svg",
+    "./svg/chain.svg",
+    "./svg/commandBlockChains.svg",
+    "./svg/commandBlockChains4x.svg",
+    "./svg/commandBlockGrid.svg",
+    "./svg/commandBlockGridFront.svg",
+    "./svg/doorKnob.svg",
+    "./svg/furnaceFrontLit.svg",
+    "./svg/loopArrow4x.svg",
+    "./svg/soulFlameTorch.svg",
+    "./svg/soulFlameTorchSmall.svg",
+    "./svg/torchFlame.svg",
+    "./svg/torchFlameSmall.svg",
 ];
 
 pub fn from_svg(path: PathBuf, width: u32) -> TaskResult {

@@ -186,6 +186,26 @@ fn test_c() {
     )
 }
 
+impl ComparableColor {
+    /** True if this color is black, transparent, or semitransparent black. */
+    pub fn is_black_or_transparent(&self) -> bool {
+        self.alpha == 0 || (self.red == 0 && self.green == 0 && self.blue == 0)
+    }
+}
+
+#[test]
+fn test_is_black_or_transparent() {
+    assert!(ComparableColor::BLACK.is_black_or_transparent());
+    assert!(ComparableColor::TRANSPARENT.is_black_or_transparent());
+    assert!(rgba(0,0,0,0xcc).is_black_or_transparent()); // semitransparent black
+    assert!(rgba(0xff,0xff,0xff,0).is_black_or_transparent()); // transparent but with r, g and b > 0
+
+    assert!(!ComparableColor::RED.is_black_or_transparent());
+    assert!(!ComparableColor::GREEN.is_black_or_transparent());
+    assert!(!ComparableColor::BLUE.is_black_or_transparent());
+    assert!(!(rgba(0xff,0x00,0x00,0xcc).is_black_or_transparent())); // semitransparent red
+}
+
 pub const fn ca(rgb: u32) -> ComparableColor {
     let bytes = rgb.to_be_bytes();
     ComparableColor {
@@ -202,4 +222,3 @@ fn test_ca() {
                ComparableColor { red: 0x13, green: 0x37, blue: 0xc0, alpha: 0xde }
     )
 }
-

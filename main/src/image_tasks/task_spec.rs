@@ -20,7 +20,7 @@ use tiny_skia::Pixmap;
 
 use crate::image_tasks::animate::animate;
 use crate::image_tasks::color::ComparableColor;
-use crate::image_tasks::from_svg::from_svg;
+use crate::image_tasks::from_svg::{COLOR_SVGS, from_svg};
 use crate::image_tasks::make_semitransparent::make_semitransparent;
 use crate::image_tasks::png_output::png_output;
 use crate::image_tasks::repaint::{AlphaChannel, to_alpha_channel};
@@ -251,10 +251,11 @@ impl <'a, T> Future for CloneableFutureWrapper<'a, T> where T: Clone + Send {
                     Some(result) => Poll::Ready(result.to_owned()),
                     None => {
                         let mut future = self.future.lock().unwrap();
-                        let mut wakers = self.wakers.lock().unwrap().deref_mut();
+                        let mut wakers_lock = self.wakers.lock().unwrap();
                         let new_result = future.poll_unpin(cx);
                         match new_result {
                             Poll::Ready(new_result) => {
+                                let wakers = wakers_lock.deref_mut();
                                 for waker in wakers.to_owned() {
                                     waker.wake_by_ref();
                                 }
@@ -263,6 +264,7 @@ impl <'a, T> Future for CloneableFutureWrapper<'a, T> where T: Clone + Send {
                                 Poll::Ready(new_result)
                             },
                             Poll::Pending => {
+                                let wakers = wakers_lock.deref_mut();
                                 wakers.push(Arc::new(cx.waker().to_owned()));
                                 Poll::Pending
                             }
@@ -280,6 +282,24 @@ impl <'a, T> Future for CloneableFutureWrapper<'a, T> where T: Clone + Send {
 lazy_static!(
     static ref RESULTS_MAP: CHashMap<Arc<TaskSpec>, CloneableFutureWrapper<'static, TaskResult>> = CHashMap::new();
 );
+
+impl TaskSpec {
+    fn is_all_black(&self) -> bool {
+        match self {
+            TaskSpec::None { .. } => false,
+            TaskSpec::Animate { background, frames } =>
+                background.is_all_black() && frames.iter().all(|frame| frame.is_all_black()),
+            FromSvg { source } => !(COLOR_SVGS.contains(&&*source.to_string_lossy())),
+            TaskSpec::MakeSemitransparent { base, .. } => base.is_all_black(),
+            PngOutput { base, .. } => base.is_all_black(),
+            TaskSpec::Repaint { color, .. } => color.is_black_or_transparent(),
+            TaskSpec::StackLayerOnColor { background, foreground } =>
+                background.is_black_or_transparent() && foreground.is_all_black(),
+            TaskSpec::StackLayerOnLayer { background, foreground } => background.is_all_black() && foreground.is_all_black(),
+            TaskSpec::ToAlphaChannel { .. } => false
+        }
+    }
+}
 
 impl IntoFuture for TaskSpec {
     type Output = TaskResult;
@@ -354,6 +374,33 @@ impl IntoFuture for TaskSpec {
 
 impl TaskSpec {
     pub fn as_future(&self) -> CloneableFutureWrapper<'static, TaskResult> {
+        // Simplify redundant tasks first
+        match self {
+            TaskSpec::MakeSemitransparent {base, alpha} => {
+                if alpha == &OrderedFloat::from(1.0) {
+                    return base.as_future();
+                }
+            },
+            TaskSpec::Repaint {base, color} => {
+                if *color == ComparableColor::BLACK {
+                    match base.as_ref() {
+                        TaskSpec::ToAlphaChannel {base} => {
+                            if base.is_all_black() {
+                                return base.as_future();
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            },
+            TaskSpec::StackLayerOnColor {background, foreground} => {
+                if *background == ComparableColor::TRANSPARENT {
+                    return foreground.as_future();
+                }
+            }
+            _ => {}
+        }
+
         return self.clone().into_future();
     }
 
