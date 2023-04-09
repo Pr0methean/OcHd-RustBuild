@@ -265,9 +265,6 @@ impl <'a, T> Future for CloneableFutureWrapper<'a, T> where T: Clone + Send {
                             },
                             Poll::Pending => {
                                 let wakers = wakers_lock.deref_mut();
-                                for waker in wakers.to_owned() {
-                                    let _ = future.poll_unpin(&mut Context::from_waker(&waker));
-                                }
                                 wakers.push(Arc::new(cx.waker().to_owned()));
                                 Poll::Pending
                             }
