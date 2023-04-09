@@ -25,7 +25,4 @@ num_cpus = "1.15.0"
 weak-table = "0.3.2"
 async-std = {version = "1.12.0", features = ["unstable"]}
 tokio = {version = "1.27.0", features = ["rt", "rt-multi-thread", "sync"]}
-async-recursion = "1.0.4"
 chashmap-next = "2.2.3"
-cooked-waker = "5.0.0"
-cooked-waker-derive = "1.0.1"

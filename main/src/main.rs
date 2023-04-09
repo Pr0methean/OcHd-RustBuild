@@ -14,9 +14,7 @@
 
 use std::collections::{HashMap};
 use std::env;
-use std::future::Future;
 use std::io::ErrorKind::NotFound;
-use std::ops::DerefMut;
 use std::path::absolute;
 use std::sync::{Arc};
 use std::time::Instant;

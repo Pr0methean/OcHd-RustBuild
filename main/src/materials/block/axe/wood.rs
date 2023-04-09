@@ -4,8 +4,6 @@ use ordered_float::OrderedFloat;
 
 use crate::{group, paint_stack, stack, stack_on};
 use crate::image_tasks::color::{c, ComparableColor};
-use crate::image_tasks::make_semitransparent::make_semitransparent;
-use crate::image_tasks::repaint::paint;
 use crate::image_tasks::task_spec::{from_svg_task, out_task, paint_svg_task, paint_task, TaskSpec};
 use crate::image_tasks::task_spec::TaskSpec::MakeSemitransparent;
 use crate::texture_base::material::Material;

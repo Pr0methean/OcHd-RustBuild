@@ -7,7 +7,7 @@ use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::color::rgb;
 use crate::image_tasks::task_spec::{out_task, paint_svg_task, TaskSpec};
 use crate::image_tasks::task_spec::TaskSpec::{PngOutput, StackLayerOnLayer};
-use crate::stack;
+
 
 pub trait Material: Sync + Send {
     fn get_output_tasks(&self) -> Vec<Arc<TaskSpec>>;

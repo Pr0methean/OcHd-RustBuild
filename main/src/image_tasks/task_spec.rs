@@ -1,25 +1,22 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 use std::convert::Infallible;
 use std::fmt::{Display, Formatter};
-use std::future;
 use std::future::{Future, IntoFuture};
 use std::ops::{Deref, DerefMut, FromResidual, Mul};
 use std::path::{Path, PathBuf};
 use std::pin::{Pin};
 use std::str::FromStr;
-use std::sync::{Arc, PoisonError, Weak};
-use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
+use std::sync::{Arc, PoisonError, Mutex};
+use std::task::{Context, Poll, Waker};
 use anyhow::Error;
 use cached::lazy_static::lazy_static;
-use cached::once_cell::sync::Lazy;
 use chashmap_next::CHashMap;
 use fn_graph::{DataAccessDyn, FnGraphBuilder, FnId, TypeIds};
-use futures::{FutureExt, ready};
+use futures::{FutureExt};
 use futures::future::{BoxFuture, ready};
-use futures::task::{ArcWake, AtomicWaker, WakerRef};
 use ordered_float::OrderedFloat;
 use tiny_skia::Pixmap;
-use weak_table::{WeakKeyHashMap, WeakValueHashMap};
+
 
 use crate::image_tasks::animate::animate;
 use crate::image_tasks::color::ComparableColor;
@@ -225,23 +222,20 @@ impl DataAccessDyn for &TaskSpec {
     }
 }
 
-type SyncMutex<T> = std::sync::Mutex<T>;
-type ResultMap = SyncMutex<WeakKeyHashMap<Weak<TaskSpec>, CloneableFutureWrapper<'static, TaskResult>>>;
-
 #[derive(Clone)]
 pub struct CloneableFutureWrapper<'a, T> where T: Clone + Send {
-    result: Arc<SyncMutex<Option<T>>>,
-    future: Arc<SyncMutex<BoxFuture<'a, T>>>,
-    wakers: Arc<SyncMutex<Vec<Arc<Waker>>>>
+    result: Arc<Mutex<Option<T>>>,
+    future: Arc<Mutex<BoxFuture<'a, T>>>,
+    wakers: Arc<Mutex<Vec<Arc<Waker>>>>
 }
 
 impl <'a, T> CloneableFutureWrapper<'a, T> where T: Clone + Send {
     pub fn new<U>(base: U) -> CloneableFutureWrapper<'a, T>
             where U : Future<Output=T> + Send + 'a {
         return CloneableFutureWrapper {
-            result: Arc::new(SyncMutex::new(None)),
-            future: Arc::new(SyncMutex::new(Box::pin(base.into_future()))),
-            wakers: Arc::new(SyncMutex::new(vec![]))
+            result: Arc::new(Mutex::new(None)),
+            future: Arc::new(Mutex::new(Box::pin(base.into_future()))),
+            wakers: Arc::new(Mutex::new(vec![]))
         }
     }
 }
