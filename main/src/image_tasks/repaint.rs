@@ -78,6 +78,7 @@ fn create_paint_array(color: ComparableColor) -> [PremultipliedColorU8; 256] {
         .collect::<Vec<PremultipliedColorU8>>().try_into().unwrap();
 }
 
+/// Applies the given [color] to the given [input](alpha channel).
 #[instrument]
 pub fn paint(input: &AlphaChannel, color: &ComparableColor) -> TaskResult {
     let paint_array = create_paint_array(*color);

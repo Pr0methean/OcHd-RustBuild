@@ -13,6 +13,7 @@ pub(crate) fn create_alpha_array(out_alpha: OrderedFloat<f32>) -> [u8; 256] {
 }
 
 #[instrument]
+/// Multiplies the opacity of all pixels in the [input](given pixmap) by a given [alpha].
 pub fn make_semitransparent(input: &Pixmap, alpha: f32) -> TaskResult {
     let alpha_array = create_alpha_array(alpha.into());
     let mut output = input.to_owned();
