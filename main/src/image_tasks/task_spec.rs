@@ -355,7 +355,7 @@ impl TaskSpec {
 
         println!("No existing node found for: {}", name);
         let new_self = self.to_owned();
-        let mut dependencies: Vec<NodeIndex<Ix>> = vec![];
+        let mut dependencies: Vec<NodeIndex<Ix>> = Vec::with_capacity(16);
         let as_future: TaskResultFuture<'b> = match new_self.to_owned() {
             TaskSpec::None { .. } =>
                 CloneableFutureWrapper::new(&*name, Box::pin(
@@ -365,7 +365,6 @@ impl TaskSpec {
                 let background_name = background.to_string();
                 let (background_index, background_future)
                     = background.to_owned().add_to(graph, existing_nodes);
-                dependencies.reserve(frames.len() + 1);
                 dependencies.push(background_index);
                 let mut frame_futures = Vec::with_capacity(frames.len());
                 for frame in frames {
@@ -423,7 +422,6 @@ impl TaskSpec {
             },
             TaskSpec::StackLayerOnLayer { background, foreground } => {
                 let (bg_index, bg_future) = background.to_owned().add_to(graph, existing_nodes);
-                dependencies.reserve(2);
                 dependencies.push(bg_index);
                 let bg_future = bg_future.to_owned();
                 let (fg_index, fg_future) = foreground.to_owned().add_to(graph, existing_nodes);
