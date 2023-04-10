@@ -339,15 +339,10 @@ impl TaskSpec {
                 }
             },
             TaskSpec::Repaint {base, color} => {
-                if *color == ComparableColor::BLACK {
-                    match base.as_ref() {
-                        TaskSpec::ToAlphaChannel {base} => {
-                            if base.is_all_black() {
-                                return base.to_owned().add_to(graph, existing_nodes);
-                            }
-                        }
-                        _ => {}
-                    }
+                if *color == ComparableColor::BLACK
+                        && let TaskSpec::ToAlphaChannel{base: base_of_base} = base.deref()
+                        && base_of_base.is_all_black() {
+                    return base.to_owned().add_to(graph, existing_nodes);
                 }
             },
             TaskSpec::StackLayerOnColor {background, foreground} => {
