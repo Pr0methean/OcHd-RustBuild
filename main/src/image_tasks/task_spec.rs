@@ -1,23 +1,22 @@
 use std::collections::{HashMap};
 use std::convert::Infallible;
-use std::fmt::{Debug, Display, Formatter, Pointer};
-use std::future::{Future, IntoFuture};
-use std::ops::{Deref, DerefMut, FromResidual, Index, Mul};
-use std::panic::panic_any;
+use std::fmt::{Debug, Display, Formatter};
+use std::future::{Future};
+use std::ops::{Deref, DerefMut, FromResidual, Mul};
 use std::path::{Path, PathBuf};
 use std::pin::{Pin};
 use std::str::FromStr;
-use std::sync::{Arc, PoisonError, Mutex, Weak, OnceLock, TryLockError, TryLockResult, LockResult, MutexGuard};
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
-use anyhow::{anyhow, Error};
-use async_std::task::block_on;
+use anyhow::{Error};
+
 use cached::lazy_static::lazy_static;
-use chashmap_next::CHashMap;
-use fn_graph::{DataAccessDyn, FnGraphBuilder, FnId, TypeIds};
+use fn_graph::{DataAccessDyn, TypeIds};
 use fn_graph::daggy::Dag;
 use futures::{FutureExt};
-use futures::channel::oneshot::{channel, Receiver};
-use futures::future::{BoxFuture, ready};
+
+
+use log::info;
 use ordered_float::OrderedFloat;
 use petgraph::graph::{IndexType, NodeIndex};
 use tiny_skia::Pixmap;
@@ -254,9 +253,9 @@ impl <'a, T> CloneableFutureWrapper<'a, T> where T: Clone + Send + Debug + 'a {
             name: name_string.to_owned(),
             result: Arc::new(Mutex::new(OnceCell::new())),
             future: Arc::new(Mutex::new(Box::pin(async move {
-                println!("Starting {}", name_string);
+                info!("Starting {}", name_string);
                 let result = base.await;
-                println!("Finishing {}", name_string);
+                info!("Finishing {}", name_string);
                 result
             }))),
             wakers: Arc::new(Mutex::new(vec![]))
@@ -326,7 +325,7 @@ impl TaskSpec {
     {
         let name: String = (&self).to_string();
         if existing_nodes.contains_key(&self) {
-            println!("Matched an existing node: {}", self);
+            info!("Matched an existing node: {}", self);
             let (index, future) = existing_nodes.get(&self).unwrap();
             return (index.to_owned(), future.to_owned());
         }
@@ -353,7 +352,7 @@ impl TaskSpec {
             _ => {}
         }
 
-        println!("No existing node found for: {}", name);
+        info!("No existing node found for: {}", name);
         let new_self = self.to_owned();
         let mut dependencies: Vec<NodeIndex<Ix>> = Vec::with_capacity(16);
         let as_future: TaskResultFuture<'b> = match new_self.to_owned() {

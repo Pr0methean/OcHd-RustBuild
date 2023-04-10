@@ -2,7 +2,7 @@ use tiny_skia::{Pixmap, PixmapPaint};
 use tiny_skia_path::Transform;
 
 use crate::anyhoo;
-use crate::image_tasks::task_spec::{CloneableFutureWrapper, TaskResult, TaskResultFuture};
+use crate::image_tasks::task_spec::{TaskResult, TaskResultFuture};
 use tracing::instrument;
 
 #[instrument]

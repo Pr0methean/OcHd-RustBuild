@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use crate::image_tasks::color::{gray, rgb};
 use crate::image_tasks::color::ComparableColor;

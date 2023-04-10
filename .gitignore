@@ -10,4 +10,6 @@ Cargo.lock
 **/*.rs.bk
 /.idea/
 
+# Output
 /main/out/
+/main/log.txt

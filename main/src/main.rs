@@ -19,23 +19,22 @@ use std::collections::{HashMap};
 use std::env;
 use std::io::ErrorKind::NotFound;
 use std::path::absolute;
-use std::sync::{Arc, Weak};
+use std::sync::{Arc};
 use std::time::Instant;
 
 use async_std::fs::{create_dir, remove_dir_all};
-use cached::CachedAsync;
-use fn_graph::{FnGraph, FnGraphBuilder, FnId};
 use fn_graph::daggy::Dag;
-use petgraph::visit::{EdgeRef, IntoNodeReferences, NodeIndexable};
+use petgraph::visit::{EdgeRef, IntoNodeReferences};
 use fn_graph::daggy::petgraph::unionfind::UnionFind;
 use fn_graph::daggy::petgraph::visit::{GraphBase, IntoEdgeReferences, NodeCompactIndexable};
 use futures::future::join_all;
 use lazy_static::lazy_static;
+use log::{info, LevelFilter};
 use logging_allocator::LoggingAllocator;
 use petgraph::graph::DefaultIx;
 use texture_base::material::Material;
 
-use crate::image_tasks::task_spec::{CloneableFutureWrapper, OUT_DIR, SVG_DIR, TaskResult, TaskResultFuture, TaskSpec, TaskToFutureGraphNodeMap};
+use crate::image_tasks::task_spec::{OUT_DIR, SVG_DIR, TaskResultFuture, TaskSpec, TaskToFutureGraphNodeMap};
 
 mod image_tasks;
 mod texture_base;
@@ -87,11 +86,11 @@ static ALLOCATOR: LoggingAllocator = LoggingAllocator::with_allocator(System);
 
 #[tokio::main]
 async fn main() {
-    stderrlog::new().module("logging_allocator").module(module_path!()).verbosity(log::Level::Trace).init().unwrap();
-    println!("Looking for SVGs in {}", absolute(SVG_DIR.to_path_buf()).unwrap().to_string_lossy());
-    println!("Writing output to {}", absolute(OUT_DIR.to_path_buf()).unwrap().to_string_lossy());
+    simple_logging::log_to_file("./log.txt", LevelFilter::Trace).expect("Failed to configure file logging");
+    info!("Looking for SVGs in {}", absolute(SVG_DIR.to_path_buf()).unwrap().to_string_lossy());
+    info!("Writing output to {}", absolute(OUT_DIR.to_path_buf()).unwrap().to_string_lossy());
     let tile_size: u32 = *TILE_SIZE;
-    println!("Using {:?} pixels per tile", tile_size);
+    info!("Using {:?} pixels per tile", tile_size);
     ALLOCATOR.enable_logging();
     let start_time = Instant::now();
     let clean_out_dir = tokio::spawn(async {
@@ -114,6 +113,6 @@ async fn main() {
         .map(|node| graph.node_weight(*node).unwrap().to_owned())
         .collect();
     join_all(futures.into_iter().map(|future| tokio::spawn(future.to_owned()))).await;
-    println!("Finished after {} ns", start_time.elapsed().as_nanos());
+    info!("Finished after {} ns", start_time.elapsed().as_nanos());
     ALLOCATOR.disable_logging();
 }
