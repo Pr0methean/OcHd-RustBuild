@@ -331,8 +331,7 @@ impl TaskSpec {
 }
 
 pub type TaskResultFuture<'b> = CloneableFutureWrapper<'b, TaskResult>;
-pub type TaskToFutureGraphNodeMap<'a,'b,Ix>
-    = HashMap<TaskSpec, (NodeIndex<Ix>, TaskResultFuture<'b>)>;
+pub type TaskToFutureGraphNodeMap<Ix> = HashMap<TaskSpec,NodeIndex<Ix>>;
 
 impl TaskSpec {
     /// Converts this task to a [TaskResultFuture] if it's not already present, also does so
@@ -341,19 +340,17 @@ impl TaskSpec {
     /// [existing_nodes] is used to track tasks already added to the graph so that they are reused
     /// if this task also consumes them. This task is added in case other tasks that depend on it
     /// are added later.
-    pub fn add_to<'a,'b,E, Ix>(self,
-                               graph: &mut Dag<TaskResultFuture<'b>, E, Ix>,
-                               existing_nodes: &mut TaskToFutureGraphNodeMap<'a,'b,Ix>)
-                               -> (NodeIndex<Ix>, TaskResultFuture<'b>)
-    where Ix: IndexType, E: Default, 'b : 'a
+    pub fn add_to<E, Ix>(&self,
+                         graph: &mut Dag<TaskResultFuture, E, Ix>,
+                         existing_nodes: &mut TaskToFutureGraphNodeMap<Ix>)
+                         -> NodeIndex<Ix>
+    where Ix: IndexType, E: Default
     {
         let name: String = (&self).to_string();
-        if existing_nodes.contains_key(&self) {
+        if let Some(existing_index) = existing_nodes.get(&self) {
             info!("Matched an existing node: {}", name);
-            let (index, future) = existing_nodes.get(&self).unwrap();
-            return (*index, future.to_owned());
+            return *existing_index;
         }
-        let new_self = self.to_owned();
 
         // Simplify redundant tasks first
         match self {
@@ -363,14 +360,14 @@ impl TaskSpec {
                 }
             },
             TaskSpec::Repaint {base, color} => {
-                if color == ComparableColor::BLACK
+                if *color == ComparableColor::BLACK
                         && let TaskSpec::ToAlphaChannel{base: base_of_base} = base.deref()
                         && base_of_base.is_all_black() {
                     return base_of_base.to_owned().add_to(graph, existing_nodes);
                 }
             },
             TaskSpec::StackLayerOnColor {background, foreground} => {
-                if background == ComparableColor::TRANSPARENT {
+                if *background == ComparableColor::TRANSPARENT {
                     return foreground.add_to(graph, existing_nodes);
                 }
             }
@@ -379,20 +376,20 @@ impl TaskSpec {
 
         info!("No existing node found for: {}", name);
         let mut dependencies: Vec<NodeIndex<Ix>> = Vec::with_capacity(16);
-        let as_future: TaskResultFuture<'b> = match new_self.to_owned() {
+        let as_future: TaskResultFuture = match self {
             TaskSpec::None { .. } =>
                 CloneableFutureWrapper::new(name, Box::pin(
                 async { TaskResult::Err{value: anyhoo!("Call to into_future() on a None task") } }
                 )),
             TaskSpec::Animate { background, frames } => {
                 let background_name = background.to_string();
-                let (background_index, background_future)
-                    = background.add_to(graph, existing_nodes);
+                let background_index = background.add_to(graph, existing_nodes);
+                let background_future = graph[background_index].to_owned();
                 dependencies.push(background_index);
                 let mut frame_futures = Vec::with_capacity(frames.len());
                 for frame in frames {
-                    let (frame_index, frame_future) = frame.add_to(graph, existing_nodes);
-                    frame_futures.push(frame_future);
+                    let frame_index = frame.add_to(graph, existing_nodes);
+                    frame_futures.push(graph[frame_index].to_owned());
                     dependencies.push(frame_index);
                 }
                 CloneableFutureWrapper::new(name, Box::pin(async move {
@@ -403,12 +400,14 @@ impl TaskSpec {
                 }))
             },
             FromSvg { source } => {
+                let source = source.to_owned();
                 CloneableFutureWrapper::new(name, Box::pin(
                     async move { from_svg(source, *TILE_SIZE) }))
             },
             TaskSpec::MakeSemitransparent { base, alpha } => {
-                let alpha: f32 = alpha.into();
-                let (base_index, base_future) = base.add_to(graph, existing_nodes);
+                let alpha: f32 = (*alpha).into();
+                let base_index = base.add_to(graph, existing_nodes);
+                let base_future = graph[base_index].to_owned();
                 dependencies.push(base_index);
                 CloneableFutureWrapper::new(name, Box::pin(
                     async move {
@@ -416,7 +415,9 @@ impl TaskSpec {
                     }))
             },
             PngOutput { base, destinations } => {
-                let (base_index, base_future) = base.add_to(graph, existing_nodes);
+                let destinations = destinations.to_owned();
+                let base_index = base.add_to(graph, existing_nodes);
+                let base_future = graph[base_index].to_owned();
                 dependencies.push(base_index);
                 CloneableFutureWrapper::new(name, Box::pin(
                     async move {
@@ -425,43 +426,50 @@ impl TaskSpec {
                 ))
             },
             TaskSpec::Repaint { base, color } => {
-                let (base_index, base_future) = base.add_to(graph, existing_nodes);
+                let color = color.to_owned();
+                let base_index = base.add_to(graph, existing_nodes);
+                let base_future = graph[base_index].to_owned();
                 dependencies.push(base_index);
                 CloneableFutureWrapper::new(name, Box::pin(async move {
                     paint(&base_future.await.try_into()?, &color)
                 }))
             },
             TaskSpec::StackLayerOnColor { background, foreground } => {
-                let (fg_index, fg_future) = foreground.add_to(graph, existing_nodes);
+                let background = background.to_owned();
+                let fg_index = foreground.add_to(graph, existing_nodes);
+                let fg_future = graph[fg_index].to_owned();
                 dependencies.push(fg_index);
                 CloneableFutureWrapper::new(name, Box::pin(async move {
                     stack_layer_on_background(&background, &(fg_future.await.try_into()?))
                 }))
             },
             TaskSpec::StackLayerOnLayer { background, foreground } => {
-                let (bg_index, bg_future) = background.add_to(graph, existing_nodes);
+                let bg_index = background.add_to(graph, existing_nodes);
                 dependencies.push(bg_index);
-                let (fg_index, fg_future) = foreground.add_to(graph, existing_nodes);
+                let fg_index = foreground.add_to(graph, existing_nodes);
                 dependencies.push(fg_index);
+                let bg_future = graph[bg_index].to_owned();
+                let fg_future = graph[fg_index].to_owned();
                 CloneableFutureWrapper::new(name, Box::pin(async move {
                     stack_layer_on_layer(&(bg_future.await.try_into()?), &(fg_future.await.try_into()?))
                 }))
             },
             TaskSpec::ToAlphaChannel { base } => {
-                let (base_index, base_future) = base.add_to(graph, existing_nodes);
+                let base_index = base.add_to(graph, existing_nodes);
+                let base_future = graph[base_index].to_owned();
                 dependencies.push(base_index);
                 CloneableFutureWrapper::new(name, Box::pin(async move {
                     to_alpha_channel(&(base_future.await.try_into()?))
                 }))
             }
         };
-        let self_id = graph.add_node(as_future.to_owned());
+        let self_id = graph.add_node(as_future);
         for dependency in dependencies {
             graph.add_edge(dependency, self_id, E::default())
                 .expect("Tried to create a cycle");
         }
-        existing_nodes.insert(new_self, (self_id, as_future.to_owned()));
-        return (self_id, as_future);
+        existing_nodes.insert(self.to_owned(), self_id);
+        return self_id;
     }
 }
 
