@@ -236,6 +236,8 @@ pub struct MultiWaker {
     wakers: Mutex<Vec<Waker>>
 }
 
+/// Stores the wakers for all clones of a given [CloneableFutureWrapper] and wakes them when the
+/// wrapped future wakes the MultiWaker or is found to be ready.
 impl MultiWaker {
     fn new() -> MultiWaker {
         MultiWaker {wakers: Mutex::new(Vec::with_capacity(16))}
@@ -254,6 +256,9 @@ impl WakeRef for MultiWaker {
     }
 }
 
+/// Wraps a future so it can be consumed by multiple dependencies. Implemented because I was told
+/// [futures::future::Shared] would probably have a memory leak. Unlike Shared, this doesn't
+/// directly use a [std::cell::UnsafeCell].
 #[derive(Clone)]
 pub struct CloneableFutureWrapper<'a, T> where T: Clone + Send {
     name: String,
@@ -313,6 +318,7 @@ impl <'a, T> Future for CloneableFutureWrapper<'a, T> where T: Clone + Send + Sy
 }
 
 impl TaskSpec {
+    /// Used in [TaskSpec::add_to] to deduplicate certain tasks that are redundant.
     fn is_all_black(&self) -> bool {
         match self {
             TaskSpec::None { .. } => false,
