@@ -335,6 +335,12 @@ pub type TaskToFutureGraphNodeMap<'a,'b,Ix>
     = HashMap<TaskSpec, (NodeIndex<Ix>, TaskResultFuture<'b>)>;
 
 impl TaskSpec {
+    /// Converts this task to a [TaskResultFuture] if it's not already present, also does so
+    /// recursively for this task's dependencies, and adds dependency->consumer edges. Returns the
+    /// added or existing future.
+    /// [existing_nodes] is used to track tasks already added to the graph so that they are reused
+    /// if this task also consumes them. This task is added in case other tasks that depend on it
+    /// are added later.
     pub fn add_to<'a,'b,E, Ix>(self,
                                graph: &mut Dag<TaskResultFuture<'b>, E, Ix>,
                                existing_nodes: &mut TaskToFutureGraphNodeMap<'a,'b,Ix>)
