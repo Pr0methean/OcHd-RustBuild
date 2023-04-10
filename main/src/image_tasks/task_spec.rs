@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::pin::{Pin};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
-use std::task::{Context, Poll, Wake, Waker};
+use std::task::{Context, Poll, Waker};
 use anyhow::{Error};
 
 use cached::lazy_static::lazy_static;

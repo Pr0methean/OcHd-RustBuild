@@ -34,7 +34,7 @@ use logging_allocator::LoggingAllocator;
 use petgraph::graph::DefaultIx;
 use texture_base::material::Material;
 
-use crate::image_tasks::task_spec::{OUT_DIR, SVG_DIR, TaskResultFuture, TaskSpec, TaskToFutureGraphNodeMap};
+use crate::image_tasks::task_spec::{OUT_DIR, SVG_DIR, TaskResultFuture, TaskToFutureGraphNodeMap};
 
 mod image_tasks;
 mod texture_base;
