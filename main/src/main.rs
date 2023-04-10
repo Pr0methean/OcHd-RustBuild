@@ -19,19 +19,17 @@ use std::collections::{HashMap};
 use std::env;
 use std::io::ErrorKind::NotFound;
 use std::path::absolute;
-use std::sync::{Arc};
 use std::time::Instant;
 
 use async_std::fs::{create_dir, remove_dir_all};
 use fn_graph::daggy::Dag;
-use petgraph::visit::{EdgeRef, IntoNodeReferences};
+use petgraph::visit::{EdgeRef, IntoNodeReferences, IntoEdgeReferences, NodeIndexable};
 use fn_graph::daggy::petgraph::unionfind::UnionFind;
-use fn_graph::daggy::petgraph::visit::{GraphBase, IntoEdgeReferences, NodeCompactIndexable};
 use futures::future::join_all;
 use lazy_static::lazy_static;
 use log::{info, LevelFilter};
 use logging_allocator::LoggingAllocator;
-use petgraph::graph::DefaultIx;
+use petgraph::graph::{DefaultIx, NodeIndex};
 use texture_base::material::Material;
 
 use crate::image_tasks::task_spec::{OUT_DIR, SVG_DIR, TaskResultFuture, TaskToFutureGraphNodeMap};
@@ -45,38 +43,6 @@ lazy_static! {
         args[1].parse::<u32>()
             .expect("Tile size must be an integer")
     };
-}
-
-/// Splits a dag into weakly-connected components (WCCs, groups that don't share any subtasks).
-/// Used to save memory by minimizing the number of WCCs caching their subtasks at once.
-/// Adapted from https://docs.rs/petgraph/latest/src/petgraph/algo/mod.rs.html#87-102.
-pub fn connected_components<G,N>(g: G) -> Vec<Vec<Arc<N>>>
-    where
-        G: NodeCompactIndexable + IntoEdgeReferences + IntoNodeReferences + GraphBase<NodeId=N>,
-        N: Clone
-{
-    let mut vertex_sets = UnionFind::new(g.node_bound());
-    for edge in g.edge_references() {
-        let (a, b) = (edge.source(), edge.target());
-
-        // union the two vertices of the edge
-        vertex_sets.union(g.to_index(a), g.to_index(b));
-    }
-    let mut component_map: HashMap<usize, Vec<Arc<N>>> = HashMap::new();
-    for node in g.node_identifiers() {
-        let representative = vertex_sets.find(g.to_index(node.clone()));
-        match component_map.get_mut(&representative) {
-            Some(existing) => {
-                existing.push(Arc::new(node));
-            },
-            None => {
-                component_map.insert(representative, vec![Arc::new(node)]);
-            }
-        };
-    }
-    let mut components: Vec<Vec<Arc<N>>> = component_map.into_values().collect();
-    components.sort_by_key(Vec::len);
-    return components;
 }
 
 #[global_allocator]
@@ -105,14 +71,40 @@ async fn main() {
     tasks.into_iter().for_each(|task| {
             task.add_to(&mut graph, &mut added_tasks);});
     drop(added_tasks);
-    clean_out_dir.await.expect("Failed to create or replace output directory");
-    let futures: Vec<TaskResultFuture> = connected_components(&graph)
-        .into_iter()
-        .flatten()
-        .map(|node| graph.node_weight(*node).unwrap().to_owned())
-        .collect();
+
+    // Split the graph into weakly-connected components (WCCs, groups that don't share any subtasks).
+    // Used to save memory by minimizing the number of WCCs caching their subtasks at once.
+    // Adapted from https://docs.rs/petgraph/latest/src/petgraph/algo/mod.rs.html#87-102.
+    let mut vertex_sets = UnionFind::new(graph.node_bound());
+    for edge in graph.edge_references() {
+        let (a, b) = (edge.source(), edge.target());
+
+        // union the two vertices of the edge
+        vertex_sets.union(a, b);
+    }
+    let mut component_map: HashMap<NodeIndex<DefaultIx>, Vec<TaskResultFuture>> = HashMap::new();
+    for (index, task) in graph.node_references() {
+        let representative = vertex_sets.find(index);
+        match component_map.get_mut(&representative) {
+            Some(existing) => {
+                existing.push(task.to_owned());
+            },
+            None => {
+                let mut vec = Vec::with_capacity(1024);
+                vec.push(task.to_owned());
+                component_map.insert(representative, vec);
+            }
+        };
+    }
     drop(graph);
-    join_all(futures.into_iter().map(tokio::spawn)).await;
+
+    // Run small WCCs first so that their data can leave the heap before the big WCCs run
+    let mut components: Vec<Vec<TaskResultFuture>> = component_map.into_values().collect();
+    components.sort_by_key(Vec::len);
+    let components = components.into_iter().flatten().into_iter();
+
+    clean_out_dir.await.expect("Failed to create or replace output directory");
+    join_all(components.map(tokio::spawn)).await;
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     ALLOCATOR.disable_logging();
 }
