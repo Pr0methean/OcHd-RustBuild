@@ -345,7 +345,7 @@ impl TaskSpec {
         if existing_nodes.contains_key(&self) {
             info!("Matched an existing node: {}", name);
             let (index, future) = existing_nodes.get(&self).unwrap();
-            return (index.to_owned(), future.to_owned());
+            return (*index, future.to_owned());
         }
         let new_self = self.to_owned();
 
