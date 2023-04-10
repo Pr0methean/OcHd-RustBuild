@@ -340,11 +340,12 @@ impl TaskSpec {
     /// [existing_nodes] is used to track tasks already added to the graph so that they are reused
     /// if this task also consumes them. This task is added in case other tasks that depend on it
     /// are added later.
-    pub fn add_to<'a, 'b, E, Ix>(&'a self,
-                                 graph: &mut Dag<TaskResultFuture, E, Ix>,
-                                 existing_nodes: &mut TaskToFutureGraphNodeMap<'b, Ix>)
-                                 -> NodeIndex<Ix>
-    where Ix: IndexType, E: Default, 'a: 'b
+    pub fn add_to<'a, 'until_graph_built, E, Ix>(&'a self,
+                                                 graph: &mut Dag<TaskResultFuture, E, Ix>,
+                                                 existing_nodes: &mut
+                                                    TaskToFutureGraphNodeMap<'until_graph_built, Ix>)
+                                                 -> NodeIndex<Ix>
+    where Ix: IndexType, E: Default, 'a: 'until_graph_built
     {
         let name: String = (&self).to_string();
         if let Some(existing_index) = existing_nodes.get(&self) {
