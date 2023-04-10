@@ -47,11 +47,9 @@ lazy_static! {
     };
 }
 
-/**
- * Splits a dag into weakly-connected components (WCCs, groups that don't share any subtasks).
- * Used to save memory by minimizing the number of WCCs caching their subtasks at once.
- * Adapted from https://docs.rs/petgraph/latest/src/petgraph/algo/mod.rs.html#87-102.
- */
+/// Splits a dag into weakly-connected components (WCCs, groups that don't share any subtasks).
+/// Used to save memory by minimizing the number of WCCs caching their subtasks at once.
+/// Adapted from https://docs.rs/petgraph/latest/src/petgraph/algo/mod.rs.html#87-102.
 pub fn connected_components<G,N>(g: G) -> Vec<Vec<Arc<N>>>
     where
         G: NodeCompactIndexable + IntoEdgeReferences + IntoNodeReferences + GraphBase<NodeId=N>,
@@ -112,6 +110,7 @@ async fn main() {
         .flatten()
         .map(|node| graph.node_weight(*node).unwrap().to_owned())
         .collect();
+    drop(graph);
     join_all(futures.into_iter().map(|future| tokio::spawn(future.to_owned()))).await;
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     ALLOCATOR.disable_logging();
