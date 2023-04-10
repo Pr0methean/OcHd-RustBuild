@@ -2,9 +2,11 @@ use tiny_skia::{Pixmap, PixmapPaint};
 use tiny_skia_path::Transform;
 
 use crate::anyhoo;
-use crate::image_tasks::task_spec::{CloneableFutureWrapper, TaskResult};
+use crate::image_tasks::task_spec::{CloneableFutureWrapper, TaskResult, TaskResultFuture};
+use tracing::instrument;
 
-pub async fn animate<'a>(background: Pixmap, frames: Vec<CloneableFutureWrapper<'a, TaskResult>>)
+#[instrument]
+pub async fn animate<'a>(background: Pixmap, frames: Vec<TaskResultFuture<'a>>)
                          -> TaskResult {
     let frame_count = frames.len() as u32;
     let frame_height = background.height().to_owned();
@@ -20,7 +22,7 @@ pub async fn animate<'a>(background: Pixmap, frames: Vec<CloneableFutureWrapper<
     }
     let mut i: u32 = 0;
     for frame in frames {
-        let frame_pixmap: Pixmap = frame.await.clone().try_into()?;
+        let frame_pixmap: Pixmap = frame.await.try_into()?;
         out.draw_pixmap(0, (i * frame_height) as i32,
                         frame_pixmap.as_ref(),
                         &PixmapPaint::default(),

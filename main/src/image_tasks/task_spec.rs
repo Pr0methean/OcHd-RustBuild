@@ -1,22 +1,27 @@
 use std::collections::{HashMap};
 use std::convert::Infallible;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter, Pointer};
 use std::future::{Future, IntoFuture};
-use std::ops::{Deref, DerefMut, FromResidual, Mul};
+use std::ops::{Deref, DerefMut, FromResidual, Index, Mul};
+use std::panic::panic_any;
 use std::path::{Path, PathBuf};
 use std::pin::{Pin};
 use std::str::FromStr;
-use std::sync::{Arc, PoisonError, Mutex};
+use std::sync::{Arc, PoisonError, Mutex, Weak, OnceLock, TryLockError, TryLockResult, LockResult, MutexGuard};
 use std::task::{Context, Poll, Waker};
-use anyhow::Error;
+use anyhow::{anyhow, Error};
+use async_std::task::block_on;
 use cached::lazy_static::lazy_static;
 use chashmap_next::CHashMap;
 use fn_graph::{DataAccessDyn, FnGraphBuilder, FnId, TypeIds};
+use fn_graph::daggy::Dag;
 use futures::{FutureExt};
+use futures::channel::oneshot::{channel, Receiver};
 use futures::future::{BoxFuture, ready};
 use ordered_float::OrderedFloat;
+use petgraph::graph::{IndexType, NodeIndex};
 use tiny_skia::Pixmap;
-
+use tokio::sync::OnceCell;
 
 use crate::image_tasks::animate::animate;
 use crate::image_tasks::color::ComparableColor;
@@ -34,14 +39,14 @@ use crate::TILE_SIZE;
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum TaskSpec {
     None {},
-    Animate {background: Arc<TaskSpec>, frames: Vec<Arc<TaskSpec>>},
+    Animate {background: Box<TaskSpec>, frames: Vec<Box<TaskSpec>>},
     FromSvg {source: PathBuf},
-    MakeSemitransparent {base: Arc<TaskSpec>, alpha: OrderedFloat<f32>},
-    PngOutput {base: Arc<TaskSpec>, destinations: Vec<PathBuf>},
-    Repaint {base: Arc<TaskSpec>, color: ComparableColor},
-    StackLayerOnColor {background: ComparableColor, foreground: Arc<TaskSpec>},
-    StackLayerOnLayer {background: Arc<TaskSpec>, foreground: Arc<TaskSpec>},
-    ToAlphaChannel {base: Arc<TaskSpec>}
+    MakeSemitransparent {base: Box<TaskSpec>, alpha: OrderedFloat<f32>},
+    PngOutput {base: Box<TaskSpec>, destinations: Vec<PathBuf>},
+    Repaint {base: Box<TaskSpec>, color: ComparableColor},
+    StackLayerOnColor {background: ComparableColor, foreground: Box<TaskSpec>},
+    StackLayerOnLayer {background: Box<TaskSpec>, foreground: Box<TaskSpec>},
+    ToAlphaChannel {base: Box<TaskSpec>}
 }
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
@@ -222,66 +227,73 @@ impl DataAccessDyn for &TaskSpec {
     }
 }
 
+pub type SyncBoxFuture<'a, T> = Pin<Box<dyn Future<Output=T> + Send + Sync + 'a>>;
+
 #[derive(Clone)]
 pub struct CloneableFutureWrapper<'a, T> where T: Clone + Send {
-    result: Arc<Mutex<Option<T>>>,
-    future: Arc<Mutex<BoxFuture<'a, T>>>,
+    name: String,
+    result: Arc<Mutex<OnceCell<T>>>,
+    future: Arc<Mutex<SyncBoxFuture<'a, T>>>,
     wakers: Arc<Mutex<Vec<Arc<Waker>>>>
 }
 
-impl <'a, T> CloneableFutureWrapper<'a, T> where T: Clone + Send {
-    pub fn new<U>(base: U) -> CloneableFutureWrapper<'a, T>
-            where U : Future<Output=T> + Send + 'a {
-        return CloneableFutureWrapper {
-            result: Arc::new(Mutex::new(None)),
-            future: Arc::new(Mutex::new(Box::pin(base))),
-            wakers: Arc::new(Mutex::new(vec![]))
-        }
+impl <'a, T> Debug for CloneableFutureWrapper<'a, T> where T: Clone + Send + Debug {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CloneableFutureWrapper")
+            .field("name", &self.name)
+            .field("result", &self.result)
+            .field("wakers", &self.wakers)
+            .finish()
     }
 }
 
-impl <'a, T> Future for CloneableFutureWrapper<'a, T> where T: Clone + Send {
+impl <'a, T> CloneableFutureWrapper<'a, T> where T: Clone + Send + Debug + 'a {
+    pub fn new(name: &str, base: SyncBoxFuture<'a, T>) -> CloneableFutureWrapper<'a, T> {
+        let name_string = name.to_string();
+        return CloneableFutureWrapper {
+            name: name_string.to_owned(),
+            result: Arc::new(Mutex::new(OnceCell::new())),
+            future: Arc::new(Mutex::new(Box::pin(async move {
+                println!("Starting {}", name_string);
+                let result = base.await;
+                println!("Finishing {}", name_string);
+                result
+            }))),
+            wakers: Arc::new(Mutex::new(vec![]))
+        };
+    }
+}
+
+impl <'a, T> Future for CloneableFutureWrapper<'a, T> where T: Clone + Send + Sync + Debug + 'a {
     type Output = T;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        return match self.result.lock() {
-            Ok(mut locked_result) => {
-                let locked_result = locked_result.deref_mut();
-                match locked_result {
-                    Some(result) => Poll::Ready(result.to_owned()),
-                    None => {
-                        let mut future = self.future.lock().unwrap();
-                        let mut wakers_lock = self.wakers.lock().unwrap();
-                        let new_result = future.poll_unpin(cx);
-                        match new_result {
-                            Poll::Ready(new_result) => {
-                                let wakers = wakers_lock.deref_mut();
-                                for waker in wakers.to_owned() {
-                                    waker.wake_by_ref();
-                                }
-                                wakers.clear();
-                                *locked_result = Some(new_result.to_owned());
-                                Poll::Ready(new_result)
-                            },
-                            Poll::Pending => {
-                                let wakers = wakers_lock.deref_mut();
-                                wakers.push(Arc::new(cx.waker().to_owned()));
-                                Poll::Pending
-                            }
+        let result_lock = self.result.lock().unwrap();
+        let result = result_lock.get();
+        return match result {
+            Some(t) => Poll::Ready(t.to_owned()),
+            None => {
+                let mut future_lock = self.future.lock().unwrap();
+                let future = future_lock.deref_mut();
+                let new_result = future.poll_unpin(cx);
+                let mut wakers_lock = self.wakers.lock().unwrap();
+                match new_result.to_owned() {
+                    Poll::Ready(result_value) => {
+                        let wakers = wakers_lock.deref_mut();
+                        for waker in wakers.drain(..) {
+                            waker.wake_by_ref();
                         }
+                        result_lock.set(result_value.to_owned()).expect("Failed to set result_lock"); // Ignore error for idempotence
+                    },
+                    Poll::Pending => {
+                        wakers_lock.deref_mut().push(Arc::new(cx.waker().to_owned()));
                     }
                 }
-            }
-            Err(PoisonError {..}) => {
-                panic!("Got a PoisonError while polling self")
+                new_result
             }
         }
     }
 }
-
-lazy_static!(
-    static ref RESULTS_MAP: CHashMap<Arc<TaskSpec>, CloneableFutureWrapper<'static, TaskResult>> = CHashMap::new();
-);
 
 impl TaskSpec {
     fn is_all_black(&self) -> bool {
@@ -301,84 +313,29 @@ impl TaskSpec {
     }
 }
 
-impl IntoFuture for TaskSpec {
-    type Output = TaskResult;
-
-    type IntoFuture = CloneableFutureWrapper<'static, TaskResult>;
-    fn into_future<'a>(self) -> CloneableFutureWrapper<'static, TaskResult> {
-        let owned_arc_self = Arc::new(self.to_owned());
-        let second_owned_arc_self = owned_arc_self.clone();
-        //let third_owned_arc_self = owned_arc_self.clone();
-        RESULTS_MAP.upsert(owned_arc_self, move || {
-            let name = self.to_string();
-            let future_without_logging: BoxFuture<TaskResult> = match self {
-                TaskSpec::None { .. } => Box::pin(
-                    ready(TaskResult::Err{value: anyhoo!("Call to into_future() on a None task") })
-                ),
-                TaskSpec::Animate { background, frames } => {
-                    let background = background.to_owned().as_future();
-                    let frames: Vec<CloneableFutureWrapper<TaskResult>>
-                        = frames.iter().map(|task_spec| task_spec.as_future()).collect();
-                    Box::pin(background.then(|background| async {
-                        match background {
-                            TaskResult::Pixmap {value} => animate(value, frames).await,
-                            _ => TaskResult::Err {value: anyhoo!("Got {:?} instead of Pixmap for background", background)}
-                        }
-                    }))
-                },
-                FromSvg { source } => {
-                    let source = source.to_owned();
-                    Box::pin(async { from_svg(source, *TILE_SIZE) })
-                },
-                TaskSpec::MakeSemitransparent { base, alpha } => {
-                    let alpha = alpha.0.to_owned();
-                    let base = base.as_future();
-                    Box::pin(async move { make_semitransparent(base.await.try_into()?, alpha) })
-                },
-                PngOutput { base, destinations } => {
-                    let base = base.as_future();
-                    let destinations = destinations.to_owned();
-                    Box::pin(async move  { png_output(base.await.try_into()?, &destinations) })
-                },
-                TaskSpec::Repaint { base, color } => {
-                    let base = base.as_future();
-                    let color = color.to_owned();
-                    Box::pin(async move { paint(base.await.try_into()?, &color) })
-                },
-                TaskSpec::StackLayerOnColor { background, foreground } => {
-                    let foreground = foreground.as_future();
-                    let background = background.to_owned();
-                    Box::pin(async move { stack_layer_on_background(&background, foreground.await.try_into()?) })
-                },
-                TaskSpec::StackLayerOnLayer { background, foreground } => {
-                    let background = background.as_future();
-                    let foreground = foreground.as_future();
-                    Box::pin(async { stack_layer_on_layer(background.await.try_into()?, foreground.await.try_into()?) })
-                },
-                TaskSpec::ToAlphaChannel { base } => {
-                    let base = base.as_future();
-                    Box::pin(async { to_alpha_channel(base.await.try_into()?) })
-                }
-            };
-            CloneableFutureWrapper::new(Box::pin(tokio::spawn(async move {
-                println!("Starting task {}", name);
-                let result = future_without_logging.await;
-                //RESULTS_MAP.remove(&*third_owned_arc_self);
-                println!("Finishing task {}", name);
-                result
-            }).map(Result::unwrap)))
-        }, |&mut _| {});
-        return RESULTS_MAP.get(&*second_owned_arc_self).unwrap().deref().clone();
-    }
-}
+pub type TaskResultFuture<'b> = CloneableFutureWrapper<'b, TaskResult>;
+pub type TaskToFutureGraphNodeMap<'a,'b,Ix>
+    = HashMap<TaskSpec, (NodeIndex<Ix>, TaskResultFuture<'b>)>;
 
 impl TaskSpec {
-    pub fn as_future(&self) -> CloneableFutureWrapper<'static, TaskResult> {
+    pub fn add_to<'a,'b,E, Ix>(self,
+                               graph: &mut Dag<TaskResultFuture<'b>, E, Ix>,
+                               existing_nodes: &mut TaskToFutureGraphNodeMap<'a,'b,Ix>)
+                               -> (NodeIndex<Ix>, TaskResultFuture<'b>)
+    where Ix: IndexType, E: Default, 'b : 'a
+    {
+        let name: String = (&self).to_string();
+        if existing_nodes.contains_key(&self) {
+            println!("Matched an existing node: {}", self);
+            let (index, future) = existing_nodes.get(&self).unwrap();
+            return (index.to_owned(), future.to_owned());
+        }
+
         // Simplify redundant tasks first
-        match self {
+        match &self {
             TaskSpec::MakeSemitransparent {base, alpha} => {
-                if alpha == &OrderedFloat::from(1.0) {
-                    return base.as_future();
+                if *alpha == 1.0 {
+                    return base.to_owned().add_to(graph, existing_nodes);
                 }
             },
             TaskSpec::Repaint {base, color} => {
@@ -386,7 +343,7 @@ impl TaskSpec {
                     match base.as_ref() {
                         TaskSpec::ToAlphaChannel {base} => {
                             if base.is_all_black() {
-                                return base.as_future();
+                                return base.to_owned().add_to(graph, existing_nodes);
                             }
                         }
                         _ => {}
@@ -395,85 +352,106 @@ impl TaskSpec {
             },
             TaskSpec::StackLayerOnColor {background, foreground} => {
                 if *background == ComparableColor::TRANSPARENT {
-                    return foreground.as_future();
+                    return foreground.to_owned().add_to(graph, existing_nodes);
                 }
             }
             _ => {}
         }
 
-        return self.clone().into_future();
-    }
-
-    pub fn add_to(&'static self,
-                  graph: &mut FnGraphBuilder<&TaskSpec>,
-                  existing_nodes: &mut HashMap<&TaskSpec, FnId>) -> FnId
-    {
-        if existing_nodes.contains_key(self) {
-            println!("Matched an existing node: {}", self);
-            return *existing_nodes.get(self).unwrap();
-        }
-        println!("No existing node found for: {}", self);
-        let self_id: FnId = match self {
+        println!("No existing node found for: {}", name);
+        let new_self = self.to_owned();
+        let mut dependencies: Vec<NodeIndex<Ix>> = vec![];
+        let as_future: TaskResultFuture<'b> = match new_self.to_owned() {
+            TaskSpec::None { .. } =>
+                CloneableFutureWrapper::new(&*name, Box::pin(
+                async { TaskResult::Err{value: anyhoo!("Call to into_future() on a None task") } }
+                )),
             TaskSpec::Animate { background, frames } => {
-                let background_id = background.add_to(graph, existing_nodes);
-                let mut frame_ids: Vec<FnId> = vec![];
+                let background_name = background.to_string();
+                let (background_index, background_future)
+                    = background.to_owned().add_to(graph, existing_nodes);
+                dependencies.push(background_index);
+                let mut frame_futures = vec![];
                 for frame in frames {
-                    frame_ids.push(frame.add_to(graph, existing_nodes));
+                    let (frame_index, frame_future) = frame.to_owned().add_to(graph, existing_nodes);
+                    frame_futures.push(frame_future.to_owned());
+                    dependencies.push(frame_index);
                 }
-                let animate_id = graph.add_fn(self);
-                graph.add_edge(background_id, animate_id).expect("Failed to add background edge");
-                frame_ids.into_iter().for_each(|frame_id| {
-                    graph.add_edge(frame_id, animate_id).expect("Failed to add frame edge");
-                });
-                animate_id
+                let background_future = background_future.to_owned();
+                CloneableFutureWrapper::new(&*name, Box::pin(async move {
+                    match background_future.await {
+                        TaskResult::Pixmap {value} => animate(value, frame_futures).await,
+                        _ => TaskResult::Err {value: anyhoo!("Got {:?} instead of Pixmap for background", background_name)}
+                    }
+                }))
             },
-            FromSvg { .. } => {
-                graph.add_fn(self)
+            FromSvg { source } => {
+                let source = source.to_owned();
+                CloneableFutureWrapper::new(&*name, Box::pin(
+                    async move { from_svg(source, *TILE_SIZE) }))
             },
-            TaskSpec::MakeSemitransparent { base, .. } => {
-                let base_id = base.add_to(graph, existing_nodes);
-                let self_id = graph.add_fn(self);
-                graph.add_edge(base_id, self_id).expect("Failed to add edge");
-                self_id
+            TaskSpec::MakeSemitransparent { base, alpha } => {
+                let alpha = alpha.0.to_owned();
+                let (base_index, base_future) = base.to_owned().add_to(graph, existing_nodes);
+                dependencies.push(base_index);
+                CloneableFutureWrapper::new(&*name, Box::pin(
+                    async move {
+                        make_semitransparent(base_future.await.try_into()?, alpha)
+                    }))
             },
-            PngOutput { base, .. } => {
-                let base_id = base.add_to(graph, existing_nodes);
-                let self_id = graph.add_fn(self);
-                graph.add_edge(base_id, self_id).expect("Failed to add edge");
-                self_id
+            PngOutput { base, destinations } => {
+                let (base_index, base_future) = base.to_owned().add_to(graph, existing_nodes);
+                dependencies.push(base_index);
+                let destinations = destinations.to_owned();
+                CloneableFutureWrapper::new(&*name, Box::pin(
+                    async move {
+                        png_output(base_future.await.try_into()?, &destinations)
+                    }
+                ))
             },
-            TaskSpec::Repaint { base, .. } => {
-                let base_id = base.add_to(graph, existing_nodes);
-                let self_id = graph.add_fn(self);
-                graph.add_edge(base_id, self_id).expect("Failed to add edge");
-                self_id
+            TaskSpec::Repaint { base, color } => {
+                let (base_index, base_future) = base.to_owned().add_to(graph, existing_nodes);
+                dependencies.push(base_index);
+                let color = color.to_owned();
+                CloneableFutureWrapper::new(&*name, Box::pin(async move {
+                    paint(base_future.to_owned().await.try_into()?, &color)
+                }))
             },
-            TaskSpec::StackLayerOnColor { foreground, .. } => {
-                let base_id = foreground.add_to(graph, existing_nodes);
-                let self_id = graph.add_fn(self);
-                graph.add_edge(base_id, self_id).expect("Failed to add edge");
-                self_id
+            TaskSpec::StackLayerOnColor { background, foreground } => {
+                let (fg_index, fg_future) = foreground.to_owned().add_to(graph, existing_nodes);
+                dependencies.push(fg_index);
+                let fg_future = fg_future.to_owned();
+                CloneableFutureWrapper::new(&*name, Box::pin(async move {
+                    stack_layer_on_background(&background, &(fg_future.to_owned().await.try_into()?))
+                }))
             },
             TaskSpec::StackLayerOnLayer { background, foreground } => {
-                let background_id = background.add_to(graph, existing_nodes);
-                let foreground_id = foreground.add_to(graph, existing_nodes);
-                let self_id = graph.add_fn(self);
-                graph.add_edge(background_id, self_id).expect("Failed to add background edge");
-                graph.add_edge(foreground_id, self_id).expect("Failed to add foreground edge");
-                self_id
+                let (bg_index, bg_future) = background.to_owned().add_to(graph, existing_nodes);
+                dependencies.push(bg_index);
+                let bg_future = bg_future.to_owned();
+                let (fg_index, fg_future) = foreground.to_owned().add_to(graph, existing_nodes);
+                dependencies.push(fg_index);
+                let fg_future = fg_future.to_owned();
+                CloneableFutureWrapper::new(&*name, Box::pin(async move {
+                    stack_layer_on_layer(&(bg_future.to_owned().await.try_into()?), &(fg_future.to_owned().await.try_into()?))
+                }))
             },
             TaskSpec::ToAlphaChannel { base } => {
-                let base_id = base.add_to(graph, existing_nodes);
-                let self_id = graph.add_fn(self);
-                graph.add_edge(base_id, self_id).expect("Failed to add edge");
-                self_id
-            },
-            TaskSpec::None {} => {
-                panic!("Attempted to add a None task to graph");
+                let (base_index, base_future) = base.to_owned().add_to(graph, existing_nodes);
+                dependencies.push(base_index);
+                let base_future = base_future.to_owned();
+                CloneableFutureWrapper::new(&*name, Box::pin(async move {
+                    to_alpha_channel(&(base_future.to_owned().await.try_into()?))
+                }))
             }
         };
-        existing_nodes.insert(self, self_id);
-        return self_id;
+        let self_id = graph.add_node(as_future.to_owned()).to_owned();
+        for dependency in dependencies {
+            graph.add_edge(dependency, self_id, E::default())
+                .expect("Tried to create a cycle");
+        }
+        existing_nodes.insert(new_self, (self_id, as_future.to_owned()));
+        return (self_id.to_owned(), as_future.to_owned());
     }
 }
 
@@ -494,21 +472,21 @@ pub fn name_to_svg_path(name: &str) -> PathBuf {
     return svg_file_path;
 }
 
-pub fn from_svg_task(name: &str) -> Arc<TaskSpec> {
-    return Arc::new(FromSvg {source: name_to_svg_path(name)});
+pub fn from_svg_task(name: &str) -> Box<TaskSpec> {
+    return Box::new(FromSvg {source: name_to_svg_path(name)});
 }
 
-pub fn paint_task(base: Arc<TaskSpec>, color: ComparableColor) -> Arc<TaskSpec> {
-    return Arc::new(
-        TaskSpec::Repaint {base: Arc::new(TaskSpec::ToAlphaChannel { base }), color});
+pub fn paint_task(base: Box<TaskSpec>, color: ComparableColor) -> Box<TaskSpec> {
+    return Box::new(
+        TaskSpec::Repaint {base: Box::new(TaskSpec::ToAlphaChannel { base }), color});
 }
 
-pub fn paint_svg_task(name: &str, color: ComparableColor) -> Arc<TaskSpec> {
+pub fn paint_svg_task(name: &str, color: ComparableColor) -> Box<TaskSpec> {
     return paint_task(from_svg_task(name), color);
 }
 
-pub fn semitrans_svg_task(name: &str, alpha: f32) -> Arc<TaskSpec> {
-    return Arc::new(TaskSpec::MakeSemitransparent {base: from_svg_task(name),
+pub fn semitrans_svg_task(name: &str, alpha: f32) -> Box<TaskSpec> {
+    return Box::new(TaskSpec::MakeSemitransparent {base: from_svg_task(name),
         alpha: alpha.into()});
 }
 
@@ -516,14 +494,14 @@ pub fn path(name: &str) -> Vec<PathBuf> {
     return vec![name_to_out_path(name)];
 }
 
-pub fn out_task(name: &str, base: Arc<TaskSpec>) -> Arc<TaskSpec> {
-    return Arc::new(PngOutput {base, destinations: path(name)});
+pub fn out_task(name: &str, base: Box<TaskSpec>) -> Box<TaskSpec> {
+    return Box::new(PngOutput {base, destinations: path(name)});
 }
 
 #[macro_export]
 macro_rules! stack {
     ( $first_layer:expr, $second_layer:expr ) => {
-        std::sync::Arc::new(crate::image_tasks::task_spec::TaskSpec::StackLayerOnLayer {
+        Box::new(crate::image_tasks::task_spec::TaskSpec::StackLayerOnLayer {
             background: $first_layer.into(),
             foreground: $second_layer.into()
         })
@@ -538,7 +516,7 @@ macro_rules! stack {
         #[macro_export]
         macro_rules! stack_on {
     ( $background:expr, $foreground:expr ) => {
-        std::sync::Arc::new(crate::image_tasks::task_spec::TaskSpec::StackLayerOnColor {
+        Box::new(crate::image_tasks::task_spec::TaskSpec::StackLayerOnColor {
             background: $background,
             foreground: $foreground.into()
         })
@@ -574,7 +552,7 @@ impl Mul<f32> for TaskSpec {
 
     fn mul(self, rhs: f32) -> Self::Output {
         TaskSpec::MakeSemitransparent {
-            base: Arc::new(self),
+            base: Box::new(self),
             alpha: OrderedFloat::from(rhs)
         }
     }
@@ -588,12 +566,12 @@ impl Mul<ComparableColor> for TaskSpec {
         return match self {
             TaskSpec::ToAlphaChannel { base: _base } => {
                 TaskSpec::Repaint {
-                    base: Arc::new(owned_self),
+                    base: Box::new(owned_self),
                     color: rhs
                 }
             },
             _ => TaskSpec::Repaint {
-                base: Arc::new(TaskSpec::ToAlphaChannel { base: Arc::new(self) }),
+                base: Box::new(TaskSpec::ToAlphaChannel { base: Box::new(self) }),
                 color: rhs
             }
         };

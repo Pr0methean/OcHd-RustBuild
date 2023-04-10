@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use resvg::{FitTo, render};
 use tiny_skia::Pixmap;
 use tiny_skia_path::Transform;
+use tracing::instrument;
 use usvg::{Options, Tree, TreeParsing};
 
 use crate::anyhoo;
@@ -31,6 +32,7 @@ pub const COLOR_SVGS: &'static [&str] = &[
     "./svg/torchFlameSmall.svg",
 ];
 
+#[instrument]
 pub fn from_svg(path: PathBuf, width: u32) -> TaskResult {
     let svg_data = fs::read(path).map_err(|error| anyhoo!(error))?;
     let svg_tree = Tree::from_data(&svg_data, &Options::default()).map_err(|error| anyhoo!(error))?;

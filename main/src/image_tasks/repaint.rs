@@ -1,6 +1,7 @@
 use std::ops::Mul;
 use cached::proc_macro::cached;
 use tiny_skia::{Pixmap, PremultipliedColorU8};
+use tracing::instrument;
 
 use crate::anyhoo;
 use crate::image_tasks::color::ComparableColor;
@@ -38,8 +39,9 @@ impl From<&Pixmap> for AlphaChannel {
     }
 }
 
-pub fn to_alpha_channel(pixmap: Pixmap) -> TaskResult {
-    let alpha = AlphaChannel::from(&pixmap);
+#[instrument]
+pub fn to_alpha_channel(pixmap: &Pixmap) -> TaskResult {
+    let alpha = AlphaChannel::from(pixmap);
     drop(pixmap);
     return TaskResult::AlphaChannel {value: alpha};
 }
@@ -77,6 +79,7 @@ fn create_paint_array(color: ComparableColor) -> [PremultipliedColorU8; 256] {
         .collect::<Vec<PremultipliedColorU8>>().try_into().unwrap();
 }
 
+#[instrument]
 pub fn paint(input: AlphaChannel, color: &ComparableColor) -> TaskResult {
     let paint_array = create_paint_array(color.to_owned());
     let input_pixels = input.pixels();

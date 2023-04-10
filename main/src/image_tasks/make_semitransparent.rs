@@ -1,6 +1,7 @@
 use cached::proc_macro::cached;
 use ordered_float::OrderedFloat;
 use tiny_skia::{ColorU8, Pixmap};
+use tracing::instrument;
 
 use crate::image_tasks::task_spec::TaskResult;
 
@@ -11,6 +12,7 @@ pub(crate) fn create_alpha_array(out_alpha: OrderedFloat<f32>) -> [u8; 256] {
         .collect::<Vec<u8>>().try_into().unwrap();
 }
 
+#[instrument]
 pub fn make_semitransparent(input: Pixmap, alpha: f32) -> TaskResult {
     let alpha_array = create_alpha_array(alpha.into());
     let mut output = input.to_owned();
