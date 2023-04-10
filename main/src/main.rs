@@ -51,12 +51,13 @@ static ALLOCATOR: LoggingAllocator = LoggingAllocator::with_allocator(System);
 #[tokio::main]
 async fn main() {
     simple_logging::log_to_file("./log.txt", LevelFilter::Trace).expect("Failed to configure file logging");
+    ALLOCATOR.enable_logging();
     info!("Looking for SVGs in {}", absolute(SVG_DIR.to_path_buf()).unwrap().to_string_lossy());
     info!("Writing output to {}", absolute(OUT_DIR.to_path_buf()).unwrap().to_string_lossy());
     let tile_size: u32 = *TILE_SIZE;
     info!("Using {:?} pixels per tile", tile_size);
-    ALLOCATOR.enable_logging();
     let start_time = Instant::now();
+
     let clean_out_dir = tokio::spawn(async {
         let result = remove_dir_all(OUT_DIR.to_owned()).await;
         if result.is_err_and(|err| err.kind() != NotFound) {
