@@ -25,15 +25,18 @@ impl Material for MaterialGroup {
     }
 }
 
+pub const DEFAULT_GROUP_SIZE: usize = 1024;
+
 #[macro_export]
 macro_rules! group {
     ($name:ident = $( $members:expr ),* ) => {
         lazy_static::lazy_static! {pub static ref $name: crate::texture_base::material::MaterialGroup
         = {
-            let mut tasks = vec![];
+            let mut tasks = Vec::with_capacity(crate::texture_base::material::DEFAULT_GROUP_SIZE);
             $(
             let mut more_tasks = crate::texture_base::material::Material::get_output_tasks($members.deref());
             tasks.append(&mut more_tasks);)*
+            tasks.shrink_to_fit();
             crate::texture_base::material::MaterialGroup { tasks }
         };}
     }
