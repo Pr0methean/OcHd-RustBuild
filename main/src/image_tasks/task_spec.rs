@@ -248,9 +248,7 @@ impl MultiWaker {
 
 impl WakeRef for MultiWaker {
     fn wake_by_ref(&self) {
-        let mut wakers_lock = self.wakers.lock().unwrap();
-        let wakers = wakers_lock.deref_mut();
-        for waker in wakers.drain(..) {
+        for waker in self.wakers.lock().unwrap().drain(..) {
             waker.wake_by_ref();
         }
     }
@@ -275,19 +273,17 @@ impl <'a, T> Debug for CloneableFutureWrapper<'a, T> where T: Clone + Send + Deb
 }
 
 impl <'a, T> CloneableFutureWrapper<'a, T> where T: Clone + Send + Debug + 'a {
-    pub fn new(name: &str, base: SyncBoxFuture<'a, T>) -> CloneableFutureWrapper<'a, T> {
-        let name_string = name.to_string();
-        let waker = Arc::new(MultiWaker::new());
+    pub fn new(name: String, base: SyncBoxFuture<'a, T>) -> CloneableFutureWrapper<'a, T> {
         return CloneableFutureWrapper {
-            name: name_string.to_owned(),
+            name: name.to_owned(),
             result: Arc::new(Mutex::new(OnceCell::new())),
             future: Arc::new(Mutex::new(Box::pin(async move {
-                info!("Starting {}", name_string);
+                info!("Starting {}", name);
                 let result = base.await;
-                info!("Finishing {}", name_string);
+                info!("Finishing {}", name);
                 result
             }))),
-            waker
+            waker: Arc::new(MultiWaker::new())
         };
     }
 }
@@ -379,7 +375,7 @@ impl TaskSpec {
         let mut dependencies: Vec<NodeIndex<Ix>> = Vec::with_capacity(16);
         let as_future: TaskResultFuture<'b> = match new_self.to_owned() {
             TaskSpec::None { .. } =>
-                CloneableFutureWrapper::new(&*name, Box::pin(
+                CloneableFutureWrapper::new(name, Box::pin(
                 async { TaskResult::Err{value: anyhoo!("Call to into_future() on a None task") } }
                 )),
             TaskSpec::Animate { background, frames } => {
@@ -393,7 +389,7 @@ impl TaskSpec {
                     frame_futures.push(frame_future);
                     dependencies.push(frame_index);
                 }
-                CloneableFutureWrapper::new(&*name, Box::pin(async move {
+                CloneableFutureWrapper::new(name, Box::pin(async move {
                     match background_future.await {
                         TaskResult::Pixmap {value} => animate(&value, frame_futures).await,
                         _ => TaskResult::Err {value: anyhoo!("Got {:?} instead of Pixmap for background", background_name)}
@@ -401,14 +397,14 @@ impl TaskSpec {
                 }))
             },
             FromSvg { source } => {
-                CloneableFutureWrapper::new(&*name, Box::pin(
+                CloneableFutureWrapper::new(name, Box::pin(
                     async move { from_svg(source, *TILE_SIZE) }))
             },
             TaskSpec::MakeSemitransparent { base, alpha } => {
                 let alpha: f32 = alpha.into();
                 let (base_index, base_future) = base.add_to(graph, existing_nodes);
                 dependencies.push(base_index);
-                CloneableFutureWrapper::new(&*name, Box::pin(
+                CloneableFutureWrapper::new(name, Box::pin(
                     async move {
                         make_semitransparent(&base_future.await.try_into()?, alpha)
                     }))
@@ -416,7 +412,7 @@ impl TaskSpec {
             PngOutput { base, destinations } => {
                 let (base_index, base_future) = base.add_to(graph, existing_nodes);
                 dependencies.push(base_index);
-                CloneableFutureWrapper::new(&*name, Box::pin(
+                CloneableFutureWrapper::new(name, Box::pin(
                     async move {
                         png_output(&base_future.await.try_into()?, &destinations)
                     }
@@ -425,14 +421,14 @@ impl TaskSpec {
             TaskSpec::Repaint { base, color } => {
                 let (base_index, base_future) = base.add_to(graph, existing_nodes);
                 dependencies.push(base_index);
-                CloneableFutureWrapper::new(&*name, Box::pin(async move {
+                CloneableFutureWrapper::new(name, Box::pin(async move {
                     paint(&base_future.await.try_into()?, &color)
                 }))
             },
             TaskSpec::StackLayerOnColor { background, foreground } => {
                 let (fg_index, fg_future) = foreground.add_to(graph, existing_nodes);
                 dependencies.push(fg_index);
-                CloneableFutureWrapper::new(&*name, Box::pin(async move {
+                CloneableFutureWrapper::new(name, Box::pin(async move {
                     stack_layer_on_background(&background, &(fg_future.await.try_into()?))
                 }))
             },
@@ -441,14 +437,14 @@ impl TaskSpec {
                 dependencies.push(bg_index);
                 let (fg_index, fg_future) = foreground.add_to(graph, existing_nodes);
                 dependencies.push(fg_index);
-                CloneableFutureWrapper::new(&*name, Box::pin(async move {
+                CloneableFutureWrapper::new(name, Box::pin(async move {
                     stack_layer_on_layer(&(bg_future.await.try_into()?), &(fg_future.await.try_into()?))
                 }))
             },
             TaskSpec::ToAlphaChannel { base } => {
                 let (base_index, base_future) = base.add_to(graph, existing_nodes);
                 dependencies.push(base_index);
-                CloneableFutureWrapper::new(&*name, Box::pin(async move {
+                CloneableFutureWrapper::new(name, Box::pin(async move {
                     to_alpha_channel(&(base_future.await.try_into()?))
                 }))
             }
