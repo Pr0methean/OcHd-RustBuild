@@ -59,7 +59,7 @@ impl Wood {
 
     pub fn fungus_bark(&self) -> Box<TaskSpec> {
         return stack_on!(self.bark_color,
-            paint_svg_task("borderSolid", self.bark_shadow),
+            paint_stack!(self.bark_shadow, "borderSolid", "waves2"),
             paint_svg_task("waves", self.bark_highlight)
         );
     }
