@@ -1,4 +1,3 @@
-use std::collections::hash_map::DefaultHasher;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::ops::Mul;
@@ -175,6 +174,7 @@ impl Hash for ComparableColor {
 
 #[test]
 fn test_hash() {
+    use std::collections::hash_map::DefaultHasher;
     fn hash(color: ComparableColor) -> u64 {
         let mut hasher = DefaultHasher::new();
         color.hash(&mut hasher);
