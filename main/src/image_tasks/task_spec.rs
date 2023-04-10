@@ -331,7 +331,7 @@ impl TaskSpec {
 }
 
 pub type TaskResultFuture<'b> = CloneableFutureWrapper<'b, TaskResult>;
-pub type TaskToFutureGraphNodeMap<Ix> = HashMap<TaskSpec,NodeIndex<Ix>>;
+pub type TaskToFutureGraphNodeMap<'a, Ix> = HashMap<&'a TaskSpec,NodeIndex<Ix>>;
 
 impl TaskSpec {
     /// Converts this task to a [TaskResultFuture] if it's not already present, also does so
@@ -340,11 +340,11 @@ impl TaskSpec {
     /// [existing_nodes] is used to track tasks already added to the graph so that they are reused
     /// if this task also consumes them. This task is added in case other tasks that depend on it
     /// are added later.
-    pub fn add_to<E, Ix>(&self,
-                         graph: &mut Dag<TaskResultFuture, E, Ix>,
-                         existing_nodes: &mut TaskToFutureGraphNodeMap<Ix>)
-                         -> NodeIndex<Ix>
-    where Ix: IndexType, E: Default
+    pub fn add_to<'a, 'b, E, Ix>(&'a self,
+                                 graph: &mut Dag<TaskResultFuture, E, Ix>,
+                                 existing_nodes: &mut TaskToFutureGraphNodeMap<'b, Ix>)
+                                 -> NodeIndex<Ix>
+    where Ix: IndexType, E: Default, 'a: 'b
     {
         let name: String = (&self).to_string();
         if let Some(existing_index) = existing_nodes.get(&self) {
@@ -363,7 +363,7 @@ impl TaskSpec {
                 if *color == ComparableColor::BLACK
                         && let TaskSpec::ToAlphaChannel{base: base_of_base} = base.deref()
                         && base_of_base.is_all_black() {
-                    return base_of_base.to_owned().add_to(graph, existing_nodes);
+                    return base_of_base.add_to(graph, existing_nodes);
                 }
             },
             TaskSpec::StackLayerOnColor {background, foreground} => {
@@ -468,7 +468,7 @@ impl TaskSpec {
             graph.add_edge(dependency, self_id, E::default())
                 .expect("Tried to create a cycle");
         }
-        existing_nodes.insert(self.to_owned(), self_id);
+        existing_nodes.insert(&self, self_id);
         return self_id;
     }
 }

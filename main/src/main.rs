@@ -69,7 +69,7 @@ async fn main() {
     let tasks = materials::ALL_MATERIALS.get_output_tasks();
     let mut graph: Dag<TaskResultFuture, (), DefaultIx> = Dag::new();
     let mut added_tasks: TaskToFutureGraphNodeMap<DefaultIx> = HashMap::new();
-    tasks.into_iter().for_each(|task| {
+    tasks.iter().for_each(|task| {
             task.add_to(&mut graph, &mut added_tasks);});
     drop(added_tasks);
 
@@ -97,6 +97,7 @@ async fn main() {
             }
         };
     }
+    drop(tasks);
     drop(graph);
 
     // Run small WCCs first so that their data can leave the heap before the big WCCs run
