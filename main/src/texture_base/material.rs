@@ -9,8 +9,10 @@ use crate::image_tasks::color::rgb;
 use crate::image_tasks::task_spec::{out_task, paint_svg_task, TaskSpec};
 use crate::image_tasks::task_spec::TaskSpec::{PngOutput, StackLayerOnLayer};
 
-
+/// Specification in DSL form of how one or more texture images are to be generated.
 pub trait Material: Sync + Send {
+    /// Converts this specification to a number of [PngOutput] instances, each of which references
+    /// another [TaskSpec] to generate the image it will output.
     fn get_output_tasks(&self) -> Vec<TaskSpec>;
 }
 

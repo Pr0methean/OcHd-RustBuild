@@ -1,3 +1,4 @@
+use std::collections::hash_map::DefaultHasher;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::ops::Mul;
@@ -8,7 +9,7 @@ use tiny_skia::PremultipliedColor;
 use tiny_skia::PremultipliedColorU8;
 
 /// Wrapper around [ColorU8] that implements important missing traits such as [Eq], [Hash], [Copy],
-/// [Clone] and [Ord]. Represents a 24-bit sRGB color + 8-bit alpha value.
+/// [Clone] and [Ord]. Represents a 24-bit sRGB color + 8-bit alpha value (not premultiplied).
 #[derive(Eq, Debug, Copy, Clone, Ord, PartialOrd)]
 pub struct ComparableColor {
     red: u8,
@@ -142,6 +143,25 @@ impl PartialEq<Self> for ComparableColor {
     }
 }
 
+#[test]
+fn test_eq() {
+    assert_eq!(ComparableColor::BLACK, ComparableColor::BLACK);
+    assert_eq!(ComparableColor::RED, ComparableColor::RED);
+    assert_eq!(ComparableColor::GREEN, ComparableColor::GREEN);
+    assert_eq!(ComparableColor::BLUE, ComparableColor::BLUE);
+    assert_eq!(ComparableColor::WHITE, ComparableColor::WHITE);
+    assert_eq!(ComparableColor::TRANSPARENT, ComparableColor::TRANSPARENT);
+
+    assert_ne!(ComparableColor::BLACK, ComparableColor::RED);
+    assert_ne!(ComparableColor::BLACK, ComparableColor::GREEN);
+    assert_ne!(ComparableColor::BLACK, ComparableColor::BLUE);
+    assert_ne!(ComparableColor::BLACK, ComparableColor::WHITE);
+    assert_ne!(ComparableColor::BLACK, ComparableColor::TRANSPARENT);
+
+    // When alpha is zero (totally transparent), the color values don't matter
+    assert_eq!(rgba(0,0,0,0),rgba(u8::MAX, u8::MAX, u8::MAX, 0));
+}
+
 impl Hash for ComparableColor {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.alpha.hash(state);
@@ -151,6 +171,33 @@ impl Hash for ComparableColor {
             self.blue.hash(state);
         }
     }
+}
+
+#[test]
+fn test_hash() {
+    fn hash(color: ComparableColor) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        color.hash(&mut hasher);
+        hasher.finish()
+    }
+    let black_hash = hash(ComparableColor::BLACK);
+    let red_hash = hash(ComparableColor::RED);
+    let green_hash = hash(ComparableColor::GREEN);
+    let blue_hash = hash(ComparableColor::BLUE);
+    let transparent_hash_1 = hash(rgba(0,0,0,0));
+    let transparent_hash_2 = hash(rgba(u8::MAX, u8::MAX, u8::MAX, 0));
+
+    assert_ne!(black_hash, red_hash);
+    assert_ne!(black_hash, green_hash);
+    assert_ne!(black_hash, blue_hash);
+    assert_ne!(black_hash, transparent_hash_1);
+    assert_ne!(black_hash, transparent_hash_2);
+    assert_ne!(red_hash, green_hash);
+    assert_ne!(red_hash, blue_hash);
+    assert_ne!(green_hash, blue_hash);
+
+    // When alpha is zero (totally transparent), the color values don't matter
+    assert_eq!(transparent_hash_1,transparent_hash_2);
 }
 
 pub const fn rgb(r: u8, g: u8, b: u8) -> ComparableColor {
@@ -167,6 +214,15 @@ pub const fn rgba(r: u8, g: u8, b: u8, a: u8) -> ComparableColor {
 
 pub const fn gray(lightness: u8) -> ComparableColor {
     rgb(lightness, lightness, lightness)
+}
+
+#[test]
+fn test_gray() {
+    let gray = gray(0x7f);
+    assert_eq!(gray.red, 0x7f);
+    assert_eq!(gray.green, 0x7f);
+    assert_eq!(gray.blue, 0x7f);
+    assert_eq!(gray.alpha, u8::MAX);
 }
 
 pub const fn c(rgb: u32) -> ComparableColor {

@@ -34,8 +34,9 @@ use crate::image_tasks::stack::{stack_layer_on_background, stack_layer_on_layer}
 use crate::image_tasks::task_spec::TaskSpec::{FromSvg, PngOutput};
 use crate::TILE_SIZE;
 
-/// Specification of a task that produces and/or consumes at least one [Pixmap]. Created
-/// to de-duplicate copies of the same task, since function closures don't implement [Eq] or [Hash].
+/// Specification of a task that produces and/or consumes at least one [Pixmap]. Created so that
+/// copies of the same task created for different [Material] instances can be deduplicated, since
+/// function closures and futures don't implement [Eq] or [Hash].
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum TaskSpec {
     None {},
@@ -66,6 +67,7 @@ impl Display for CloneableError {
     }
 }
 
+/// Tagged union of the possible results of [TaskSpec] execution.
 #[derive(Clone, Debug)]
 pub enum TaskResult {
     Err {value: CloneableError},
