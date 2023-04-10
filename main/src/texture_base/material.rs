@@ -58,9 +58,9 @@ impl Into<Box<TaskSpec>> for SingleTextureMaterial {
 
 impl Material for SingleTextureMaterial {
     fn get_output_tasks(&self) -> Vec<TaskSpec> {
-        return if !self.has_output.to_owned() { vec!() } else {
-            vec!(out_task(&*format!("{}/{}", self.directory, self.name),
-                          self.texture.to_owned()).deref().to_owned())
+        return if !self.has_output.to_owned() { vec![] } else {
+            vec![out_task(&*format!("{}/{}", self.directory, self.name),
+                          self.texture.to_owned()).deref().to_owned()]
         };
     }
 }
