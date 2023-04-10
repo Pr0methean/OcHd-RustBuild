@@ -17,7 +17,7 @@ use fn_graph::daggy::Dag;
 use futures::{FutureExt};
 
 
-use log::{info, warn};
+use log::{info};
 use ordered_float::OrderedFloat;
 use petgraph::graph::{IndexType, NodeIndex};
 use tiny_skia::Pixmap;
@@ -304,9 +304,8 @@ impl <'a, T> Future for CloneableFutureWrapper<'a, T> where T: Clone + Send + Sy
                 let future = future_lock.deref_mut();
                 let new_result = future.poll_unpin(&mut Context::from_waker(&(self.waker.clone().into_waker())));
                 if let Poll::Ready(result_value) = new_result.to_owned() {
-                    if let Err(e) = result_lock.set(result_value.to_owned()) {
-                            warn!("{}: {}", self.name, e); // May need to keep going for idempotence
-                    }
+                    result_lock.set(result_value.to_owned()).expect(
+                        &*format!("Failed to set result of {}", self.name));
                     self.waker.wake_by_ref();
                 }
                 new_result
