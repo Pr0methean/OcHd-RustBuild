@@ -176,7 +176,7 @@ pub const REDSTONE_ON: ComparableColor = rgb(0xff, 0x5e, 0x5e);
 
 pub fn redstone_off_and_on(name: &str, generator: Box<dyn Fn(ComparableColor) -> TaskSpec>)
 -> Vec<TaskSpec> {
-    let mut out: Vec<TaskSpec> = vec!();
+    let mut out: Vec<TaskSpec> = Vec::with_capacity(2);
     out.push(PngOutput {
         base: Box::new(generator(ComparableColor::BLACK)),
         destinations: vec![PathBuf::from(name)]

@@ -28,7 +28,7 @@ pub static DYES: &'static [(&str, ComparableColor)] = &[
 pub fn dyed_block(name: &str,
                   create_dyed_texture: Box<dyn Fn(&str, ComparableColor) -> TaskSpec>)
         -> Vec<TaskSpec>{
-    let mut out: Vec<TaskSpec> = vec!();
+    let mut out: Vec<TaskSpec> = Vec::with_capacity(DYES.len());
     for (dye_name, dye_color) in DYES {
         out.push(PngOutput {
             base: Box::new(create_dyed_texture(dye_name, *dye_color)),

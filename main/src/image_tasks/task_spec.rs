@@ -370,8 +370,9 @@ impl TaskSpec {
                 let background_name = background.to_string();
                 let (background_index, background_future)
                     = background.to_owned().add_to(graph, existing_nodes);
+                dependencies.reserve(frames.len() + 1);
                 dependencies.push(background_index);
-                let mut frame_futures = vec![];
+                let mut frame_futures = Vec::with_capacity(frames.len());
                 for frame in frames {
                     let (frame_index, frame_future) = frame.to_owned().add_to(graph, existing_nodes);
                     frame_futures.push(frame_future.to_owned());
@@ -427,6 +428,7 @@ impl TaskSpec {
             },
             TaskSpec::StackLayerOnLayer { background, foreground } => {
                 let (bg_index, bg_future) = background.to_owned().add_to(graph, existing_nodes);
+                dependencies.reserve(2);
                 dependencies.push(bg_index);
                 let bg_future = bg_future.to_owned();
                 let (fg_index, fg_future) = foreground.to_owned().add_to(graph, existing_nodes);
