@@ -31,3 +31,4 @@ logging-allocator = "0.1.1"
 simple-logging = "2.0.2"
 log = "0.4.17"
 tracing = {version = "0.1.37", features = ["attributes"]}
+cooked-waker = "5.0.0"

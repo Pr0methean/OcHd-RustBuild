@@ -7,16 +7,17 @@ use std::path::{Path, PathBuf};
 use std::pin::{Pin};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
-use std::task::{Context, Poll, Waker};
+use std::task::{Context, Poll, Wake, Waker};
 use anyhow::{Error};
 
 use cached::lazy_static::lazy_static;
+use cooked_waker::{IntoWaker, WakeRef};
 use fn_graph::{DataAccessDyn, TypeIds};
 use fn_graph::daggy::Dag;
 use futures::{FutureExt};
 
 
-use log::info;
+use log::{info, warn};
 use ordered_float::OrderedFloat;
 use petgraph::graph::{IndexType, NodeIndex};
 use tiny_skia::Pixmap;
@@ -228,12 +229,37 @@ impl DataAccessDyn for &TaskSpec {
 
 pub type SyncBoxFuture<'a, T> = Pin<Box<dyn Future<Output=T> + Send + Sync + 'a>>;
 
+#[derive(Debug)]
+pub struct MultiWaker {
+    wakers: Mutex<Vec<Waker>>
+}
+
+impl MultiWaker {
+    fn new() -> MultiWaker {
+        MultiWaker {wakers: Mutex::new(Vec::with_capacity(16))}
+    }
+
+    fn add_waker(&self, waker: Waker) {
+        self.wakers.lock().unwrap().push(waker);
+    }
+}
+
+impl WakeRef for MultiWaker {
+    fn wake_by_ref(&self) {
+        let mut wakers_lock = self.wakers.lock().unwrap();
+        let wakers = wakers_lock.deref_mut();
+        for waker in wakers.drain(..) {
+            waker.wake_by_ref();
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct CloneableFutureWrapper<'a, T> where T: Clone + Send {
     name: String,
     result: Arc<Mutex<OnceCell<T>>>,
     future: Arc<Mutex<SyncBoxFuture<'a, T>>>,
-    wakers: Arc<Mutex<Vec<Arc<Waker>>>>
+    waker: Arc<MultiWaker>
 }
 
 impl <'a, T> Debug for CloneableFutureWrapper<'a, T> where T: Clone + Send + Debug {
@@ -241,7 +267,7 @@ impl <'a, T> Debug for CloneableFutureWrapper<'a, T> where T: Clone + Send + Deb
         f.debug_struct("CloneableFutureWrapper")
             .field("name", &self.name)
             .field("result", &self.result)
-            .field("wakers", &self.wakers)
+            .field("waker", &self.waker)
             .finish()
     }
 }
@@ -249,6 +275,7 @@ impl <'a, T> Debug for CloneableFutureWrapper<'a, T> where T: Clone + Send + Deb
 impl <'a, T> CloneableFutureWrapper<'a, T> where T: Clone + Send + Debug + 'a {
     pub fn new(name: &str, base: SyncBoxFuture<'a, T>) -> CloneableFutureWrapper<'a, T> {
         let name_string = name.to_string();
+        let waker = Arc::new(MultiWaker::new());
         return CloneableFutureWrapper {
             name: name_string.to_owned(),
             result: Arc::new(Mutex::new(OnceCell::new())),
@@ -258,7 +285,7 @@ impl <'a, T> CloneableFutureWrapper<'a, T> where T: Clone + Send + Debug + 'a {
                 info!("Finishing {}", name_string);
                 result
             }))),
-            wakers: Arc::new(Mutex::new(vec![]))
+            waker
         };
     }
 }
@@ -272,21 +299,15 @@ impl <'a, T> Future for CloneableFutureWrapper<'a, T> where T: Clone + Send + Sy
         return match result {
             Some(t) => Poll::Ready(t.to_owned()),
             None => {
+                self.waker.add_waker(cx.waker().to_owned());
                 let mut future_lock = self.future.lock().unwrap();
                 let future = future_lock.deref_mut();
-                let new_result = future.poll_unpin(cx);
-                let mut wakers_lock = self.wakers.lock().unwrap();
-                match new_result.to_owned() {
-                    Poll::Ready(result_value) => {
-                        let wakers = wakers_lock.deref_mut();
-                        for waker in wakers.drain(..) {
-                            waker.wake_by_ref();
-                        }
-                        result_lock.set(result_value.to_owned()).expect("Failed to set result_lock"); // Ignore error for idempotence
-                    },
-                    Poll::Pending => {
-                        wakers_lock.deref_mut().push(Arc::new(cx.waker().to_owned()));
+                let new_result = future.poll_unpin(&mut Context::from_waker(&(self.waker.clone().into_waker())));
+                if let Poll::Ready(result_value) = new_result.to_owned() {
+                    if let Err(e) = result_lock.set(result_value.to_owned()) {
+                            warn!("{}: {}", self.name, e); // May need to keep going for idempotence
                     }
+                    self.waker.wake_by_ref();
                 }
                 new_result
             }
