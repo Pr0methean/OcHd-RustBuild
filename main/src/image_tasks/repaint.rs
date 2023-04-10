@@ -42,7 +42,6 @@ impl From<&Pixmap> for AlphaChannel {
 #[instrument]
 pub fn to_alpha_channel(pixmap: &Pixmap) -> TaskResult {
     let alpha = AlphaChannel::from(pixmap);
-    drop(pixmap);
     return TaskResult::AlphaChannel {value: alpha};
 }
 
@@ -64,7 +63,7 @@ impl Mul<ComparableColor> for AlphaChannel {
     type Output = TaskResult;
 
     fn mul(self, rhs: ComparableColor) -> Self::Output {
-        return paint(self, &rhs);
+        return paint(&self, &rhs);
     }
 }
 
@@ -80,8 +79,8 @@ fn create_paint_array(color: ComparableColor) -> [PremultipliedColorU8; 256] {
 }
 
 #[instrument]
-pub fn paint(input: AlphaChannel, color: &ComparableColor) -> TaskResult {
-    let paint_array = create_paint_array(color.to_owned());
+pub fn paint(input: &AlphaChannel, color: &ComparableColor) -> TaskResult {
+    let paint_array = create_paint_array(*color);
     let input_pixels = input.pixels();
     let mut output = Pixmap::new(input.width, input.height)
         .ok_or(anyhoo!("Failed to create output Pixmap"))?;
@@ -90,7 +89,6 @@ pub fn paint(input: AlphaChannel, color: &ComparableColor) -> TaskResult {
         .map(|input_pixel| {
             paint_array[usize::from(*input_pixel)]
         }).collect::<Vec<PremultipliedColorU8>>()[..]));
-    drop(input);
     return TaskResult::Pixmap {value: output};
 }
 
@@ -104,14 +102,14 @@ pub mod tests {
     #[test]
     fn test_alpha_channel() {
         let side_length = 128;
-        let pixmap = &mut Pixmap::new(side_length, side_length.to_owned()).unwrap();
+        let pixmap = &mut Pixmap::new(side_length, side_length).unwrap();
         let circle = PathBuilder::from_circle(64.0, 64.0, 50.0).unwrap();
         pixmap.fill_path(&circle, &Paint::default(),
                          FillRule::EvenOdd, Transform::default(), None);
         let alpha_channel = AlphaChannel::from(&*pixmap);
         let pixmap_pixels = pixmap.pixels();
         let alpha_pixels = alpha_channel.pixels();
-        for index in 0usize..((side_length.to_owned() * side_length.to_owned()) as usize) {
+        for index in 0usize..((side_length * side_length) as usize) {
             assert_eq!(alpha_pixels[index], pixmap_pixels[index].alpha());
         }
     }
@@ -119,19 +117,19 @@ pub mod tests {
     #[test]
     fn test_paint() {
         let side_length = 128;
-        let pixmap = &mut Pixmap::new(side_length, side_length.to_owned()).unwrap();
+        let pixmap = &mut Pixmap::new(side_length, side_length).unwrap();
         let circle = PathBuilder::from_circle(64.0, 64.0, 50.0).unwrap();
         pixmap.fill_path(&circle, &Paint::default(),
                          FillRule::EvenOdd, Transform::default(), None);
         let alpha_channel = AlphaChannel::from(&*pixmap);
         let repainted_alpha: u8 = 0xcf;
         let red = ColorU8::from_rgba(0xff, 0, 0, repainted_alpha);
-        let repainted_red: Pixmap = paint(alpha_channel, &ComparableColor::from(red))
+        let repainted_red: Pixmap = paint(&alpha_channel, &ComparableColor::from(red))
             .try_into().unwrap();
         let pixmap_pixels = pixmap.pixels();
         let repainted_pixels = repainted_red.pixels();
-        for index in 0usize..((side_length.to_owned() * side_length.to_owned()) as usize) {
-            let expected_alpha: u8 = (u16::from(repainted_alpha.to_owned())
+        for index in 0usize..((side_length * side_length) as usize) {
+            let expected_alpha: u8 = (u16::from(repainted_alpha)
                 * u16::from(pixmap_pixels[index].alpha()) / 0xff) as u8;
             assert_eq!(repainted_pixels[index].alpha(), expected_alpha);
             if expected_alpha > 0 {

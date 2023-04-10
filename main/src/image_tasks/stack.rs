@@ -9,10 +9,8 @@ use crate::image_tasks::task_spec::TaskResult;
 #[instrument]
 pub fn stack_layer_on_layer(background: &Pixmap, foreground: &Pixmap) -> TaskResult {
     let mut output = background.to_owned();
-    drop(background);
     output.draw_pixmap(0, 0, foreground.as_ref(), &PixmapPaint::default(),
                        Transform::default(), None);
-    drop(foreground);
     return TaskResult::Pixmap {value: output};
 }
 

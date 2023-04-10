@@ -19,10 +19,10 @@ pub struct ComparableColor {
 }
 
 impl ComparableColor {
-    pub fn red(&self) -> u8 { return self.red.to_owned(); }
-    pub fn green(&self) -> u8 { return self.green.to_owned(); }
-    pub fn blue(&self) -> u8 { return self.blue.to_owned(); }
-    pub fn alpha(&self) -> u8 { return self.alpha.to_owned(); }
+    pub fn red(&self) -> u8 { return self.red; }
+    pub fn green(&self) -> u8 { return self.green; }
+    pub fn blue(&self) -> u8 { return self.blue; }
+    pub fn alpha(&self) -> u8 { return self.alpha; }
 
     pub const TRANSPARENT: ComparableColor = rgba(0,0,0,0);
     pub const BLACK: ComparableColor = gray(0);

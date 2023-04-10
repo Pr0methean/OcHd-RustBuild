@@ -6,10 +6,10 @@ use crate::image_tasks::task_spec::{TaskResult, TaskResultFuture};
 use tracing::instrument;
 
 #[instrument]
-pub async fn animate<'a>(background: Pixmap, frames: Vec<TaskResultFuture<'a>>)
+pub async fn animate<'a>(background: &Pixmap, frames: Vec<TaskResultFuture<'a>>)
                          -> TaskResult {
     let frame_count = frames.len() as u32;
-    let frame_height = background.height().to_owned();
+    let frame_height = background.height();
     let mut out = Pixmap::new(background.width(),
                               frame_height * frame_count)
         .ok_or(anyhoo!("Failed to create output Pixmap"))?;

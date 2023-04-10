@@ -104,6 +104,7 @@ async fn main() {
     let mut added_tasks: TaskToFutureGraphNodeMap<DefaultIx> = HashMap::new();
     tasks.into_iter().for_each(|task| {
             task.add_to(&mut graph, &mut added_tasks);});
+    drop(added_tasks);
     clean_out_dir.await.expect("Failed to create or replace output directory");
     let futures: Vec<TaskResultFuture> = connected_components(&graph)
         .into_iter()
@@ -111,7 +112,7 @@ async fn main() {
         .map(|node| graph.node_weight(*node).unwrap().to_owned())
         .collect();
     drop(graph);
-    join_all(futures.into_iter().map(|future| tokio::spawn(future.to_owned()))).await;
+    join_all(futures.into_iter().map(tokio::spawn)).await;
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     ALLOCATOR.disable_logging();
 }
