@@ -66,11 +66,12 @@ async fn main() {
         create_dir(OUT_DIR.to_owned()).await.expect("Failed to create output directory");
     });
 
-    let tasks = materials::ALL_MATERIALS.get_output_tasks();
+    let output_tasks = materials::ALL_MATERIALS.get_output_tasks();
+    let mut output_task_ids = Vec::with_capacity(1024);
     let mut graph: Dag<TaskResultFuture, (), DefaultIx> = Dag::new();
     let mut added_tasks: TaskToFutureGraphNodeMap<DefaultIx> = HashMap::new();
-    tasks.iter().for_each(|task| {
-            task.add_to(&mut graph, &mut added_tasks);});
+    output_tasks.iter().for_each(|task| {
+        output_task_ids.push(task.add_to(&mut graph, &mut added_tasks));});
     drop(added_tasks);
 
     // Split the graph into weakly-connected components (WCCs, groups that don't share any subtasks).
@@ -86,18 +87,20 @@ async fn main() {
     let mut component_map: HashMap<NodeIndex<DefaultIx>, Vec<TaskResultFuture>> = HashMap::new();
     for (index, task) in graph.node_references() {
         let representative = vertex_sets.find(index);
-        match component_map.get_mut(&representative) {
-            Some(existing) => {
-                existing.push(task.to_owned());
-            },
-            None => {
-                let mut vec = Vec::with_capacity(1024);
-                vec.push(task.to_owned());
-                component_map.insert(representative, vec);
-            }
-        };
+        if output_task_ids.contains(&index) {
+            match component_map.get_mut(&representative) {
+                Some(existing) => {
+                    existing.push(task.to_owned());
+                },
+                None => {
+                    let mut vec = Vec::with_capacity(1024);
+                    vec.push(task.to_owned());
+                    component_map.insert(representative, vec.to_owned());
+                }
+            };
+        }
     }
-    drop(tasks);
+    drop(output_tasks);
     drop(graph);
 
     // Run small WCCs first so that their data can leave the heap before the big WCCs run

@@ -2,7 +2,6 @@ use cached::proc_macro::cached;
 use ordered_float::OrderedFloat;
 use tiny_skia::{ColorU8, Pixmap};
 use tracing::instrument;
-use crate::image_tasks::color::ComparableColor;
 
 use crate::image_tasks::task_spec::TaskResult;
 
@@ -31,6 +30,7 @@ pub fn make_semitransparent(input: &Pixmap, alpha: f32) -> TaskResult {
 fn test_make_semitransparent() {
     use tiny_skia::{FillRule, Paint};
     use tiny_skia_path::{PathBuilder, Transform};
+    use crate::image_tasks::color::ComparableColor;
 
     let alpha = 0.5;
     let alpha_multiplier = (alpha * f32::from(u8::MAX)) as u16;
