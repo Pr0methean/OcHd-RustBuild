@@ -40,8 +40,8 @@ mod materials;
 lazy_static! {
     static ref TILE_SIZE: u32 = {
         let args: Vec<String> = env::args().collect();
-        args[1].parse::<u32>()
-            .expect("Tile size must be an integer")
+        args.get(1).expect("Usage: OcHd-RustBuild <tile-size>").parse::<u32>()
+            .expect("Tile size (first command-line argument) must be an integer")
     };
 }
 
