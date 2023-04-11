@@ -103,6 +103,7 @@ async fn main() {
             };
         }
     }
+    info!("Done with task graph");
     drop(output_tasks);
     drop(graph);
 
@@ -110,8 +111,8 @@ async fn main() {
     let mut components: Vec<Vec<RefCell<TaskResultFuture>>> = component_map.into_values().collect();
     components.sort_by_key(Vec::len);
     let components = components.into_iter().flatten().into_iter();
-
     clean_out_dir.await.expect("Failed to create or replace output directory");
+    info!("Starting tasks");
     join_all(components.map(|task| tokio::spawn(task.into_inner()))).await;
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     ALLOCATOR.disable_logging();
