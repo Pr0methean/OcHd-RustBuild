@@ -95,7 +95,7 @@ async fn main() {
                 None => {
                     let mut vec = Vec::with_capacity(1024);
                     vec.push(task.to_owned());
-                    component_map.insert(representative, vec.to_owned());
+                    component_map.insert(representative, vec);
                 }
             };
         }
