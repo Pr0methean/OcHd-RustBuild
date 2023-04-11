@@ -26,7 +26,7 @@ pub struct Wood {
     bark: Box<dyn (Fn(&Self) -> Box<TaskSpec>) + Sync + Send>,
     stripped_log_side: Box<dyn (Fn(&Self) -> Box<TaskSpec>) + Sync + Send>,
     log_top: Box<dyn (Fn(&Self, Box<TaskSpec>) -> Box<TaskSpec>) + Sync + Send>,
-    stripped_log_top: Box<dyn (Fn(&Self, Box<TaskSpec>) -> Box<TaskSpec>) + Sync + Send>,
+    stripped_log_top: Box<dyn (Fn(&Self) -> Box<TaskSpec>) + Sync + Send>,
     trapdoor: Box<dyn (Fn(&Self, Box<TaskSpec>) -> Box<TaskSpec>) + Sync + Send>,
     door_top: Box<dyn (Fn(&Self, Box<TaskSpec>, Box<TaskSpec>) -> Box<TaskSpec>) + Sync + Send>,
     door_bottom: Box<dyn (Fn(&Self, Box<TaskSpec>) -> Box<TaskSpec>) + Sync + Send>,
@@ -76,17 +76,17 @@ impl Wood {
             paint_svg_task("borderDotted", self.highlight));
     }
 
-    pub fn overworld_stripped_log_top(&self, stripped_log_side: Box<TaskSpec>) -> Box<TaskSpec> {
-        return stack!(
-            stripped_log_side,
+    pub fn overworld_stripped_log_top(&self) -> Box<TaskSpec> {
+        return stack_on!(
+            self.color,
             paint_svg_task("ringsCentralBullseye", self.highlight),
             paint_svg_task("rings", self.shadow)
         );
     }
 
-    pub fn fungus_stripped_log_top(&self, stripped_log_side: Box<TaskSpec>) -> Box<TaskSpec> {
-        return stack!(
-            stripped_log_side,
+    pub fn fungus_stripped_log_top(&self) -> Box<TaskSpec> {
+        return stack_on!(
+            self.color,
             stack!(
                 paint_svg_task("ringsCentralBullseye", self.shadow),
                 paint_svg_task("rings2", self.highlight)
@@ -572,7 +572,7 @@ impl Material for Wood {
         let door_common_layers: Box<TaskSpec> = (self.door_common_layers)(self);
         let door_bottom: Box<TaskSpec> = (self.door_bottom)(self, door_common_layers.to_owned());
         let stripped_log_side: Box<TaskSpec> = (self.stripped_log_side)(self);
-        let stripped_log_top: Box<TaskSpec> = (self.stripped_log_top)(self, stripped_log_side.to_owned());
+        let stripped_log_top: Box<TaskSpec> = (self.stripped_log_top)(self);
         return vec![
             out_task(&*format!("block/{}_{}", self.name, self.log_synonym), (self.bark)(self)),
             out_task(&*format!("block/stripped_{}_{}", self.name, self.log_synonym), stripped_log_side.to_owned()),
