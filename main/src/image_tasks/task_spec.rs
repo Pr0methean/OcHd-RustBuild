@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::{HashMap};
 use std::convert::Infallible;
 use std::fmt::{Debug, Display, Formatter};
@@ -5,6 +6,7 @@ use std::future::{Future};
 use std::ops::{Deref, DerefMut, FromResidual, Mul};
 use std::path::{Path, PathBuf};
 use std::pin::{Pin};
+use std::rc::Rc;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
@@ -347,7 +349,7 @@ impl TaskSpec {
     /// if this task also consumes them. This task is added in case other tasks that depend on it
     /// are added later.
     pub fn add_to<'a, 'until_graph_built, E, Ix>(&'a self,
-                                                 graph: &mut Dag<TaskResultFuture, E, Ix>,
+                                                 graph: &mut Dag<RefCell<TaskResultFuture>, E, Ix>,
                                                  existing_nodes: &mut
                                                     TaskToFutureGraphNodeMap<'until_graph_built, Ix>)
                                                  -> NodeIndex<Ix>
@@ -391,12 +393,12 @@ impl TaskSpec {
             TaskSpec::Animate { background, frames } => {
                 let background_name = background.to_string();
                 let background_index = background.add_to(graph, existing_nodes);
-                let background_future = graph[background_index].to_owned();
+                let background_future = graph[background_index].get_mut().to_owned();
                 dependencies.push(background_index);
                 let mut frame_futures = Vec::with_capacity(frames.len());
                 for frame in frames {
                     let frame_index = frame.add_to(graph, existing_nodes);
-                    frame_futures.push(graph[frame_index].to_owned());
+                    frame_futures.push(graph[frame_index].get_mut().to_owned());
                     dependencies.push(frame_index);
                 }
                 CloneableFutureWrapper::new(name, Box::pin(async move {
@@ -414,7 +416,7 @@ impl TaskSpec {
             TaskSpec::MakeSemitransparent { base, alpha } => {
                 let alpha: f32 = (*alpha).into();
                 let base_index = base.add_to(graph, existing_nodes);
-                let base_future = graph[base_index].to_owned();
+                let base_future = graph[base_index].get_mut().to_owned();
                 dependencies.push(base_index);
                 CloneableFutureWrapper::new(name, Box::pin(
                     async move {
@@ -424,7 +426,7 @@ impl TaskSpec {
             PngOutput { base, destinations } => {
                 let destinations = destinations.to_owned();
                 let base_index = base.add_to(graph, existing_nodes);
-                let base_future = graph[base_index].to_owned();
+                let base_future = graph[base_index].get_mut().to_owned();
                 dependencies.push(base_index);
                 CloneableFutureWrapper::new(name, Box::pin(
                     async move {
@@ -435,7 +437,7 @@ impl TaskSpec {
             TaskSpec::Repaint { base, color } => {
                 let color = color.to_owned();
                 let base_index = base.add_to(graph, existing_nodes);
-                let base_future = graph[base_index].to_owned();
+                let base_future = graph[base_index].get_mut().to_owned();
                 dependencies.push(base_index);
                 CloneableFutureWrapper::new(name, Box::pin(async move {
                     paint(&base_future.await.try_into()?, &color)
@@ -444,7 +446,7 @@ impl TaskSpec {
             TaskSpec::StackLayerOnColor { background, foreground } => {
                 let background = background.to_owned();
                 let fg_index = foreground.add_to(graph, existing_nodes);
-                let fg_future = graph[fg_index].to_owned();
+                let fg_future = graph[fg_index].get_mut().to_owned();
                 dependencies.push(fg_index);
                 CloneableFutureWrapper::new(name, Box::pin(async move {
                     stack_layer_on_background(&background, &(fg_future.await.try_into()?))
@@ -455,22 +457,22 @@ impl TaskSpec {
                 dependencies.push(bg_index);
                 let fg_index = foreground.add_to(graph, existing_nodes);
                 dependencies.push(fg_index);
-                let bg_future = graph[bg_index].to_owned();
-                let fg_future = graph[fg_index].to_owned();
+                let bg_future = graph[bg_index].get_mut().to_owned();
+                let fg_future = graph[fg_index].get_mut().to_owned();
                 CloneableFutureWrapper::new(name, Box::pin(async move {
                     stack_layer_on_layer(&(bg_future.await.try_into()?), &(fg_future.await.try_into()?))
                 }))
             },
             TaskSpec::ToAlphaChannel { base } => {
                 let base_index = base.add_to(graph, existing_nodes);
-                let base_future = graph[base_index].to_owned();
+                let base_future = graph[base_index].get_mut().to_owned();
                 dependencies.push(base_index);
                 CloneableFutureWrapper::new(name, Box::pin(async move {
                     to_alpha_channel(&(base_future.await.try_into()?))
                 }))
             }
         };
-        let self_id = graph.add_node(as_future);
+        let self_id = graph.add_node(RefCell::new(as_future));
         for dependency in dependencies {
             graph.add_edge(dependency, self_id, E::default())
                 .expect("Tried to create a cycle");

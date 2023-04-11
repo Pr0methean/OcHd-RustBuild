@@ -15,10 +15,13 @@
 #![feature(allocator_api)]
 
 use std::alloc::System;
+use std::cell::RefCell;
 use std::collections::{HashMap};
 use std::env;
 use std::io::ErrorKind::NotFound;
+use std::ops::Deref;
 use std::path::absolute;
+use std::rc::Rc;
 use std::time::Instant;
 
 use async_std::fs::{create_dir, remove_dir_all};
@@ -68,7 +71,7 @@ async fn main() {
 
     let output_tasks = materials::ALL_MATERIALS.get_output_tasks();
     let mut output_task_ids = Vec::with_capacity(1024);
-    let mut graph: Dag<TaskResultFuture, (), DefaultIx> = Dag::new();
+    let mut graph: Dag<RefCell<TaskResultFuture>, (), DefaultIx> = Dag::new();
     let mut added_tasks: TaskToFutureGraphNodeMap<DefaultIx> = HashMap::new();
     output_tasks.iter().for_each(|task| {
         output_task_ids.push(task.add_to(&mut graph, &mut added_tasks));});
@@ -84,7 +87,7 @@ async fn main() {
         // union the two vertices of the edge
         vertex_sets.union(a, b);
     }
-    let mut component_map: HashMap<NodeIndex<DefaultIx>, Vec<TaskResultFuture>> = HashMap::new();
+    let mut component_map: HashMap<NodeIndex<DefaultIx>, Vec<RefCell<TaskResultFuture>>> = HashMap::new();
     for (index, task) in graph.node_references() {
         let representative = vertex_sets.find(index);
         if output_task_ids.contains(&index) {
@@ -104,12 +107,12 @@ async fn main() {
     drop(graph);
 
     // Run small WCCs first so that their data can leave the heap before the big WCCs run
-    let mut components: Vec<Vec<TaskResultFuture>> = component_map.into_values().collect();
+    let mut components: Vec<Vec<RefCell<TaskResultFuture>>> = component_map.into_values().collect();
     components.sort_by_key(Vec::len);
     let components = components.into_iter().flatten().into_iter();
 
     clean_out_dir.await.expect("Failed to create or replace output directory");
-    join_all(components.map(tokio::spawn)).await;
+    join_all(components.map(|task| tokio::spawn(task.into_inner()))).await;
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     ALLOCATOR.disable_logging();
 }
