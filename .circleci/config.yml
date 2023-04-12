@@ -26,6 +26,7 @@ jobs:
           with_cache: false
           working_directory: main
       - rust/build:
+          when: always
           release: true
       - rust/test:
           with_cache: false
