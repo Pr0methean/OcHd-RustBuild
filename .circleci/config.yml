@@ -60,7 +60,7 @@ jobs:
       - run: |
           cd main
           ./target/release/OcHd-RustBuild << parameters.size >>
-      - run: cd out && zip -9 -r OcHD-<< parameters.size >>x<< parameters.size >>.zip *
+      - run: cd main/out && zip -9 -r OcHD-<< parameters.size >>x<< parameters.size >>.zip *
       - store_artifacts:
           path: 'main/out/OcHD-<< parameters.size >>x<< parameters.size >>.zip'
       - store_artifacts:
