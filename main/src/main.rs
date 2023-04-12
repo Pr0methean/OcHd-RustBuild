@@ -40,10 +40,8 @@ use crate::image_tasks::task_spec::{OUT_DIR, SVG_DIR, TaskResultFuture, TaskToFu
 mod image_tasks;
 mod texture_base;
 mod materials;
-
-#[cfg(not(test))]
+#[cfg(not(any(test,clippy)))]
 lazy_static! {
-
     static ref TILE_SIZE: u32 = {
         let args: Vec<String> = env::args().collect();
         args.get(1).expect("Usage: OcHd-RustBuild <tile-size>").parse::<u32>()
@@ -51,11 +49,10 @@ lazy_static! {
     };
 }
 
-#[cfg(test)]
+#[cfg(any(test,clippy))]
 lazy_static! {
-    static ref TILE_SIZE: u32 = 100;
+    static ref TILE_SIZE: u32 = 128;
 }
-
 
 #[global_allocator]
 static ALLOCATOR: LoggingAllocator = LoggingAllocator::with_allocator(System);
