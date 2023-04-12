@@ -80,7 +80,7 @@ pub enum TaskResult<'a> {
     AlphaChannel {value: Arc<MaybeFromPool<'a, AlphaChannel>>}
 }
 
-impl Debug for TaskResult {
+impl <'a> Debug for TaskResult<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             TaskResult::Err {value } => f.debug_struct("Err").field("value", value).finish(),
@@ -108,21 +108,21 @@ impl <'a> FromResidual<Result<Pixmap, CloneableError>> for TaskResult<'a> {
 }
 
 impl <'a> TaskResult<'a> {
-    pub(crate) fn try_into_pixmap(self) -> Result<MaybeFromPool<'a, Pixmap>, CloneableError> {
+    pub(crate) fn try_into_pixmap(self) -> Result<Arc<MaybeFromPool<'a, Pixmap>>, CloneableError> {
         match self {
-            TaskResult::Pixmap { value } => Ok(value.deref().to_owned()),
+            TaskResult::Pixmap { value } => Ok(value.to_owned()),
             TaskResult::Err { value } => Err(value),
             TaskResult::Empty {} => Err(anyhoo!("Tried to cast an empty result to Pixmap")),
             TaskResult::AlphaChannel { .. } => Err(anyhoo!("Tried to cast an AlphaChannel result to Pixmap")),
         }
     }
 
-    pub(crate) fn try_into_alpha_channel(self) -> Result<MaybeFromPool<'a, AlphaChannel>, CloneableError> {
+    pub(crate) fn try_into_alpha_channel(self) -> Result<Arc<MaybeFromPool<'a, AlphaChannel>>, CloneableError> {
         match self {
             TaskResult::Pixmap { .. } => Err(anyhoo!("Tried to cast an empty result to AlphaChannel")),
             TaskResult::Err { value } => Err(value),
             TaskResult::Empty {} => Err(anyhoo!("Tried to cast an empty result to AlphaChannel")),
-            TaskResult::AlphaChannel { value } => Ok(value)
+            TaskResult::AlphaChannel { value } => Ok(value.to_owned())
         }
     }
 }
@@ -422,8 +422,10 @@ impl TaskSpec {
                 dependencies.push(base_index);
                 CloneableFutureWrapper::new(name, Box::pin(
                     async move {
-                        let base_result: Result<AlphaChannel, CloneableError> = base_future.await.try_into_pixmap();
-                        make_semitransparent(base_result?, alpha)
+                        let mut alpha_channel: MaybeFromPool<AlphaChannel>
+                            = base_future.await.try_into_alpha_channel()?.deref().to_owned();
+                        make_semitransparent(&mut alpha_channel, alpha);
+                        TaskResult::AlphaChannel {value: Arc::new(alpha_channel)}
                     }))
             },
             PngOutput { base, destinations } => {
@@ -433,7 +435,7 @@ impl TaskSpec {
                 dependencies.push(base_index);
                 CloneableFutureWrapper::new(name, Box::pin(
                     async move {
-                        let image: Arc<Pixmap> = base_future.await.try_into()?;
+                        let image: Arc<MaybeFromPool<Pixmap>> = base_future.await.try_into_pixmap()?;
                         png_output(image.deref(), &destinations)
                     }
                 ))
@@ -444,8 +446,9 @@ impl TaskSpec {
                 let base_future = graph[base_index].get_mut().to_owned();
                 dependencies.push(base_index);
                 CloneableFutureWrapper::new(name, Box::pin(async move {
-                    let base_image: Result<Arc<AlphaChannel>,CloneableError> = base_future.await.try_into();
-                    base_image.map(|base_image| paint(base_image.deref(), &color))?
+                    let base_image: Arc<MaybeFromPool<AlphaChannel>>
+                        = base_future.await.try_into_alpha_channel()?;
+                    TaskResult::Pixmap {value: Arc::new(paint(base_image.deref(), &color)) }
                 }))
             },
             TaskSpec::StackLayerOnColor { background, foreground } => {
@@ -454,9 +457,9 @@ impl TaskSpec {
                 let fg_future = graph[fg_index].get_mut().to_owned();
                 dependencies.push(fg_index);
                 CloneableFutureWrapper::new(name, Box::pin(async move {
-                    stack_layer_on_background(&background, fg_future.await.try_into_pixmap()?)
-                    let fg_image: Arc<Pixmap> = fg_future.await.try_into()?;
-                    stack_layer_on_background(&background, &*fg_image)
+                    let fg_image: Arc<MaybeFromPool<Pixmap>> = fg_future.await.try_into_pixmap()?;
+                    TaskResult::Pixmap {value: Arc::new(
+                        stack_layer_on_background(&background, fg_image.deref())) }
                 }))
             },
             TaskSpec::StackLayerOnLayer { background, foreground } => {
@@ -467,9 +470,11 @@ impl TaskSpec {
                 let bg_future = graph[bg_index].get_mut().to_owned();
                 let fg_future = graph[fg_index].get_mut().to_owned();
                 CloneableFutureWrapper::new(name, Box::pin(async move {
-                    let bg_image: Pixmap = bg_future.await.try_into()?;
-                    let fg_image: Arc<Pixmap> = fg_future.await.try_into()?;
-                    stack_layer_on_layer(bg_image, fg_image.deref())
+                    let mut image: MaybeFromPool<Pixmap>
+                        = bg_future.await.try_into_pixmap()?.deref().to_owned();
+                    let fg_image: Arc<MaybeFromPool<Pixmap>> = fg_future.await.try_into_pixmap()?;
+                    stack_layer_on_layer(&mut image, fg_image.deref());
+                    TaskResult::Pixmap { value: Arc::new(image)}
                 }))
             },
             TaskSpec::ToAlphaChannel { base } => {
@@ -477,8 +482,8 @@ impl TaskSpec {
                 let base_future = graph[base_index].get_mut().to_owned();
                 dependencies.push(base_index);
                 CloneableFutureWrapper::new(name, Box::pin(async move {
-                    let base_image: Arc<Pixmap> = base_future.await.try_into()?;
-                    to_alpha_channel(base_image.deref())
+                    let base_image: Arc<MaybeFromPool<Pixmap>> = base_future.await.try_into_pixmap()?;
+                    TaskResult::AlphaChannel { value: Arc::new(to_alpha_channel(base_image.deref())) }
                 }))
             }
         };

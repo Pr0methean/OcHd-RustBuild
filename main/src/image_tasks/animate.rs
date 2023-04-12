@@ -6,16 +6,16 @@ use tiny_skia_path::Transform;
 use crate::anyhoo;
 use crate::image_tasks::task_spec::{CloneableError, TaskResult, TaskResultFuture};
 use tracing::instrument;
+use crate::image_tasks::{allocate_pixmap, MaybeFromPool};
 
 #[instrument]
-pub async fn animate<'input>(background: TaskResultFuture<'input>, frames: Vec<TaskResultFuture<'input>>)
-                                    -> TaskResult {
+pub async fn animate<'input,'output>(background: TaskResultFuture<'input>, frames: Vec<TaskResultFuture<'input>>)
+                                    -> TaskResult<'output> where 'output : 'input {
     let frame_count = frames.len() as u32;
-    let background: Arc<Pixmap> = background.await.try_into()?;
+    let background: Arc<MaybeFromPool<Pixmap>> = background.await.try_into_pixmap()?;
     let frame_height = background.height();
-    let out = Mutex::new(Pixmap::new(background.width(),
-                              frame_height * frame_count)
-                            .ok_or(anyhoo!("Failed to create output Pixmap"))?);
+    let out = Mutex::new(allocate_pixmap(background.width(),
+                              frame_height * frame_count));
     let results = join_all(frames.into_iter().enumerate().map(|(index, frame)| {
         let out = &out;
         let background = background.to_owned();
@@ -25,8 +25,8 @@ pub async fn animate<'input>(background: TaskResultFuture<'input>, frames: Vec<T
                             &PixmapPaint::default(),
                             Transform::default(),
                             None).ok_or(anyhoo!("draw_pixmap failed"))?;
-            let frame_pixmap: Result<Arc<Pixmap>, CloneableError> = frame.await.try_into();
-            let frame_pixmap = frame_pixmap?;
+            let frame_pixmap: Arc<MaybeFromPool<Pixmap>>
+                = frame.await.try_into_pixmap()?;
             out.lock().unwrap().draw_pixmap(0, (index as i32) * (frame_height as i32),
                             frame_pixmap.as_ref().as_ref(),
                             &PixmapPaint::default(),

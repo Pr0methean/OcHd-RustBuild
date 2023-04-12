@@ -5,7 +5,6 @@ use std::iter;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Mul};
 use std::sync::Arc;
-use std::sync::Arc;
 use cached::proc_macro::cached;
 use lazy_static::lazy_static;
 use lockfree_object_pool::LinearObjectPool;
@@ -62,15 +61,14 @@ lazy_static! {
     static ref ALPHA_PHANTOM: PhantomData<AlphaChannel> = PhantomData::default();
 }
 #[instrument]
-pub fn to_alpha_channel<'input,'output>(pixmap: &'input MaybeFromPool<Pixmap>) -> TaskResult<'output>
-        where 'output : 'input {
+pub fn to_alpha_channel<'a>(pixmap: &MaybeFromPool<Pixmap>) -> MaybeFromPool<'a, AlphaChannel> {
     let width = pixmap.width();
     let height = pixmap.height();
     let mut output: MaybeFromPool<AlphaChannel> = allocate_alpha_channel(width, height);
-    for (index, pixel) in pixmap.pixels().into_iter().enumerate() {
+    for (index, pixel) in pixmap.pixels().iter().enumerate() {
         output.pixels[index] = pixel.alpha();
     }
-    return TaskResult::AlphaChannel {value: output };
+    output
 }
 
 fn allocate_alpha_channel<'a>(width: u32, height: u32) -> MaybeFromPool<'a, AlphaChannel> {
@@ -112,7 +110,7 @@ fn create_paint_array(color: ComparableColor) -> [PremultipliedColorU8; 256] {
 
 /// Applies the given [color] to the given [input](alpha channel).
 #[instrument]
-pub fn paint<'a>(input: &AlphaChannel, color: &ComparableColor) -> TaskResult<'a> {
+pub fn paint<'a>(input: &AlphaChannel, color: &ComparableColor) -> MaybeFromPool<'a, Pixmap> {
     let paint_array = create_paint_array(*color);
     let input_pixels = input.pixels();
     let mut output = allocate_pixmap(input.width, input.height);
@@ -121,7 +119,7 @@ pub fn paint<'a>(input: &AlphaChannel, color: &ComparableColor) -> TaskResult<'a
         .map(|input_pixel| {
             paint_array[usize::from(*input_pixel)]
         }).collect::<Vec<PremultipliedColorU8>>()[..]));
-    return TaskResult::Pixmap {value: Arc::new(output)};
+    output
 }
 
 #[cfg(test)]
