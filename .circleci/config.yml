@@ -23,12 +23,12 @@ jobs:
       - rust/install:
           version: nightly
       - rust/clippy:
-          with-cache: false
+          with_cache: false
           working_directory: main
       - rust/build:
           release: true
       - rust/test:
-          with-cache: false
+          with_cache: false
           working_directory: main
       - persist_to_workspace:
           root: main/target/release
