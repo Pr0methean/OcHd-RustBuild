@@ -1,6 +1,3 @@
-
-
-
 use std::iter;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Mul};
@@ -17,7 +14,6 @@ use crate::image_tasks::{allocate_pixmap, MaybeFromPool};
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::make_semitransparent::create_alpha_array;
 use crate::image_tasks::MaybeFromPool::NotFromPool;
-use crate::image_tasks::task_spec::TaskResult;
 
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialOrd, PartialEq)]

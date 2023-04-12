@@ -60,7 +60,7 @@ impl From<SingleTextureMaterial> for Box<TaskSpec> {
 
 impl Material for SingleTextureMaterial {
     fn get_output_tasks(&self) -> Vec<TaskSpec> {
-        return if !self.has_output.to_owned() { vec![] } else {
+        return if !self.has_output { vec![] } else {
             vec![out_task(&format!("{}/{}", self.directory, self.name),
                           self.texture.to_owned()).deref().to_owned()]
         };
@@ -172,8 +172,8 @@ pub struct SingleLayerMaterial {
 
 impl Material for SingleLayerMaterial {
     fn get_output_tasks(&self) -> Vec<TaskSpec> {
-        return vec!(out_task(self.name,
-             paint_svg_task(self.layer_name, self.color.to_owned())).deref().to_owned());
+        return vec!(*out_task(self.name,
+             paint_svg_task(self.layer_name, self.color.to_owned())));
     }
 }
 
