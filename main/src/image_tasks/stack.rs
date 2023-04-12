@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use tiny_skia::{Pixmap, PixmapPaint};
 use tiny_skia_path::Transform;
 use tracing::instrument;
@@ -10,7 +11,7 @@ use crate::image_tasks::task_spec::TaskResult;
 pub fn stack_layer_on_layer(mut background: Pixmap, foreground: &Pixmap) -> TaskResult {
     background.draw_pixmap(0, 0, foreground.as_ref(), &PixmapPaint::default(),
                        Transform::default(), None);
-    return TaskResult::Pixmap {value: background};
+    return TaskResult::Pixmap {value: Arc::new(background)};
 }
 
 #[instrument]

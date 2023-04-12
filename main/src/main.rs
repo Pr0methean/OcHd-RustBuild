@@ -13,6 +13,7 @@
 #![feature(hash_set_entry)]
 #![feature(once_cell_try)]
 #![feature(allocator_api)]
+#![feature(poll_ready)]
 
 use std::alloc::System;
 use std::cell::RefCell;

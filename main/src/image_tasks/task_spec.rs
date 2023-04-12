@@ -1,11 +1,13 @@
+use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::collections::{HashMap};
 use std::convert::Infallible;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Debug, Display, Formatter, Write};
 use std::future::{Future};
 use std::ops::{Deref, DerefMut, FromResidual, Mul};
 use std::path::{Path, PathBuf};
 use std::pin::{Pin};
+use std::ptr::addr_of_mut;
 use std::rc::Rc;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
@@ -13,7 +15,7 @@ use std::task::{Context, Poll, Waker};
 use anyhow::{Error};
 
 use cached::lazy_static::lazy_static;
-use cooked_waker::{IntoWaker, WakeRef};
+use cooked_waker::{IntoWaker, ViaRawPointer, Wake, WakeRef};
 use fn_graph::{DataAccessDyn, TypeIds};
 use fn_graph::daggy::Dag;
 use futures::{FutureExt};
@@ -70,12 +72,23 @@ impl Display for CloneableError {
 }
 
 /// Tagged union of the possible results of [TaskSpec] execution.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum TaskResult {
     Err {value: CloneableError},
     Empty {},
-    Pixmap {value: Pixmap},
-    AlphaChannel {value: AlphaChannel}
+    Pixmap {value: Arc<Pixmap>},
+    AlphaChannel {value: Arc<AlphaChannel>}
+}
+
+impl Debug for TaskResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TaskResult::Err {value } => f.debug_struct("Err").field("value", value).finish(),
+            TaskResult::Empty {} => f.write_str("Empty"),
+            TaskResult::Pixmap { .. } => f.write_str("Pixmap"),
+            TaskResult::AlphaChannel { .. } => f.write_str("AlphaChannel")
+        }
+    }
 }
 
 #[macro_export]
@@ -89,16 +102,17 @@ impl FromResidual<Result<Pixmap, CloneableError>> for TaskResult {
     fn from_residual(residual: Result<Pixmap, CloneableError>) -> Self {
         match residual {
             Err(e) => TaskResult::Err {value: e},
-            Ok(pixmap) => TaskResult::Pixmap {value: pixmap}
+            Ok(pixmap) => TaskResult::Pixmap {value: Arc::new(pixmap)}
         }
     }
 }
 
-impl TryInto<Pixmap> for TaskResult {
+impl <'a> TryInto<Pixmap> for TaskResult {
     type Error = CloneableError;
-    fn try_into(self) -> Result<Pixmap, CloneableError> {
+
+    fn try_into(self) -> Result<Pixmap, Self::Error> {
         match self {
-            TaskResult::Pixmap { value } => Ok(value),
+            TaskResult::Pixmap { mut value } => Ok(value.deref().to_owned()),
             TaskResult::Err { value } => Err(value),
             TaskResult::Empty {} => Err(anyhoo!("Tried to cast an empty result to Pixmap")),
             TaskResult::AlphaChannel { .. } => Err(anyhoo!("Tried to cast an AlphaChannel result to Pixmap")),
@@ -106,12 +120,12 @@ impl TryInto<Pixmap> for TaskResult {
     }
 }
 
-impl TryInto<Pixmap> for &TaskResult {
+impl <'a> TryInto<Arc<Pixmap>> for TaskResult {
     type Error = CloneableError;
-    fn try_into(self) -> Result<Pixmap, CloneableError> {
+    fn try_into(self) -> Result<Arc<Pixmap>, CloneableError> {
         match self {
             TaskResult::Pixmap { value } => Ok(value.to_owned()),
-            TaskResult::Err { value } => Err(value.to_owned()),
+            TaskResult::Err { value } => Err(value),
             TaskResult::Empty {} => Err(anyhoo!("Tried to cast an empty result to Pixmap")),
             TaskResult::AlphaChannel { .. } => Err(anyhoo!("Tried to cast an AlphaChannel result to Pixmap")),
         }
@@ -122,31 +136,32 @@ impl FromResidual<Result<AlphaChannel, CloneableError>> for TaskResult {
     fn from_residual(residual: Result<AlphaChannel, CloneableError>) -> Self {
         match residual {
             Err(e) => TaskResult::Err {value: e},
-            Ok(alpha_channel) => TaskResult::AlphaChannel {value: alpha_channel}
+            Ok(alpha_channel) => TaskResult::AlphaChannel {value: Arc::new(alpha_channel)}
         }
     }
 }
 
-impl TryInto<AlphaChannel> for TaskResult {
+impl <'a> TryInto<AlphaChannel> for TaskResult {
     type Error = CloneableError;
-    fn try_into(self) -> Result<AlphaChannel, CloneableError> {
+
+    fn try_into(self) -> Result<AlphaChannel, Self::Error> {
         match self {
             TaskResult::Pixmap { .. } => Err(anyhoo!("Tried to cast an empty result to AlphaChannel")),
             TaskResult::Err { value } => Err(value),
             TaskResult::Empty {} => Err(anyhoo!("Tried to cast an empty result to AlphaChannel")),
-            TaskResult::AlphaChannel { value } => Ok(value)
+            TaskResult::AlphaChannel { mut value } => Ok(value.deref().to_owned())
         }
     }
 }
 
-impl TryInto<AlphaChannel> for &TaskResult {
+impl <'a> TryInto<Arc<AlphaChannel>> for TaskResult {
     type Error = CloneableError;
-    fn try_into(self) -> Result<AlphaChannel, CloneableError> {
+    fn try_into(self) -> Result<Arc<AlphaChannel>, CloneableError> {
         match self {
             TaskResult::Pixmap { .. } => Err(anyhoo!("Tried to cast an empty result to AlphaChannel")),
-            TaskResult::Err { value } => Err(value.to_owned()),
+            TaskResult::Err { value } => Err(value),
             TaskResult::Empty {} => Err(anyhoo!("Tried to cast an empty result to AlphaChannel")),
-            TaskResult::AlphaChannel { value } => Ok(value.to_owned())
+            TaskResult::AlphaChannel { value } => Ok(value.clone())
         }
     }
 }
@@ -233,16 +248,30 @@ impl DataAccessDyn for &TaskSpec {
 
 pub type SyncBoxFuture<'a, T> = Pin<Box<dyn Future<Output=T> + Send + Sync + 'a>>;
 
-#[derive(Debug)]
-pub struct MultiWaker {
-    wakers: Mutex<Vec<Waker>>
-}
-
 /// Stores the wakers for all clones of a given [CloneableFutureWrapper] and wakes them when the
 /// wrapped future wakes the MultiWaker or is found to be ready.
+#[derive(Clone,Debug)]
+pub struct MultiWaker {
+    wakers: Arc<Mutex<Vec<Waker>>>
+}
+
+unsafe impl ViaRawPointer for &MultiWaker {
+    type Target = MultiWaker;
+
+    fn into_raw(self) -> *mut Self::Target {
+        (unsafe { Pin::into_inner_unchecked(Pin::new_unchecked(self)) }
+        as *const MultiWaker)
+        as *mut MultiWaker
+    }
+
+    unsafe fn from_raw(ptr: *mut Self::Target) -> Self {
+        Pin::into_inner_unchecked(Pin::new_unchecked(&*ptr))
+    }
+}
+
 impl MultiWaker {
     fn new() -> MultiWaker {
-        MultiWaker {wakers: Mutex::new(Vec::with_capacity(16))}
+        MultiWaker {wakers: Arc::new(Mutex::new(Vec::with_capacity(16)))}
     }
 
     fn add_waker(&self, waker: Waker) {
@@ -258,40 +287,53 @@ impl WakeRef for MultiWaker {
     }
 }
 
+#[derive(Clone)]
+pub enum CloneableFutureWrapperState<'a, T> {
+    Upcoming {
+        future: Arc<Mutex<SyncBoxFuture<'a, T>>>,
+        multiwaker: Arc<MultiWaker>,
+        waker: Arc<Waker>
+    },
+    Finished {
+        result: Arc<T>
+    }
+}
+
 /// Wraps a future so it can be consumed by multiple dependencies. Implemented because I was told
 /// [futures::future::Shared] would probably have a memory leak. Unlike Shared, this doesn't
 /// directly use a [std::cell::UnsafeCell].
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub struct CloneableFutureWrapper<'a, T> where T: Clone + Send {
     name: String,
-    result: Arc<Mutex<OnceCell<T>>>,
-    future: Arc<Mutex<SyncBoxFuture<'a, T>>>,
-    waker: Arc<MultiWaker>
+    state: Arc<Mutex<CloneableFutureWrapperState<'a, T>>>
 }
 
-impl <'a, T> Debug for CloneableFutureWrapper<'a, T> where T: Clone + Send + Debug {
+impl <'a, T> Debug for CloneableFutureWrapperState<'a, T> where T: Clone + Send + Debug {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CloneableFutureWrapper")
-            .field("name", &self.name)
-            .field("result", &self.result)
-            .field("waker", &self.waker)
-            .finish()
+        match self {
+            CloneableFutureWrapperState::Upcoming { waker, .. } =>
+                f.debug_struct("Upcoming").field("waker", waker).finish(),
+            CloneableFutureWrapperState::Finished { result } => f.debug_struct("Finished").field("result", result).finish()
+        }
     }
 }
 
 impl <'a, T> CloneableFutureWrapper<'a, T> where T: Clone + Send + Debug + 'a {
     pub fn new(name: String, base: SyncBoxFuture<'a, T>) -> CloneableFutureWrapper<'a, T> {
-        return CloneableFutureWrapper {
+        let waker = Arc::new(MultiWaker::new());
+        CloneableFutureWrapper {
             name: name.to_owned(),
-            result: Arc::new(Mutex::new(OnceCell::new())),
-            future: Arc::new(Mutex::new(Box::pin(async move {
-                info!("Starting {}", name);
-                let result = base.await;
-                info!("Finishing {}", name);
-                result
-            }))),
-            waker: Arc::new(MultiWaker::new())
-        };
+            state: Arc::new(Mutex::new(CloneableFutureWrapperState::Upcoming {
+                future: Arc::new(Mutex::new(Box::pin(async move {
+                    info!("Starting {}", name);
+                    let result = base.await;
+                    info!("Finishing {} with result of {:?}", name, result);
+                    result
+                }))),
+                multiwaker: waker.to_owned(),
+                waker: Arc::new(waker.into_waker())
+            }))
+        }
     }
 }
 
@@ -299,23 +341,27 @@ impl <'a, T> Future for CloneableFutureWrapper<'a, T> where T: Clone + Send + Sy
     type Output = T;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let result_lock = self.result.lock().unwrap();
-        let result = result_lock.get();
-        return match result {
-            Some(t) => Poll::Ready(t.to_owned()),
-            None => {
-                self.waker.add_waker(cx.waker().to_owned());
-                let mut future_lock = self.future.lock().unwrap();
-                let future = future_lock.deref_mut();
-                let new_result = future.poll_unpin(&mut Context::from_waker(&(self.waker.clone().into_waker())));
-                if let Poll::Ready(result_value) = new_result.to_owned() {
-                    result_lock.set(result_value).expect(
-                        &*format!("Failed to set result of {}", self.name));
-                    self.waker.wake_by_ref();
+        let mut state = self.state.lock().unwrap();
+        let result = match state.deref() {
+            CloneableFutureWrapperState::Finished { result } => Poll::Ready((**result).to_owned()),
+            CloneableFutureWrapperState::Upcoming { future, multiwaker, waker} => {
+                let new_result = future.lock().unwrap().poll_unpin(
+                    &mut Context::from_waker(waker.deref()));
+                if let Poll::Ready(..) = new_result.to_owned() {
+                    multiwaker.wake_by_ref();
+                } else {
+                    multiwaker.add_waker(cx.waker().to_owned());
                 }
                 new_result
             }
+        };
+        if let Poll::Ready(finished_result) = &result {
+            let state = state.deref_mut();
+            if matches!(state, CloneableFutureWrapperState::Upcoming { .. }) {
+                *state = CloneableFutureWrapperState::Finished {result: Arc::new(finished_result.to_owned())};
+            }
         }
+        return result;
     }
 }
 
@@ -417,7 +463,8 @@ impl TaskSpec {
                 dependencies.push(base_index);
                 CloneableFutureWrapper::new(name, Box::pin(
                     async move {
-                        make_semitransparent(base_future.await.try_into()?, alpha)
+                        let base_result: Result<AlphaChannel, CloneableError> = base_future.await.try_into();
+                        make_semitransparent(base_result?, alpha)
                     }))
             },
             PngOutput { base, destinations } => {
@@ -427,7 +474,8 @@ impl TaskSpec {
                 dependencies.push(base_index);
                 CloneableFutureWrapper::new(name, Box::pin(
                     async move {
-                        png_output(&base_future.await.try_into()?, &destinations)
+                        let image: Arc<Pixmap> = base_future.await.try_into()?;
+                        png_output(image.deref(), &destinations)
                     }
                 ))
             },
@@ -437,7 +485,8 @@ impl TaskSpec {
                 let base_future = graph[base_index].get_mut().to_owned();
                 dependencies.push(base_index);
                 CloneableFutureWrapper::new(name, Box::pin(async move {
-                    paint(&base_future.await.try_into()?, &color)
+                    let base_image: Result<Arc<AlphaChannel>,CloneableError> = base_future.await.try_into();
+                    base_image.map(|base_image| paint(base_image.deref(), &color))?
                 }))
             },
             TaskSpec::StackLayerOnColor { background, foreground } => {
@@ -446,7 +495,8 @@ impl TaskSpec {
                 let fg_future = graph[fg_index].get_mut().to_owned();
                 dependencies.push(fg_index);
                 CloneableFutureWrapper::new(name, Box::pin(async move {
-                    stack_layer_on_background(&background, &(fg_future.await.try_into()?))
+                    let fg_image: Arc<Pixmap> = fg_future.await.try_into()?;
+                    stack_layer_on_background(&background, &*fg_image)
                 }))
             },
             TaskSpec::StackLayerOnLayer { background, foreground } => {
@@ -457,7 +507,9 @@ impl TaskSpec {
                 let bg_future = graph[bg_index].get_mut().to_owned();
                 let fg_future = graph[fg_index].get_mut().to_owned();
                 CloneableFutureWrapper::new(name, Box::pin(async move {
-                    stack_layer_on_layer(bg_future.await.try_into()?, &(fg_future.await.try_into()?))
+                    let bg_image: Pixmap = bg_future.await.try_into()?;
+                    let fg_image: Arc<Pixmap> = fg_future.await.try_into()?;
+                    stack_layer_on_layer(bg_image, fg_image.deref())
                 }))
             },
             TaskSpec::ToAlphaChannel { base } => {
@@ -465,7 +517,8 @@ impl TaskSpec {
                 let base_future = graph[base_index].get_mut().to_owned();
                 dependencies.push(base_index);
                 CloneableFutureWrapper::new(name, Box::pin(async move {
-                    to_alpha_channel(&(base_future.await.try_into()?))
+                    let base_image: Arc<Pixmap> = base_future.await.try_into()?;
+                    to_alpha_channel(base_image.deref())
                 }))
             }
         };

@@ -1,4 +1,5 @@
 use std::ops::Mul;
+use std::sync::Arc;
 use cached::proc_macro::cached;
 use tiny_skia::{Pixmap, PremultipliedColorU8};
 use tracing::instrument;
@@ -42,7 +43,7 @@ impl From<&Pixmap> for AlphaChannel {
 #[instrument]
 pub fn to_alpha_channel(pixmap: &Pixmap) -> TaskResult {
     let alpha = AlphaChannel::from(pixmap);
-    return TaskResult::AlphaChannel {value: alpha};
+    return TaskResult::AlphaChannel {value: Arc::new(alpha)};
 }
 
 impl Mul<f32> for AlphaChannel {
@@ -90,7 +91,7 @@ pub fn paint(input: &AlphaChannel, color: &ComparableColor) -> TaskResult {
         .map(|input_pixel| {
             paint_array[usize::from(*input_pixel)]
         }).collect::<Vec<PremultipliedColorU8>>()[..]));
-    return TaskResult::Pixmap {value: output};
+    return TaskResult::Pixmap {value: Arc::new(output)};
 }
 
 #[cfg(test)]

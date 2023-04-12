@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use resvg::{FitTo, render};
 use tiny_skia::Pixmap;
@@ -46,5 +47,5 @@ pub fn from_svg(path: PathBuf, width: u32) -> TaskResult {
         Transform::default(),
         out.as_mut())
         .ok_or(anyhoo!("Failed to render output Pixmap"))?;
-    return TaskResult::Pixmap {value: out};
+    return TaskResult::Pixmap {value: Arc::new(out)};
 }
