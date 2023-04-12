@@ -395,17 +395,14 @@ impl TaskSpec {
                 let background_index = background.add_to(graph, existing_nodes);
                 let background_future = graph[background_index].get_mut().to_owned();
                 dependencies.push(background_index);
-                let mut frame_futures = Vec::with_capacity(frames.len());
+                let mut frame_futures: Vec<TaskResultFuture> = Vec::with_capacity(frames.len());
                 for frame in frames {
                     let frame_index = frame.add_to(graph, existing_nodes);
-                    frame_futures.push(graph[frame_index].get_mut().to_owned());
+                    frame_futures.push(graph[frame_index].borrow().to_owned());
                     dependencies.push(frame_index);
                 }
                 CloneableFutureWrapper::new(name, Box::pin(async move {
-                    match background_future.await {
-                        TaskResult::Pixmap {value} => animate(&value, frame_futures).await,
-                        _ => TaskResult::Err {value: anyhoo!("Got {:?} instead of Pixmap for background", background_name)}
-                    }
+                   animate(background_future, frame_futures).await
                 }))
             },
             FromSvg { source } => {
