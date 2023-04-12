@@ -2,6 +2,7 @@ use cached::proc_macro::cached;
 use ordered_float::OrderedFloat;
 use tiny_skia::{ColorU8, Pixmap};
 use tracing::instrument;
+use crate::image_tasks::repaint::{AlphaChannel, to_alpha_channel};
 
 use crate::image_tasks::task_spec::TaskResult;
 
@@ -14,15 +15,14 @@ pub(crate) fn create_alpha_array(out_alpha: OrderedFloat<f32>) -> [u8; 256] {
 
 #[instrument]
 /// Multiplies the opacity of all pixels in the [input](given pixmap) by a given [alpha].
-pub fn make_semitransparent(mut input: Pixmap, alpha: f32) -> TaskResult {
+pub fn make_semitransparent(mut input: AlphaChannel, alpha: f32) -> TaskResult {
     let alpha_array = create_alpha_array(alpha.into());
     let output_pixels = input.pixels_mut();
     for index in 0..output_pixels.len() {
-        let pixel = output_pixels[index].demultiply();
-        output_pixels[index] = ColorU8::from_rgba(pixel.red(), pixel.green(), pixel.blue(),
-                alpha_array[pixel.alpha() as usize]).premultiply();
+        let pixel = output_pixels[index];
+        output_pixels[index] = alpha_array[pixel as usize];
     }
-    return TaskResult::Pixmap {value: input};
+    return TaskResult::AlphaChannel {value: input};
 }
 
 #[test]
@@ -42,7 +42,8 @@ fn test_make_semitransparent() {
                      FillRule::EvenOdd, Transform::default(), None);
     let pixmap_pixels = pixmap.pixels();
     let semitransparent_red_circle: Pixmap
-        = make_semitransparent(pixmap.to_owned(), alpha).try_into().unwrap();
+        = paint(make_semitransparent(to_alpha_channel(pixmap).try_into().unwrap(), alpha).try_into().unwrap(),
+            ComparableColor::RED);
     let semitransparent_pixels = semitransparent_red_circle.pixels();
     for index in 0usize..((side_length * side_length) as usize) {
         let expected_alpha: u8 = (u16::from(alpha_multiplier

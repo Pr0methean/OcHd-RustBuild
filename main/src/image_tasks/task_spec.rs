@@ -327,13 +327,13 @@ impl TaskSpec {
             TaskSpec::Animate { background, frames } =>
                 background.is_all_black() && frames.iter().all(|frame| frame.is_all_black()),
             FromSvg { source } => !(COLOR_SVGS.contains(&&*source.to_string_lossy())),
-            TaskSpec::MakeSemitransparent { base, .. } => base.is_all_black(),
+            TaskSpec::MakeSemitransparent { .. } => true,
             PngOutput { base, .. } => base.is_all_black(),
             TaskSpec::Repaint { color, .. } => color.is_black_or_transparent(),
             TaskSpec::StackLayerOnColor { background, foreground } =>
                 background.is_black_or_transparent() && foreground.is_all_black(),
             TaskSpec::StackLayerOnLayer { background, foreground } => background.is_all_black() && foreground.is_all_black(),
-            TaskSpec::ToAlphaChannel { .. } => false
+            TaskSpec::ToAlphaChannel { .. } => true
         }
     }
 }
@@ -510,7 +510,7 @@ pub fn paint_svg_task(name: &str, color: ComparableColor) -> Box<TaskSpec> {
 }
 
 pub fn semitrans_svg_task(name: &str, alpha: f32) -> Box<TaskSpec> {
-    return Box::new(TaskSpec::MakeSemitransparent {base: from_svg_task(name),
+    return Box::new(TaskSpec::MakeSemitransparent {base: Box::from(TaskSpec::ToAlphaChannel { base: from_svg_task(name) }),
         alpha: alpha.into()});
 }
 

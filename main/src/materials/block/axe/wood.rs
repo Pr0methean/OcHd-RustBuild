@@ -4,7 +4,7 @@ use ordered_float::OrderedFloat;
 use crate::{group, paint_stack, stack, stack_on};
 use crate::image_tasks::color::{c, ComparableColor};
 use crate::image_tasks::task_spec::{from_svg_task, out_task, paint_svg_task, paint_task, TaskSpec};
-use crate::image_tasks::task_spec::TaskSpec::MakeSemitransparent;
+use crate::image_tasks::task_spec::TaskSpec::{MakeSemitransparent, ToAlphaChannel};
 use crate::texture_base::material::Material;
 
 pub struct Wood {
@@ -41,7 +41,10 @@ impl Wood {
             stack_on!(self.color,
                 paint_svg_task("waves2", self.highlight * self.planks_highlight_strength),
                 paint_task(stack!(
-                    Box::new(MakeSemitransparent { base: from_svg_task("waves"), alpha: OrderedFloat::from(self.planks_shadow_strength)}),
+                    Box::new(MakeSemitransparent {
+                        base: Box::new(ToAlphaChannel {base: from_svg_task("waves") }),
+                        alpha: OrderedFloat::from(self.planks_shadow_strength)
+                    }),
                     from_svg_task("planksTopBorder")), self.shadow)),
             paint_svg_task("borderShortDashes", self.highlight)
         );
