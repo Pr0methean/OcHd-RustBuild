@@ -133,7 +133,7 @@ pub mod tests {
         let circle = PathBuilder::from_circle(64.0, 64.0, 50.0).unwrap();
         pixmap.deref_mut().fill_path(&circle, &Paint::default(),
                          FillRule::EvenOdd, Transform::default(), None);
-        let alpha_channel = to_alpha_channel(&pixmap).try_into_alpha_channel().unwrap();
+        let alpha_channel = to_alpha_channel(&pixmap);
         let pixmap_pixels = pixmap.deref().pixels();
         let alpha_pixels = alpha_channel.pixels();
         for index in 0usize..((side_length * side_length) as usize) {
@@ -148,12 +148,11 @@ pub mod tests {
         let circle = PathBuilder::from_circle(64.0, 64.0, 50.0).unwrap();
         pixmap.deref_mut().fill_path(&circle, &Paint::default(),
                          FillRule::EvenOdd, Transform::default(), None);
-        let alpha_channel = to_alpha_channel(&pixmap)
-            .try_into_alpha_channel().unwrap().deref().to_owned();
+        let alpha_channel = to_alpha_channel(&pixmap);
         let repainted_alpha: u8 = 0xcf;
         let red = ColorU8::from_rgba(0xff, 0, 0, repainted_alpha);
         let repainted_pixels= paint(&alpha_channel, &ComparableColor::from(red))
-            .try_into_pixmap().unwrap().deref().pixels().to_owned();
+            .pixels().to_owned();
         let pixmap_pixels = pixmap.pixels();
         for index in 0usize..((side_length * side_length) as usize) {
             let expected_alpha: u8 = (u16::from(repainted_alpha)
