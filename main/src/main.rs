@@ -118,10 +118,10 @@ async fn main() {
     // Run small WCCs first so that their data can leave the heap before the big WCCs run
     let mut components: Vec<Vec<RefCell<TaskResultFuture>>> = component_map.into_values().collect();
     components.sort_by_key(Vec::len);
-    let components = components.into_iter().flatten();
+    let components: Vec<RefCell<TaskResultFuture>> = components.into_iter().flatten().collect();
     clean_out_dir.await.expect("Failed to create or replace output directory");
     info!("Starting tasks");
-    join_all(components.map(|task| tokio::spawn(task.into_inner()))).await;
+    join_all(components.into_iter().map(|task| tokio::spawn(task.into_inner()))).await;
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     ALLOCATOR.disable_logging();
 }
