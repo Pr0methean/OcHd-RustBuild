@@ -20,7 +20,6 @@
 use std::alloc::System;
 use std::cell::RefCell;
 use std::collections::{HashMap};
-use std::env;
 use std::io::ErrorKind::NotFound;
 use std::path::absolute;
 use std::time::Instant;
@@ -41,6 +40,9 @@ use crate::image_tasks::task_spec::{OUT_DIR, SVG_DIR, TaskResultFuture, TaskToFu
 mod image_tasks;
 mod texture_base;
 mod materials;
+#[cfg(not(any(test,clippy)))]
+use std::env;
+
 #[cfg(not(any(test,clippy)))]
 lazy_static! {
     static ref TILE_SIZE: u32 = {
