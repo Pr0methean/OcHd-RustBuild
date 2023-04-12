@@ -8,10 +8,9 @@ use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::task_spec::TaskResult;
 
 #[instrument]
-pub fn stack_layer_on_layer(mut background: Pixmap, foreground: &Pixmap) -> TaskResult {
+pub fn stack_layer_on_layer(background: &mut Pixmap, foreground: &Pixmap) {
     background.draw_pixmap(0, 0, foreground.as_ref(), &PixmapPaint::default(),
                        Transform::default(), None);
-    return TaskResult::Pixmap {value: Arc::new(background)};
 }
 
 #[instrument]
@@ -19,5 +18,6 @@ pub fn stack_layer_on_background(background: &ComparableColor, foreground: &Pixm
     let mut output = Pixmap::new(foreground.width(), foreground.height())
         .ok_or(anyhoo!("Failed to create background for stacking"))?;
     output.fill(background.to_owned().into());
-    return stack_layer_on_layer(output, foreground);
+    stack_layer_on_layer(&mut output, foreground);
+    TaskResult::Pixmap {value: Arc::new(output)}
 }
