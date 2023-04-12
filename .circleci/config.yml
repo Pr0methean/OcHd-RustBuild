@@ -7,11 +7,6 @@ orbs:
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
 jobs:
-  rust/lint-test-build:
-    release: true
-    working_directory: ~/main
-    version: nightly
-
   execute:
     parameters:
       size:
@@ -37,7 +32,10 @@ jobs:
 workflows:
   build-and-execute:
     jobs:
-      - rust/lint-test-build
+      - rust/lint-test-build:
+          release: true
+          working_directory: ~/main
+          version: nightly
       - execute:
           requires:
             - rust/lint-test-build
