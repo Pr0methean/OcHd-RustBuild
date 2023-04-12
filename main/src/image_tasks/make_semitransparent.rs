@@ -1,4 +1,3 @@
-
 use cached::proc_macro::cached;
 use ordered_float::OrderedFloat;
 
@@ -27,10 +26,12 @@ pub fn make_semitransparent(input: &mut AlphaChannel, alpha: f32) {
 
 #[test]
 fn test_make_semitransparent() {
-    use tiny_skia::{FillRule, Paint};
+    use tiny_skia::{FillRule, Paint, Pixmap};
     use tiny_skia_path::{PathBuilder, Transform};
     use crate::image_tasks::color::ComparableColor;
     use crate::image_tasks::repaint::paint;
+    use crate::image_tasks::repaint::to_alpha_channel;
+    use std::sync::Arc;
 
     let alpha = 0.5;
     let alpha_multiplier = (alpha * f32::from(u8::MAX)) as u16;
