@@ -1,8 +1,9 @@
 use std::sync::Arc;
 use cached::proc_macro::cached;
 use ordered_float::OrderedFloat;
+use tiny_skia::Pixmap;
 use tracing::instrument;
-use crate::image_tasks::repaint::{AlphaChannel};
+use crate::image_tasks::repaint::{AlphaChannel, to_alpha_channel};
 
 use crate::image_tasks::task_spec::TaskResult;
 
@@ -41,10 +42,12 @@ fn test_make_semitransparent() {
     red_paint.set_color(ComparableColor::RED.into());
     pixmap.fill_path(&circle, &red_paint,
                      FillRule::EvenOdd, Transform::default(), None);
-    let pixmap_pixels = pixmap.pixels();
-    let semitransparent_red_circle: Arc<Pixmap>
-        = paint(make_semitransparent(to_alpha_channel(pixmap).try_into().unwrap(), alpha).try_into().unwrap(),
-            &ComparableColor::RED).try_into().unwrap();
+    let pixmap_pixels = pixmap.pixels().to_owned();
+    let semitransparent_circle =
+        make_semitransparent(to_alpha_channel(pixmap).try_into().unwrap(), alpha);
+    let semitransparent_circle: Arc<AlphaChannel> = semitransparent_circle.try_into().unwrap();
+    let semitransparent_red_circle: Arc<Pixmap> =
+        paint(&*semitransparent_circle, &ComparableColor::RED).try_into().unwrap();
     let semitransparent_pixels = semitransparent_red_circle.pixels();
     for index in 0usize..((side_length * side_length) as usize) {
         let expected_alpha: u8 = (u16::from(alpha_multiplier
