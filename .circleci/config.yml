@@ -17,9 +17,11 @@ jobs:
           paths:
             - main/target/debug/deps
             - main/target/release/deps
-      - run:
+      - run: |
+          cd main
           cargo test
-      - run:
+      - run: |
+          cd main
           cargo build -r
       - persist_to_workspace:
           root: main/target/release
