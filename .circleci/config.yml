@@ -7,6 +7,42 @@ orbs:
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
 jobs:
+  build:
+    docker:
+      - image: cimg/rust:1.68.2
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - cargo-deps-{{ checksum "main/Cargo.toml" }}
+            - cargo-deps
+          paths:
+            - /home/circleci/.cargo
+            - main/target/debug/deps
+            - main/target/release/deps
+      - rust/intall:
+          version: nightly
+      - rust/clippy:
+          with-cache: false
+          working_directory: main
+      - rust/build:
+          release: true
+      - rust/test:
+          with-cache: false
+          working_directory: main
+      - persist_to_workspace:
+          root: main/target/release
+          paths:
+            - "OcHd-KotlinBuild-1.0-SNAPSHOT.jar"
+      - store_artifacts:
+          path: main/target/release
+          destination: "OcHd"
+      - save_cache:
+          key: cargo-deps-{{ checksum "main/Cargo.toml" }}
+          paths:
+            - /home/circleci/.cargo
+            - main/target/debug/deps
+            - main/target/release/deps
   execute:
     parameters:
       size:
@@ -32,13 +68,10 @@ jobs:
 workflows:
   build-and-execute:
     jobs:
-      - rust/lint-test-build:
-          release: true
-          working_directory: ~/main
-          version: nightly
+      - build
       - execute:
           requires:
-            - rust/lint-test-build
+            - build
           matrix:
             parameters:
               size: [32,64,128,256,512,1024,2048,4096]
