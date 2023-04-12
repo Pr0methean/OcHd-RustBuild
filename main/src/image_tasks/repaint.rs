@@ -97,6 +97,14 @@ impl Mul<f32> for AlphaChannel {
     }
 }
 
+impl Mul<ComparableColor> for AlphaChannel {
+    type Output = TaskResult;
+
+    fn mul(self, rhs: ComparableColor) -> Self::Output {
+        return paint(&self, &rhs);
+    }
+}
+
 #[cached(sync_writes = true)]
 fn create_paint_array(color: ComparableColor) -> [PremultipliedColorU8; 256] {
     return (0u16..256u16)

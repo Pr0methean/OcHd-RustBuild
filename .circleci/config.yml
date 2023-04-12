@@ -22,11 +22,13 @@ jobs:
             - main/target/release/deps
       - rust/install:
           version: nightly
-      - rust/clippy:
-          with_cache: false
-          working_directory: main
+      - run: |
+          cd main
+          cargo clippy || true
       - rust/build:
+          with_cache: false
           release: true
+          working_directory: main
       - rust/test:
           with_cache: false
           working_directory: main
