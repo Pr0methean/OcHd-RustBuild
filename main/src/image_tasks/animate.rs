@@ -1,5 +1,4 @@
 use std::sync::{Arc, Mutex};
-use anyhow::Error;
 use futures::future::join_all;
 use tiny_skia::{Pixmap, PixmapPaint};
 use tiny_skia_path::Transform;

@@ -1,21 +1,18 @@
-use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::collections::{HashMap};
 use std::convert::Infallible;
-use std::fmt::{Debug, Display, Formatter, Write};
+use std::fmt::{Debug, Display, Formatter};
 use std::future::{Future};
 use std::ops::{Deref, DerefMut, FromResidual, Mul};
 use std::path::{Path, PathBuf};
 use std::pin::{Pin};
-use std::ptr::addr_of_mut;
-use std::rc::Rc;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
 use anyhow::{Error};
 
 use cached::lazy_static::lazy_static;
-use cooked_waker::{IntoWaker, ViaRawPointer, Wake, WakeRef};
+use cooked_waker::{IntoWaker, ViaRawPointer, WakeRef};
 use fn_graph::{DataAccessDyn, TypeIds};
 use fn_graph::daggy::Dag;
 use futures::{FutureExt};
@@ -25,7 +22,6 @@ use log::{info};
 use ordered_float::OrderedFloat;
 use petgraph::graph::{IndexType, NodeIndex};
 use tiny_skia::Pixmap;
-use tokio::sync::OnceCell;
 
 use crate::image_tasks::animate::animate;
 use crate::image_tasks::color::ComparableColor;
@@ -112,7 +108,7 @@ impl <'a> TryInto<Pixmap> for TaskResult {
 
     fn try_into(self) -> Result<Pixmap, Self::Error> {
         match self {
-            TaskResult::Pixmap { mut value } => Ok(value.deref().to_owned()),
+            TaskResult::Pixmap { value } => Ok(value.deref().to_owned()),
             TaskResult::Err { value } => Err(value),
             TaskResult::Empty {} => Err(anyhoo!("Tried to cast an empty result to Pixmap")),
             TaskResult::AlphaChannel { .. } => Err(anyhoo!("Tried to cast an AlphaChannel result to Pixmap")),
@@ -149,7 +145,7 @@ impl <'a> TryInto<AlphaChannel> for TaskResult {
             TaskResult::Pixmap { .. } => Err(anyhoo!("Tried to cast an empty result to AlphaChannel")),
             TaskResult::Err { value } => Err(value),
             TaskResult::Empty {} => Err(anyhoo!("Tried to cast an empty result to AlphaChannel")),
-            TaskResult::AlphaChannel { mut value } => Ok(value.deref().to_owned())
+            TaskResult::AlphaChannel { value } => Ok(value.deref().to_owned())
         }
     }
 }
@@ -250,9 +246,9 @@ pub type SyncBoxFuture<'a, T> = Pin<Box<dyn Future<Output=T> + Send + Sync + 'a>
 
 /// Stores the wakers for all clones of a given [CloneableFutureWrapper] and wakes them when the
 /// wrapped future wakes the MultiWaker or is found to be ready.
-#[derive(Clone,Debug)]
+#[derive(Debug)]
 pub struct MultiWaker {
-    wakers: Arc<Mutex<Vec<Waker>>>
+    wakers: Mutex<Vec<Waker>>
 }
 
 unsafe impl ViaRawPointer for &MultiWaker {
@@ -271,7 +267,7 @@ unsafe impl ViaRawPointer for &MultiWaker {
 
 impl MultiWaker {
     fn new() -> MultiWaker {
-        MultiWaker {wakers: Arc::new(Mutex::new(Vec::with_capacity(16)))}
+        MultiWaker {wakers: Mutex::new(Vec::with_capacity(16))}
     }
 
     fn add_waker(&self, waker: Waker) {
@@ -304,7 +300,6 @@ pub enum CloneableFutureWrapperState<'a, T> {
 /// directly use a [std::cell::UnsafeCell].
 #[derive(Clone,Debug)]
 pub struct CloneableFutureWrapper<'a, T> where T: Clone + Send {
-    name: String,
     state: Arc<Mutex<CloneableFutureWrapperState<'a, T>>>
 }
 
@@ -322,7 +317,6 @@ impl <'a, T> CloneableFutureWrapper<'a, T> where T: Clone + Send + Debug + 'a {
     pub fn new(name: String, base: SyncBoxFuture<'a, T>) -> CloneableFutureWrapper<'a, T> {
         let waker = Arc::new(MultiWaker::new());
         CloneableFutureWrapper {
-            name: name.to_owned(),
             state: Arc::new(Mutex::new(CloneableFutureWrapperState::Upcoming {
                 future: Arc::new(Mutex::new(Box::pin(async move {
                     info!("Starting {}", name);
@@ -437,7 +431,6 @@ impl TaskSpec {
                 async { TaskResult::Err{value: anyhoo!("Call to into_future() on a None task") } }
                 )),
             TaskSpec::Animate { background, frames } => {
-                let background_name = background.to_string();
                 let background_index = background.add_to(graph, existing_nodes);
                 let background_future = graph[background_index].get_mut().to_owned();
                 dependencies.push(background_index);

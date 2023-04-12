@@ -20,9 +20,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap};
 use std::env;
 use std::io::ErrorKind::NotFound;
-use std::ops::Deref;
 use std::path::absolute;
-use std::rc::Rc;
 use std::time::Instant;
 
 use async_std::fs::{create_dir, remove_dir_all};

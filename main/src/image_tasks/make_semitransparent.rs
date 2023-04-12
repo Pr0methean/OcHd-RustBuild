@@ -1,9 +1,8 @@
 use std::sync::Arc;
 use cached::proc_macro::cached;
 use ordered_float::OrderedFloat;
-use tiny_skia::{ColorU8, Pixmap};
 use tracing::instrument;
-use crate::image_tasks::repaint::{AlphaChannel, to_alpha_channel};
+use crate::image_tasks::repaint::{AlphaChannel};
 
 use crate::image_tasks::task_spec::TaskResult;
 
