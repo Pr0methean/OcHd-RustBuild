@@ -26,6 +26,7 @@ jobs:
           cd main
           cargo clippy || true
       - rust/build:
+          with_cache: false
           release: true
       - rust/test:
           with_cache: false
