@@ -108,7 +108,7 @@ impl <'a> FromResidual<Result<Pixmap, CloneableError>> for TaskResult<'a> {
 }
 
 impl <'a> TaskResult<'a> {
-    pub(crate) fn try_into_pixmap(self) -> Result<Arc<MaybeFromPool<'a, Pixmap>>, CloneableError> {
+    pub(crate) fn try_into_pixmap(&self) -> Result<Arc<MaybeFromPool<'a, Pixmap>>, CloneableError> {
         match self {
             TaskResult::Pixmap { value } => Ok(value.to_owned()),
             TaskResult::Err { value } => Err(value.to_owned()),
@@ -117,10 +117,10 @@ impl <'a> TaskResult<'a> {
         }
     }
 
-    pub(crate) fn try_into_alpha_channel(self) -> Result<Arc<MaybeFromPool<'a, AlphaChannel>>, CloneableError> {
+    pub(crate) fn try_into_alpha_channel(&self) -> Result<Arc<MaybeFromPool<'a, AlphaChannel>>, CloneableError> {
         match self {
             TaskResult::Pixmap { .. } => Err(anyhoo!("Tried to cast an empty result to AlphaChannel")),
-            TaskResult::Err { value } => Err(value),
+            TaskResult::Err { value } => Err(value.to_owned()),
             TaskResult::Empty {} => Err(anyhoo!("Tried to cast an empty result to AlphaChannel")),
             TaskResult::AlphaChannel { value } => Ok(value.to_owned())
         }
@@ -473,8 +473,7 @@ impl TaskSpec {
                 CloneableFutureWrapper::new(name, Box::pin(async move {
                     let mut out_image: MaybeFromPool<Pixmap>
                         = Arc::unwrap_or_clone(bg_future.await.try_into_pixmap()?);
-                    let mut out_image = bg_image);
-                    let fg_image: Arc<Pixmap> = (&*fg_future.await).try_into()?;
+                    let fg_image: Arc<MaybeFromPool<Pixmap>> = (*fg_future.await).try_into_pixmap()?;
                     stack_layer_on_layer(&mut out_image, fg_image.deref());
                     let out_image_arc = Arc::new(out_image);
                     TaskResult::Pixmap {value: out_image_arc}

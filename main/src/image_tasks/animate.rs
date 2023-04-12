@@ -12,8 +12,7 @@ use crate::image_tasks::{allocate_pixmap, MaybeFromPool};
 pub async fn animate<'input,'output>(background: TaskResultFuture<'input>, frames: Vec<TaskResultFuture<'input>>)
                                     -> TaskResult<'output> where 'output : 'input {
     let frame_count = frames.len() as u32;
-    let background_result = background.await;
-    let background: Arc<MaybeFromPool<Pixmap>> = (&*background_result).try_into_pixmap()?;
+    let background: Arc<MaybeFromPool<Pixmap>> = (*background.await).to_owned().try_into_pixmap()?;
     let frame_height = background.height();
     let out = Mutex::new(allocate_pixmap(background.width(),
                               frame_height * frame_count));
@@ -27,7 +26,7 @@ pub async fn animate<'input,'output>(background: TaskResultFuture<'input>, frame
                             Transform::default(),
                             None).ok_or(anyhoo!("draw_pixmap failed"))?;
             let frame_pixmap: Arc<MaybeFromPool<Pixmap>>
-                = frame.await.try_into_pixmap()?;
+                = (*frame.await).to_owned().try_into_pixmap()?;
             out.lock().unwrap().draw_pixmap(0, (index as i32) * (frame_height as i32),
                             (*frame_pixmap).as_ref(),
                             &PixmapPaint::default(),

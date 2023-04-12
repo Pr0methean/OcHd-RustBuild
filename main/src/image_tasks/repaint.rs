@@ -17,6 +17,7 @@ use crate::image_tasks::{allocate_pixmap, MaybeFromPool};
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::make_semitransparent::create_alpha_array;
 use crate::image_tasks::MaybeFromPool::NotFromPool;
+use crate::image_tasks::task_spec::TaskResult;
 
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialOrd, PartialEq)]
@@ -94,14 +95,6 @@ impl Mul<f32> for AlphaChannel {
             output_pixels[index] = alpha_array[output_pixels[index] as usize];
         }
         output
-    }
-}
-
-impl Mul<ComparableColor> for AlphaChannel {
-    type Output = TaskResult;
-
-    fn mul(self, rhs: ComparableColor) -> Self::Output {
-        return paint(&self, &rhs);
     }
 }
 
