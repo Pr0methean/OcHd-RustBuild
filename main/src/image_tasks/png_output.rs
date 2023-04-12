@@ -10,7 +10,7 @@ use crate::image_tasks::task_spec::TaskResult;
 use crate::image_tasks::task_spec::TaskResult::Empty;
 
 #[instrument]
-pub fn png_output(image: &Pixmap, files: &Vec<PathBuf>) -> TaskResult {
+pub fn png_output<'a>(image: &Pixmap, files: &Vec<PathBuf>) -> TaskResult<'a> {
     let (first_file, extra_files) = files.split_first()
             .expect("Tried to write PNG to empty list of files");
     create_dir_all(first_file.parent().unwrap()).map_err(|error| anyhoo!(error))?;

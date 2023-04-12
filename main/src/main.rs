@@ -14,6 +14,7 @@
 #![feature(once_cell_try)]
 #![feature(allocator_api)]
 #![feature(poll_ready)]
+#![feature(iter_collect_into)]
 
 use std::alloc::System;
 use std::cell::RefCell;
@@ -39,13 +40,22 @@ use crate::image_tasks::task_spec::{OUT_DIR, SVG_DIR, TaskResultFuture, TaskToFu
 mod image_tasks;
 mod texture_base;
 mod materials;
+
+#[cfg(not(test))]
 lazy_static! {
+
     static ref TILE_SIZE: u32 = {
         let args: Vec<String> = env::args().collect();
         args.get(1).expect("Usage: OcHd-RustBuild <tile-size>").parse::<u32>()
             .expect("Tile size (first command-line argument) must be an integer")
     };
 }
+
+#[cfg(test)]
+lazy_static! {
+    static ref TILE_SIZE: u32 = 100;
+}
+
 
 #[global_allocator]
 static ALLOCATOR: LoggingAllocator = LoggingAllocator::with_allocator(System);

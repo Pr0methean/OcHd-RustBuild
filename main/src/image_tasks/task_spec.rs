@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::collections::{HashMap};
 use std::convert::Infallible;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Debug, Display, Formatter, Write};
 use std::future::{Future};
 use std::ops::{Deref, DerefMut, FromResidual, Mul};
 use std::path::{Path, PathBuf};
@@ -16,17 +16,21 @@ use cooked_waker::{IntoWaker, ViaRawPointer, WakeRef};
 use fn_graph::{DataAccessDyn, TypeIds};
 use fn_graph::daggy::Dag;
 use futures::{FutureExt};
+use lockfree_object_pool::{LinearOwnedReusable, LinearReusable};
 
 
 use log::{info};
 use ordered_float::OrderedFloat;
 use petgraph::graph::{IndexType, NodeIndex};
+use resman::Resource;
 use tiny_skia::Pixmap;
 
 use crate::image_tasks::animate::animate;
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::from_svg::{COLOR_SVGS, from_svg};
 use crate::image_tasks::make_semitransparent::make_semitransparent;
+use crate::image_tasks::MaybeFromPool;
+use crate::image_tasks::MaybeFromPool::NotFromPool;
 use crate::image_tasks::png_output::png_output;
 use crate::image_tasks::repaint::{AlphaChannel, to_alpha_channel};
 use crate::image_tasks::repaint::paint;
@@ -69,11 +73,11 @@ impl Display for CloneableError {
 
 /// Tagged union of the possible results of [TaskSpec] execution.
 #[derive(Clone)]
-pub enum TaskResult {
+pub enum TaskResult<'a> {
     Err {value: CloneableError},
     Empty {},
-    Pixmap {value: Arc<Pixmap>},
-    AlphaChannel {value: Arc<AlphaChannel>}
+    Pixmap {value: Arc<MaybeFromPool<'a, Pixmap>>},
+    AlphaChannel {value: Arc<MaybeFromPool<'a, AlphaChannel>>}
 }
 
 impl Debug for TaskResult {
@@ -94,19 +98,17 @@ macro_rules! anyhoo {
     }
 }
 
-impl FromResidual<Result<Pixmap, CloneableError>> for TaskResult {
+impl <'a> FromResidual<Result<Pixmap, CloneableError>> for TaskResult<'a> {
     fn from_residual(residual: Result<Pixmap, CloneableError>) -> Self {
         match residual {
             Err(e) => TaskResult::Err {value: e},
-            Ok(pixmap) => TaskResult::Pixmap {value: Arc::new(pixmap)}
+            Ok(pixmap) => TaskResult::Pixmap {value: Arc::new(NotFromPool(pixmap)) }
         }
     }
 }
 
-impl <'a> TryInto<Pixmap> for TaskResult {
-    type Error = CloneableError;
-
-    fn try_into(self) -> Result<Pixmap, Self::Error> {
+impl <'a> TaskResult<'a> {
+    pub(crate) fn try_into_pixmap(self) -> Result<MaybeFromPool<'a, Pixmap>, CloneableError> {
         match self {
             TaskResult::Pixmap { value } => Ok(value.deref().to_owned()),
             TaskResult::Err { value } => Err(value),
@@ -114,55 +116,18 @@ impl <'a> TryInto<Pixmap> for TaskResult {
             TaskResult::AlphaChannel { .. } => Err(anyhoo!("Tried to cast an AlphaChannel result to Pixmap")),
         }
     }
-}
 
-impl <'a> TryInto<Arc<Pixmap>> for TaskResult {
-    type Error = CloneableError;
-    fn try_into(self) -> Result<Arc<Pixmap>, CloneableError> {
-        match self {
-            TaskResult::Pixmap { value } => Ok(value.to_owned()),
-            TaskResult::Err { value } => Err(value),
-            TaskResult::Empty {} => Err(anyhoo!("Tried to cast an empty result to Pixmap")),
-            TaskResult::AlphaChannel { .. } => Err(anyhoo!("Tried to cast an AlphaChannel result to Pixmap")),
-        }
-    }
-}
-
-impl FromResidual<Result<AlphaChannel, CloneableError>> for TaskResult {
-    fn from_residual(residual: Result<AlphaChannel, CloneableError>) -> Self {
-        match residual {
-            Err(e) => TaskResult::Err {value: e},
-            Ok(alpha_channel) => TaskResult::AlphaChannel {value: Arc::new(alpha_channel)}
-        }
-    }
-}
-
-impl <'a> TryInto<AlphaChannel> for TaskResult {
-    type Error = CloneableError;
-
-    fn try_into(self) -> Result<AlphaChannel, Self::Error> {
+    pub(crate) fn try_into_alpha_channel(self) -> Result<MaybeFromPool<'a, AlphaChannel>, CloneableError> {
         match self {
             TaskResult::Pixmap { .. } => Err(anyhoo!("Tried to cast an empty result to AlphaChannel")),
             TaskResult::Err { value } => Err(value),
             TaskResult::Empty {} => Err(anyhoo!("Tried to cast an empty result to AlphaChannel")),
-            TaskResult::AlphaChannel { value } => Ok(value.deref().to_owned())
+            TaskResult::AlphaChannel { value } => Ok(value)
         }
     }
 }
 
-impl <'a> TryInto<Arc<AlphaChannel>> for TaskResult {
-    type Error = CloneableError;
-    fn try_into(self) -> Result<Arc<AlphaChannel>, CloneableError> {
-        match self {
-            TaskResult::Pixmap { .. } => Err(anyhoo!("Tried to cast an empty result to AlphaChannel")),
-            TaskResult::Err { value } => Err(value),
-            TaskResult::Empty {} => Err(anyhoo!("Tried to cast an empty result to AlphaChannel")),
-            TaskResult::AlphaChannel { value } => Ok(value.clone())
-        }
-    }
-}
-
-impl FromResidual<Result<Infallible, CloneableError>> for TaskResult {
+impl <'a> FromResidual<Result<Infallible, CloneableError>> for TaskResult<'a> {
     fn from_residual(residual: Result<Infallible, CloneableError>) -> Self {
         match residual {
             Err(e) => TaskResult::Err {value: e},
@@ -171,7 +136,7 @@ impl FromResidual<Result<Infallible, CloneableError>> for TaskResult {
     }
 }
 
-impl TryInto<()> for TaskResult {
+impl <'a> TryInto<()> for TaskResult<'a> {
     type Error = CloneableError;
     fn try_into(self) -> Result<(), CloneableError> {
         match self {
@@ -181,7 +146,7 @@ impl TryInto<()> for TaskResult {
     }
 }
 
-impl TryInto<()> for &TaskResult {
+impl <'a> TryInto<()> for &'a TaskResult<'a> {
     type Error = CloneableError;
     fn try_into(self) -> Result<(), CloneableError> {
         match self {
@@ -378,7 +343,8 @@ impl TaskSpec {
     }
 }
 
-pub type TaskResultFuture<'b> = CloneableFutureWrapper<'b, TaskResult>;
+pub type TaskResultFuture<'a> =
+CloneableFutureWrapper<'a, TaskResult<'a>>;
 pub type TaskToFutureGraphNodeMap<'a, Ix> = HashMap<&'a TaskSpec,NodeIndex<Ix>>;
 
 impl TaskSpec {
@@ -456,7 +422,7 @@ impl TaskSpec {
                 dependencies.push(base_index);
                 CloneableFutureWrapper::new(name, Box::pin(
                     async move {
-                        let base_result: Result<AlphaChannel, CloneableError> = base_future.await.try_into();
+                        let base_result: Result<AlphaChannel, CloneableError> = base_future.await.try_into_pixmap();
                         make_semitransparent(base_result?, alpha)
                     }))
             },
@@ -488,6 +454,7 @@ impl TaskSpec {
                 let fg_future = graph[fg_index].get_mut().to_owned();
                 dependencies.push(fg_index);
                 CloneableFutureWrapper::new(name, Box::pin(async move {
+                    stack_layer_on_background(&background, fg_future.await.try_into_pixmap()?)
                     let fg_image: Arc<Pixmap> = fg_future.await.try_into()?;
                     stack_layer_on_background(&background, &*fg_image)
                 }))

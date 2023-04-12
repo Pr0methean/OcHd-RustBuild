@@ -1,49 +1,88 @@
-use std::ops::Mul;
+use std::any::Any;
+use std::cell::RefCell;
+use std::io::repeat;
+use std::iter;
+use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut, Mul};
+use std::sync::Arc;
 use std::sync::Arc;
 use cached::proc_macro::cached;
+use lazy_static::lazy_static;
+use lockfree_object_pool::LinearObjectPool;
 use tiny_skia::{Pixmap, PremultipliedColorU8};
+use std::sync::Mutex;
 use tracing::instrument;
 
-use crate::anyhoo;
+use crate::{anyhoo, TILE_SIZE};
+use crate::image_tasks::{allocate_pixmap, MaybeFromPool};
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::make_semitransparent::create_alpha_array;
+use crate::image_tasks::MaybeFromPool::NotFromPool;
 use crate::image_tasks::task_spec::TaskResult;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialOrd, PartialEq)]
 pub struct AlphaChannel {
-    pixels: Vec<u8>,
+    pixels: Box<[u8]>,
     width: u32,
     height: u32
 }
 
 impl AlphaChannel {
     pub(crate) fn pixels(&self) -> &[u8] {
-        return self.pixels.as_slice();
+        return &self.pixels;
     }
 
     pub(crate) fn pixels_mut(&mut self) -> &mut [u8] {
-        return self.pixels.as_mut_slice();
+        return self.pixels.deref_mut();
+    }
+
+    fn new(width: u32, height: u32) -> AlphaChannel {
+        let mut pixels: Vec<u8> = Vec::with_capacity((width * height) as usize);
+        pixels.extend(iter::repeat(0).take((width * height) as usize));
+        AlphaChannel {pixels: pixels.into_boxed_slice(), width, height}
     }
 }
 
-impl From<&Pixmap> for AlphaChannel {
-    fn from(value: &Pixmap) -> Self {
-        let pixels =
-            value.pixels().into_iter()
-                .map(|pixel| pixel.alpha())
-                .collect::<Vec<u8>>();
-        return AlphaChannel {
-            width: value.width(),
-            height: value.height(),
-            pixels
-        }
+lazy_static!{
+    static ref ALPHA_CHANNEL_POOL: Arc<LinearObjectPool<AlphaChannel>> = Arc::new(LinearObjectPool::new(
+        || AlphaChannel::new(*TILE_SIZE, *TILE_SIZE),
+        |mut alpha_channel| {} // don't need to reset
+    ));
+}
+
+impl <'a> Clone for MaybeFromPool<'a, AlphaChannel> {
+    fn clone(&self) -> Self {
+        let mut clone = allocate_alpha_channel(self.width, self.height);
+        self.deref().clone_into(clone.deref_mut());
+        return clone
     }
 }
 
+lazy_static! {
+    static ref ALPHA_PHANTOM: PhantomData<AlphaChannel> = PhantomData::default();
+}
 #[instrument]
-pub fn to_alpha_channel(pixmap: &Pixmap) -> TaskResult {
-    let alpha = AlphaChannel::from(pixmap);
-    return TaskResult::AlphaChannel {value: Arc::new(alpha)};
+pub fn to_alpha_channel<'input,'output>(pixmap: &'input MaybeFromPool<Pixmap>) -> TaskResult<'output>
+        where 'output : 'input {
+    let width = pixmap.width();
+    let height = pixmap.height();
+    let mut output: MaybeFromPool<AlphaChannel> = allocate_alpha_channel(width, height);
+    for (index, pixel) in pixmap.pixels().into_iter().enumerate() {
+        output.pixels[index] = pixel.alpha();
+    }
+    return TaskResult::AlphaChannel {value: output };
+}
+
+fn allocate_alpha_channel<'a>(width: u32, height: u32) -> MaybeFromPool<'a, AlphaChannel> {
+    if width == *TILE_SIZE && height == *TILE_SIZE {
+        let pool: &Arc<LinearObjectPool<AlphaChannel>> = &ALPHA_CHANNEL_POOL;
+        MaybeFromPool::FromPool {
+            reusable: pool.pull_owned(),
+            phantom: &ALPHA_PHANTOM
+        }
+    } else {
+        NotFromPool(AlphaChannel::new(width, height))
+    }
 }
 
 impl Mul<f32> for AlphaChannel {
@@ -60,14 +99,6 @@ impl Mul<f32> for AlphaChannel {
     }
 }
 
-impl Mul<ComparableColor> for AlphaChannel {
-    type Output = TaskResult;
-
-    fn mul(self, rhs: ComparableColor) -> Self::Output {
-        return paint(&self, &rhs);
-    }
-}
-
 #[cached(sync_writes = true)]
 fn create_paint_array(color: ComparableColor) -> [PremultipliedColorU8; 256] {
     return (0u16..256u16).into_iter()
@@ -81,11 +112,10 @@ fn create_paint_array(color: ComparableColor) -> [PremultipliedColorU8; 256] {
 
 /// Applies the given [color] to the given [input](alpha channel).
 #[instrument]
-pub fn paint(input: &AlphaChannel, color: &ComparableColor) -> TaskResult {
+pub fn paint<'a>(input: &AlphaChannel, color: &ComparableColor) -> TaskResult<'a> {
     let paint_array = create_paint_array(*color);
     let input_pixels = input.pixels();
-    let mut output = Pixmap::new(input.width, input.height)
-        .ok_or(anyhoo!("Failed to create output Pixmap"))?;
+    let mut output = allocate_pixmap(input.width, input.height);
     let output_pixels = output.pixels_mut();
     output_pixels.copy_from_slice(&(input_pixels.iter()
         .map(|input_pixel| {
@@ -104,12 +134,12 @@ pub mod tests {
     #[test]
     fn test_alpha_channel() {
         let side_length = 128;
-        let pixmap = &mut Pixmap::new(side_length, side_length).unwrap();
+        let mut pixmap = NotFromPool(Pixmap::new(side_length, side_length).unwrap());
         let circle = PathBuilder::from_circle(64.0, 64.0, 50.0).unwrap();
-        pixmap.fill_path(&circle, &Paint::default(),
+        pixmap.deref_mut().fill_path(&circle, &Paint::default(),
                          FillRule::EvenOdd, Transform::default(), None);
-        let alpha_channel = AlphaChannel::from(&*pixmap);
-        let pixmap_pixels = pixmap.pixels();
+        let alpha_channel = to_alpha_channel(&pixmap).try_into_alpha_channel().unwrap();
+        let pixmap_pixels = pixmap.deref().pixels();
         let alpha_pixels = alpha_channel.pixels();
         for index in 0usize..((side_length * side_length) as usize) {
             assert_eq!(alpha_pixels[index], pixmap_pixels[index].alpha());
@@ -119,17 +149,17 @@ pub mod tests {
     #[test]
     fn test_paint() {
         let side_length = 128;
-        let pixmap = &mut Pixmap::new(side_length, side_length).unwrap();
+        let mut pixmap = NotFromPool(Pixmap::new(side_length, side_length).unwrap());
         let circle = PathBuilder::from_circle(64.0, 64.0, 50.0).unwrap();
-        pixmap.fill_path(&circle, &Paint::default(),
+        pixmap.deref_mut().fill_path(&circle, &Paint::default(),
                          FillRule::EvenOdd, Transform::default(), None);
-        let alpha_channel = AlphaChannel::from(&*pixmap);
+        let alpha_channel = to_alpha_channel(&pixmap)
+            .try_into_alpha_channel().unwrap().deref().to_owned();
         let repainted_alpha: u8 = 0xcf;
         let red = ColorU8::from_rgba(0xff, 0, 0, repainted_alpha);
-        let repainted_red: Pixmap = paint(&alpha_channel, &ComparableColor::from(red))
-            .try_into().unwrap();
+        let repainted_pixels= paint(&alpha_channel, &ComparableColor::from(red))
+            .try_into_pixmap().unwrap().deref().pixels().to_owned();
         let pixmap_pixels = pixmap.pixels();
-        let repainted_pixels = repainted_red.pixels();
         for index in 0usize..((side_length * side_length) as usize) {
             let expected_alpha: u8 = (u16::from(repainted_alpha)
                 * u16::from(pixmap_pixels[index].alpha()) / 0xff) as u8;

@@ -1,8 +1,12 @@
+use std::cell::RefCell;
 use std::sync::Arc;
+use std::ops::{Deref, DerefMut};
 use cached::proc_macro::cached;
 use ordered_float::OrderedFloat;
 use tracing::instrument;
 use crate::image_tasks::repaint::{AlphaChannel};
+use crate::image_tasks::{allocate_pixmap, MaybeFromPool};
+use crate::image_tasks::MaybeFromPool::NotFromPool;
 
 use crate::image_tasks::task_spec::TaskResult;
 
@@ -15,7 +19,7 @@ pub(crate) fn create_alpha_array(out_alpha: OrderedFloat<f32>) -> [u8; 256] {
 
 #[instrument]
 /// Multiplies the opacity of all pixels in the [input](given pixmap) by a given [alpha].
-pub fn make_semitransparent(mut input: AlphaChannel, alpha: f32) -> TaskResult {
+pub fn make_semitransparent(mut input: MaybeFromPool<AlphaChannel>, alpha: f32) -> TaskResult {
     let alpha_array = create_alpha_array(alpha.into());
     let output_pixels = input.pixels_mut();
     for index in 0..output_pixels.len() {
@@ -35,17 +39,15 @@ fn test_make_semitransparent() {
     let alpha = 0.5;
     let alpha_multiplier = (alpha * f32::from(u8::MAX)) as u16;
     let side_length = 128;
-    let pixmap = &mut Pixmap::new(side_length, side_length).unwrap();
+    let mut pixmap = NotFromPool(Pixmap::new(side_length, side_length).unwrap());
     let circle = PathBuilder::from_circle(64.0, 64.0, 50.0).unwrap();
     let mut red_paint = Paint::default();
     red_paint.set_color(ComparableColor::RED.into());
-    pixmap.fill_path(&circle, &red_paint,
+    pixmap.deref_mut().fill_path(&circle, &red_paint,
                      FillRule::EvenOdd, Transform::default(), None);
     let pixmap_pixels = pixmap.pixels();
-    let semitransparent_red_circle: Arc<Pixmap>
-        = paint(make_semitransparent(to_alpha_channel(pixmap).try_into().unwrap(), alpha).try_into().unwrap(),
-            &ComparableColor::RED).try_into().unwrap();
-    let semitransparent_pixels = semitransparent_red_circle.pixels();
+    let semitransparent_pixels = make_semitransparent(&pixmap, alpha)
+        .try_into_pixmap().unwrap().deref().pixels().to_owned();
     for index in 0usize..((side_length * side_length) as usize) {
         let expected_alpha: u8 = (u16::from(alpha_multiplier
             * u16::from(pixmap_pixels[index].alpha()) / 0xff)) as u8;
