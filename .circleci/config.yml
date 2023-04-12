@@ -20,7 +20,7 @@ jobs:
             - /home/circleci/.cargo
             - main/target/debug/deps
             - main/target/release/deps
-      - rust/intall:
+      - rust/install:
           version: nightly
       - rust/clippy:
           with-cache: false
