@@ -1,25 +1,25 @@
-use std::cell::RefCell;
-use std::sync::Arc;
-use std::ops::{Deref, DerefMut};
+
+
+
 use cached::proc_macro::cached;
 use ordered_float::OrderedFloat;
 use tracing::instrument;
 use crate::image_tasks::repaint::{AlphaChannel};
-use crate::image_tasks::{allocate_pixmap, MaybeFromPool};
-use crate::image_tasks::MaybeFromPool::NotFromPool;
+use crate::image_tasks::{MaybeFromPool};
 
-use crate::image_tasks::task_spec::TaskResult;
+
+
 
 #[cached(sync_writes = true)]
 pub(crate) fn create_alpha_array(out_alpha: OrderedFloat<f32>) -> [u8; 256] {
-    return (0u16..256u16).into_iter()
+    return (0u16..256u16)
         .map (|alpha| (out_alpha.0 * f32::from(alpha)) as u8)
         .collect::<Vec<u8>>().try_into().unwrap();
 }
 
 #[instrument]
 /// Multiplies the opacity of all pixels in the [input](given pixmap) by a given [alpha].
-pub fn make_semitransparent(mut input: &mut MaybeFromPool<AlphaChannel>, alpha: f32) {
+pub fn make_semitransparent(input: &mut MaybeFromPool<AlphaChannel>, alpha: f32) {
     let alpha_array = create_alpha_array(alpha.into());
     let output_pixels = input.pixels_mut();
     for index in 0..output_pixels.len() {

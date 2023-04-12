@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::collections::{HashMap};
 use std::convert::Infallible;
-use std::fmt::{Debug, Display, Formatter, Write};
+use std::fmt::{Debug, Display, Formatter};
 use std::future::{Future};
 use std::ops::{Deref, DerefMut, FromResidual, Mul};
 use std::path::{Path, PathBuf};
@@ -16,13 +16,13 @@ use cooked_waker::{IntoWaker, ViaRawPointer, WakeRef};
 use fn_graph::{DataAccessDyn, TypeIds};
 use fn_graph::daggy::Dag;
 use futures::{FutureExt};
-use lockfree_object_pool::{LinearOwnedReusable, LinearReusable};
+
 
 
 use log::{info};
 use ordered_float::OrderedFloat;
 use petgraph::graph::{IndexType, NodeIndex};
-use resman::Resource;
+
 use tiny_skia::Pixmap;
 
 use crate::image_tasks::animate::animate;
@@ -44,7 +44,7 @@ use crate::TILE_SIZE;
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum TaskSpec {
     None {},
-    Animate {background: Box<TaskSpec>, frames: Vec<Box<TaskSpec>>},
+    Animate {background: Box<TaskSpec>, frames: Vec<TaskSpec>},
     FromSvg {source: PathBuf},
     MakeSemitransparent {base: Box<TaskSpec>, alpha: OrderedFloat<f32>},
     PngOutput {base: Box<TaskSpec>, destinations: Vec<PathBuf>},
@@ -61,13 +61,13 @@ pub struct CloneableError {
 
 impl From<Error> for CloneableError {
     fn from(value: Error) -> Self {
-        return CloneableError {message: value.to_string()}
+        CloneableError {message: value.to_string()}
     }
 }
 
 impl Display for CloneableError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&*self.message)
+        f.write_str(&self.message)
     }
 }
 
@@ -94,7 +94,7 @@ impl <'a> Debug for TaskResult<'a> {
 #[macro_export]
 macro_rules! anyhoo {
     ($($args:expr),+) => {
-        crate::image_tasks::task_spec::CloneableError::from(anyhow::anyhow!($($args),+))
+        $crate::image_tasks::task_spec::CloneableError::from(anyhow::anyhow!($($args),+))
     }
 }
 
@@ -180,10 +180,10 @@ impl Display for TaskSpec {
                 write!(f, "{}@{}", base, color)
             }
             TaskSpec::StackLayerOnColor { background, foreground } => {
-                write!(f, "{{{};{}}}", background, foreground.to_string())
+                write!(f, "{{{};{}}}", background, foreground)
             }
             TaskSpec::StackLayerOnLayer { background, foreground } => {
-                write!(f, "{{{};{}}}", background.to_string(), foreground.to_string())
+                write!(f, "{{{};{}}}", background, foreground)
             }
             TaskSpec::ToAlphaChannel { base } => {
                 write!(f, "Alpha({})", base)
@@ -306,7 +306,7 @@ impl <'a, T> Future for CloneableFutureWrapper<'a, T> where T: Clone + Send + Sy
             CloneableFutureWrapperState::Upcoming { future, multiwaker, waker} => {
                 let new_result = future.lock().unwrap().poll_unpin(
                     &mut Context::from_waker(waker.deref()));
-                if let Poll::Ready(..) = new_result.to_owned() {
+                if let Poll::Ready(..) = new_result {
                     multiwaker.wake_by_ref();
                 } else {
                     multiwaker.add_waker(cx.waker().to_owned());
@@ -320,7 +320,7 @@ impl <'a, T> Future for CloneableFutureWrapper<'a, T> where T: Clone + Send + Sy
                 *state = CloneableFutureWrapperState::Finished {result: Arc::new(finished_result.to_owned())};
             }
         }
-        return result;
+        result
     }
 }
 
@@ -492,8 +492,8 @@ impl TaskSpec {
             graph.add_edge(dependency, self_id, E::default())
                 .expect("Tried to create a cycle");
         }
-        existing_nodes.insert(&self, self_id);
-        return self_id;
+        existing_nodes.insert(self, self_id);
+        self_id
     }
 }
 
@@ -505,51 +505,51 @@ lazy_static! {
 pub fn name_to_out_path(name: &str) -> PathBuf {
     let mut out_file_path = OUT_DIR.to_path_buf();
     out_file_path.push(format!("{}.png", name));
-    return out_file_path;
+    out_file_path
 }
 
 pub fn name_to_svg_path(name: &str) -> PathBuf {
     let mut svg_file_path = SVG_DIR.to_path_buf();
     svg_file_path.push(format!("{}.svg", name));
-    return svg_file_path;
+    svg_file_path
 }
 
 pub fn from_svg_task(name: &str) -> Box<TaskSpec> {
-    return Box::new(FromSvg {source: name_to_svg_path(name)});
+    Box::new(FromSvg {source: name_to_svg_path(name)})
 }
 
 pub fn paint_task(base: Box<TaskSpec>, color: ComparableColor) -> Box<TaskSpec> {
-    return Box::new(
-        TaskSpec::Repaint {base: Box::new(TaskSpec::ToAlphaChannel { base }), color});
+    Box::new(
+        TaskSpec::Repaint {base: Box::new(TaskSpec::ToAlphaChannel { base }), color})
 }
 
 pub fn paint_svg_task(name: &str, color: ComparableColor) -> Box<TaskSpec> {
-    return paint_task(from_svg_task(name), color);
+    paint_task(from_svg_task(name), color)
 }
 
 pub fn semitrans_svg_task(name: &str, alpha: f32) -> Box<TaskSpec> {
-    return Box::new(TaskSpec::MakeSemitransparent {base: Box::from(TaskSpec::ToAlphaChannel { base: from_svg_task(name) }),
-        alpha: alpha.into()});
+    Box::new(TaskSpec::MakeSemitransparent {base: Box::from(TaskSpec::ToAlphaChannel { base: from_svg_task(name) }),
+        alpha: alpha.into()})
 }
 
 pub fn path(name: &str) -> Vec<PathBuf> {
-    return vec![name_to_out_path(name)];
+    vec![name_to_out_path(name)]
 }
 
 pub fn out_task(name: &str, base: Box<TaskSpec>) -> Box<TaskSpec> {
-    return Box::new(PngOutput {base, destinations: path(name)});
+    Box::new(PngOutput {base, destinations: path(name)})
 }
 
 #[macro_export]
 macro_rules! stack {
     ( $first_layer:expr, $second_layer:expr ) => {
-        Box::new(crate::image_tasks::task_spec::TaskSpec::StackLayerOnLayer {
+        Box::new($crate::image_tasks::task_spec::TaskSpec::StackLayerOnLayer {
             background: $first_layer.into(),
             foreground: $second_layer.into()
         })
     };
     ( $first_layer:expr, $second_layer:expr, $( $more_layers:expr ),+ ) => {{
-        let mut layers_so_far = crate::stack!($first_layer, $second_layer);
+        let mut layers_so_far = $crate::stack!($first_layer, $second_layer);
         $( layers_so_far = crate::stack!(layers_so_far, $more_layers); )+
         layers_so_far
     }};
@@ -558,13 +558,13 @@ macro_rules! stack {
         #[macro_export]
         macro_rules! stack_on {
     ( $background:expr, $foreground:expr ) => {
-        Box::new(crate::image_tasks::task_spec::TaskSpec::StackLayerOnColor {
+        Box::new($crate::image_tasks::task_spec::TaskSpec::StackLayerOnColor {
             background: $background,
             foreground: $foreground.into()
         })
     };
     ( $background:expr, $first_layer:expr, $( $more_layers:expr ),+ ) => {{
-        let mut layers_so_far = crate::stack_on!($background, $first_layer);
+        let mut layers_so_far = $crate::stack_on!($background, $first_layer);
         $( layers_so_far = crate::stack!(layers_so_far, $more_layers); )+
         layers_so_far
     }};
@@ -573,8 +573,8 @@ macro_rules! stack {
         #[macro_export]
         macro_rules! paint_stack {
     ( $color:expr, $( $layers:expr ),* ) => {
-        crate::image_tasks::task_spec::paint_task(
-            crate::stack!($(crate::image_tasks::task_spec::from_svg_task($layers)),*).into(),
+        $crate::image_tasks::task_spec::paint_task(
+            $crate::stack!($(crate::image_tasks::task_spec::from_svg_task($layers)),*).into(),
             $color)
     }
 }
@@ -604,7 +604,7 @@ impl Mul<ComparableColor> for TaskSpec {
     type Output = TaskSpec;
 
     fn mul(self, rhs: ComparableColor) -> Self::Output {
-        return match &self {
+        match &self {
             TaskSpec::ToAlphaChannel { base: _base } => {
                 TaskSpec::Repaint {
                     base: Box::new(self),
@@ -615,6 +615,6 @@ impl Mul<ComparableColor> for TaskSpec {
                 base: Box::new(TaskSpec::ToAlphaChannel { base: Box::new(self) }),
                 color: rhs
             }
-        };
+        }
     }
 }

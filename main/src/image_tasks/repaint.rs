@@ -1,6 +1,6 @@
-use std::any::Any;
-use std::cell::RefCell;
-use std::io::repeat;
+
+
+
 use std::iter;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Mul};
@@ -9,15 +9,15 @@ use cached::proc_macro::cached;
 use lazy_static::lazy_static;
 use lockfree_object_pool::LinearObjectPool;
 use tiny_skia::{Pixmap, PremultipliedColorU8};
-use std::sync::Mutex;
+
 use tracing::instrument;
 
-use crate::{anyhoo, TILE_SIZE};
+use crate::{TILE_SIZE};
 use crate::image_tasks::{allocate_pixmap, MaybeFromPool};
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::make_semitransparent::create_alpha_array;
 use crate::image_tasks::MaybeFromPool::NotFromPool;
-use crate::image_tasks::task_spec::TaskResult;
+
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialOrd, PartialEq)]
 pub struct AlphaChannel {
@@ -28,7 +28,7 @@ pub struct AlphaChannel {
 
 impl AlphaChannel {
     pub(crate) fn pixels(&self) -> &[u8] {
-        return &self.pixels;
+        &self.pixels
     }
 
     pub(crate) fn pixels_mut(&mut self) -> &mut [u8] {
@@ -45,7 +45,7 @@ impl AlphaChannel {
 lazy_static!{
     static ref ALPHA_CHANNEL_POOL: Arc<LinearObjectPool<AlphaChannel>> = Arc::new(LinearObjectPool::new(
         || AlphaChannel::new(*TILE_SIZE, *TILE_SIZE),
-        |mut alpha_channel| {} // don't need to reset
+        |_alpha_channel| {} // don't need to reset
     ));
 }
 
@@ -53,7 +53,7 @@ impl <'a> Clone for MaybeFromPool<'a, AlphaChannel> {
     fn clone(&self) -> Self {
         let mut clone = allocate_alpha_channel(self.width, self.height);
         self.deref().clone_into(clone.deref_mut());
-        return clone
+        clone
     }
 }
 
@@ -88,22 +88,22 @@ impl Mul<f32> for AlphaChannel {
 
     fn mul(self, rhs: f32) -> Self::Output {
         let alpha_array = create_alpha_array(rhs.into());
-        let mut output = self.to_owned();
+        let mut output = self;
         let output_pixels = output.pixels_mut();
         for index in 0..output_pixels.len() {
             output_pixels[index] = alpha_array[output_pixels[index] as usize];
         }
-        return output;
+        output
     }
 }
 
 #[cached(sync_writes = true)]
 fn create_paint_array(color: ComparableColor) -> [PremultipliedColorU8; 256] {
-    return (0u16..256u16).into_iter()
+    return (0u16..256u16)
         .map (|alpha| {
             let alpha_fraction = f32::from(alpha) / 255.0;
             let color_with_alpha: PremultipliedColorU8 = (color * alpha_fraction).into();
-            return color_with_alpha;
+            color_with_alpha
         })
         .collect::<Vec<PremultipliedColorU8>>().try_into().unwrap();
 }

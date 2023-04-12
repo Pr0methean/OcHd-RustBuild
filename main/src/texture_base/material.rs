@@ -23,7 +23,7 @@ pub struct MaterialGroup {
 
 impl Material for MaterialGroup {
     fn get_output_tasks(&self) -> Vec<TaskSpec> {
-        return self.tasks.to_owned();
+        self.tasks.to_owned()
     }
 }
 
@@ -32,9 +32,9 @@ pub const DEFAULT_GROUP_SIZE: usize = 1024;
 #[macro_export]
 macro_rules! group {
     ($name:ident = $( $members:expr ),* ) => {
-        lazy_static::lazy_static! {pub static ref $name: crate::texture_base::material::MaterialGroup
+        lazy_static::lazy_static! {pub static ref $name: $crate::texture_base::material::MaterialGroup
         = {
-            let mut tasks = Vec::with_capacity(crate::texture_base::material::DEFAULT_GROUP_SIZE);
+            let mut tasks = Vec::with_capacity($crate::texture_base::material::DEFAULT_GROUP_SIZE);
             $(
             let mut more_tasks = crate::texture_base::material::Material::get_output_tasks($members.deref());
             tasks.append(&mut more_tasks);)*
@@ -52,16 +52,16 @@ pub struct SingleTextureMaterial {
     pub texture: Box<TaskSpec>
 }
 
-impl Into<Box<TaskSpec>> for SingleTextureMaterial {
-    fn into(self) -> Box<TaskSpec> {
-        return self.texture;
+impl From<SingleTextureMaterial> for Box<TaskSpec> {
+    fn from(val: SingleTextureMaterial) -> Self {
+        val.texture
     }
 }
 
 impl Material for SingleTextureMaterial {
     fn get_output_tasks(&self) -> Vec<TaskSpec> {
         return if !self.has_output.to_owned() { vec![] } else {
-            vec![out_task(&*format!("{}/{}", self.directory, self.name),
+            vec![out_task(&format!("{}/{}", self.directory, self.name),
                           self.texture.to_owned()).deref().to_owned()]
         };
     }
@@ -70,8 +70,8 @@ impl Material for SingleTextureMaterial {
 #[macro_export]
 macro_rules! single_texture_material {
     ($name:ident = $directory:expr, $background:expr, $( $layers:expr ),* ) => {
-        lazy_static::lazy_static! {pub static ref $name: crate::texture_base::material::SingleTextureMaterial =
-        crate::texture_base::material::SingleTextureMaterial {
+        lazy_static::lazy_static! {pub static ref $name: $crate::texture_base::material::SingleTextureMaterial =
+        $crate::texture_base::material::SingleTextureMaterial {
             name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
             directory: $directory,
             has_output: true,
@@ -81,7 +81,7 @@ macro_rules! single_texture_material {
 }
 
 pub fn item(name: &'static str, texture: Box<TaskSpec>) -> SingleTextureMaterial {
-    return SingleTextureMaterial {
+    SingleTextureMaterial {
         name, directory: "items", has_output: true, texture
     }
 }
@@ -89,12 +89,12 @@ pub fn item(name: &'static str, texture: Box<TaskSpec>) -> SingleTextureMaterial
 #[macro_export]
 macro_rules! single_texture_item {
     ($name:ident = $background:expr, $( $layers:expr ),* ) => {
-        crate::single_texture_material!($name = "item", $background, $($layers),*);
+        $crate::single_texture_material!($name = "item", $background, $($layers),*);
     }
 }
 
 pub fn block(name: &'static str, texture: Box<TaskSpec>) -> SingleTextureMaterial {
-    return SingleTextureMaterial {
+    SingleTextureMaterial {
         name, directory: "blocks", has_output: true, texture
     }
 }
@@ -102,12 +102,12 @@ pub fn block(name: &'static str, texture: Box<TaskSpec>) -> SingleTextureMateria
 #[macro_export]
 macro_rules! single_texture_block {
     ($name:ident = $background:expr, $( $layers:expr ),* ) => {
-        crate::single_texture_material!($name = "block", $background, $($layers),*);
+        $crate::single_texture_material!($name = "block", $background, $($layers),*);
     }
 }
 
 pub fn particle(name: &'static str, texture: Box<TaskSpec>) -> SingleTextureMaterial {
-    return SingleTextureMaterial {
+    SingleTextureMaterial {
         name, directory: "particles", has_output: true, texture
     }
 }
@@ -115,7 +115,7 @@ pub fn particle(name: &'static str, texture: Box<TaskSpec>) -> SingleTextureMate
 #[macro_export]
 macro_rules! single_texture_particle {
     ($name:ident = $background:expr, $( $layers:expr ),* ) => {
-        crate::single_texture_material!($name = "particle", $background, $($layers),*);
+        $crate::single_texture_material!($name = "particle", $background, $($layers),*);
     }
 }
 
@@ -150,7 +150,7 @@ pub struct GroundCoverBlock {
 
 impl Material for GroundCoverBlock {
     fn get_output_tasks(&self) -> Vec<TaskSpec> {
-        return vec![PngOutput {
+        vec![PngOutput {
             base: self.top.clone(),
             destinations: vec![PathBuf::from(format!("block/{}_top", self.name))]},
         PngOutput {
@@ -159,7 +159,7 @@ impl Material for GroundCoverBlock {
                 foreground: self.cover_side_layers.clone()
             }),
             destinations: vec![PathBuf::from(format!("block/{}_side", self.name))],
-        }];
+        }]
     }
 }
 
@@ -172,8 +172,8 @@ pub struct SingleLayerMaterial {
 
 impl Material for SingleLayerMaterial {
     fn get_output_tasks(&self) -> Vec<TaskSpec> {
-        return vec!(out_task(&*self.name,
-             paint_svg_task(&*self.layer_name, self.color.to_owned())).deref().to_owned());
+        return vec!(out_task(self.name,
+             paint_svg_task(self.layer_name, self.color.to_owned())).deref().to_owned());
     }
 }
 
@@ -190,5 +190,5 @@ pub fn redstone_off_and_on(name: &str, generator: Box<dyn Fn(ComparableColor) ->
         base: Box::new(generator(REDSTONE_ON)),
         destinations: vec![PathBuf::from(format!("{}_on", name))]
     });
-    return out;
+    out
 }

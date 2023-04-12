@@ -19,5 +19,5 @@ pub fn png_output<'a>(image: &Pixmap, files: &Vec<PathBuf>) -> TaskResult<'a> {
         create_dir_all(first_file.parent().unwrap()).map_err(|error| anyhoo!(error))?;
         symlink(first_file, file).map_err(|error| anyhoo!(error))?;
     }
-    return Empty {};
+    Empty {}
 }

@@ -37,7 +37,7 @@ pub struct Wood {
 
 impl Wood {
     pub fn planks(&self) -> Box<TaskSpec> {
-        return stack!(
+        stack!(
             stack_on!(self.color,
                 paint_svg_task("waves2", self.highlight * self.planks_highlight_strength),
                 paint_task(stack!(
@@ -47,85 +47,85 @@ impl Wood {
                     }),
                     from_svg_task("planksTopBorder")), self.shadow)),
             paint_svg_task("borderShortDashes", self.highlight)
-        );
+        )
     }
 
     pub fn overworld_bark(&self) -> Box<TaskSpec> {
-        return stack_on!(self.bark_color,
+        stack_on!(self.bark_color,
             paint_svg_task("borderSolid", self.bark_shadow),
             paint_svg_task("borderDotted", self.bark_highlight),
             paint_svg_task("zigzagSolid", self.bark_shadow),
             paint_svg_task("zigzagSolid2", self.bark_highlight)
-        );
+        )
     }
 
     pub fn fungus_bark(&self) -> Box<TaskSpec> {
-        return stack_on!(self.bark_color,
+        stack_on!(self.bark_color,
             paint_stack!(self.bark_shadow, "borderSolid", "waves2"),
             paint_svg_task("waves", self.bark_highlight)
-        );
+        )
     }
 
     pub fn overworld_stripped_log_side(&self) -> Box<TaskSpec> {
-        return stack_on!(self.color,
+        stack_on!(self.color,
             paint_svg_task("borderSolid", self.shadow),
             paint_svg_task("borderShortDashes", self.highlight)
-        );
+        )
     }
 
     pub fn fungus_stripped_log_side(&self) -> Box<TaskSpec> {
-        return stack_on!(self.color,
+        stack_on!(self.color,
             paint_svg_task("borderSolid", self.shadow),
-            paint_svg_task("borderDotted", self.highlight));
+            paint_svg_task("borderDotted", self.highlight))
     }
 
     pub fn overworld_stripped_log_top(&self) -> Box<TaskSpec> {
-        return stack_on!(
+        stack_on!(
             self.color,
             paint_svg_task("ringsCentralBullseye", self.highlight),
             paint_svg_task("rings", self.shadow)
-        );
+        )
     }
 
     pub fn fungus_stripped_log_top(&self) -> Box<TaskSpec> {
-        return stack_on!(
+        stack_on!(
             self.color,
             stack!(
                 paint_svg_task("ringsCentralBullseye", self.shadow),
                 paint_svg_task("rings2", self.highlight)
             )
-        );
+        )
     }
 
     pub fn overworld_log_top(&self, stripped_log_top: Box<TaskSpec>) -> Box<TaskSpec> {
-        return stack!(
+        stack!(
             stripped_log_top,
             paint_svg_task("borderSolid", self.bark_color),
             paint_svg_task("borderDotted", self.bark_shadow)
-        );
+        )
     }
 
     pub fn fungus_log_top(&self, _stripped_log_top: Box<TaskSpec>) -> Box<TaskSpec> {
-        return stack_on!(self.color,
+        stack_on!(self.color,
             stack!(
                 paint_svg_task("ringsCentralBullseye", self.shadow),
                 paint_svg_task("rings2", self.highlight)
             ),
             paint_svg_task("borderSolid", self.bark_color),
             paint_svg_task("borderShortDashes", self.bark_shadow)
-        );
+        )
     }
 
     pub fn default_door_top(&self, door_bottom: Box<TaskSpec>, _: Box<TaskSpec>) -> Box<TaskSpec> {
-        return stack!(
+        stack!(
             door_bottom,
             from_svg_task("doorKnob")
-        );
+        )
     }
 }
 
 pub fn empty_task() -> Box<dyn (Fn(&Wood) -> Box<TaskSpec>) + Sync + Send> {
-    return Box::new(/*door_common_layers*/ |_wood| Box::new(TaskSpec::None {}));
+    Box::new(/*door_common_layers*/ |_wood| Box::new(TaskSpec::None {}))
 }
 
 pub fn overworld_wood(name: &'static str, color: ComparableColor,
@@ -138,7 +138,7 @@ pub fn overworld_wood(name: &'static str, color: ComparableColor,
                       door_top: Box<dyn (Fn(&Wood, Box<TaskSpec>, Box<TaskSpec>) -> Box<TaskSpec>) + Sync + Send>,
                       leaves: Box<dyn (Fn(&Wood) -> Box<TaskSpec>) + Sync + Send>,
                       sapling: Box<dyn (Fn(&Wood) -> Box<TaskSpec>) + Sync + Send>) -> Wood {
-    return Wood {
+    Wood {
         color,
         highlight,
         shadow,
@@ -164,7 +164,7 @@ pub fn overworld_wood(name: &'static str, color: ComparableColor,
         leaves,
         sapling,
         door_common_layers,
-    };
+    }
 }
 
 pub fn nether_fungus(name: &'static str, color: ComparableColor,
@@ -577,16 +577,16 @@ impl Material for Wood {
         let stripped_log_side: Box<TaskSpec> = (self.stripped_log_side)(self);
         let stripped_log_top: Box<TaskSpec> = (self.stripped_log_top)(self);
         return vec![
-            out_task(&*format!("block/{}_{}", self.name, self.log_synonym), (self.bark)(self)),
-            out_task(&*format!("block/stripped_{}_{}", self.name, self.log_synonym), stripped_log_side.to_owned()),
-            out_task(&*format!("block/stripped_{}_{}_top", self.name, self.log_synonym), stripped_log_top.to_owned()),
-            out_task(&*format!("block/{}_{}_top", self.name, self.log_synonym), (self.log_top)(self, stripped_log_top)),
-            out_task(&*format!("block/{}_trapdoor", self.name), (self.trapdoor)(self, door_common_layers.to_owned())),
-            out_task(&*format!("block/{}_door_top", self.name), (self.door_top)(self, door_bottom.to_owned(), door_common_layers)),
-            out_task(&*format!("block/{}_door_bottom", self.name), door_bottom),
-            out_task(&*format!("block/{}_{}", self.name, self.leaves_synonym), (self.leaves)(self)),
-            out_task(&*format!("block/{}_{}", self.name, self.sapling_synonym), (self.sapling)(self)),
-            out_task(&*format!("block/{}_planks", self.name), self.planks())
+            out_task(&format!("block/{}_{}", self.name, self.log_synonym), (self.bark)(self)),
+            out_task(&format!("block/stripped_{}_{}", self.name, self.log_synonym), stripped_log_side),
+            out_task(&format!("block/stripped_{}_{}_top", self.name, self.log_synonym), stripped_log_top.to_owned()),
+            out_task(&format!("block/{}_{}_top", self.name, self.log_synonym), (self.log_top)(self, stripped_log_top)),
+            out_task(&format!("block/{}_trapdoor", self.name), (self.trapdoor)(self, door_common_layers.to_owned())),
+            out_task(&format!("block/{}_door_top", self.name), (self.door_top)(self, door_bottom.to_owned(), door_common_layers)),
+            out_task(&format!("block/{}_door_bottom", self.name), door_bottom),
+            out_task(&format!("block/{}_{}", self.name, self.leaves_synonym), (self.leaves)(self)),
+            out_task(&format!("block/{}_{}", self.name, self.sapling_synonym), (self.sapling)(self)),
+            out_task(&format!("block/{}_planks", self.name), self.planks())
         ].into_iter().map(|boxed| *boxed).collect();
     }
 }

@@ -1,5 +1,5 @@
-use std::ops::{Deref, DerefMut};
-use std::sync::Arc;
+use std::ops::{DerefMut};
+
 use tiny_skia::{Pixmap, PixmapPaint};
 use tiny_skia_path::Transform;
 use tracing::instrument;
@@ -19,5 +19,5 @@ pub fn stack_layer_on_background<'a,'b>(background: &ComparableColor, foreground
     let mut output = allocate_pixmap(foreground.width(), foreground.height());
     output.fill(background.to_owned().into());
     stack_layer_on_layer(&mut output, foreground);
-    return output;
+    output
 }

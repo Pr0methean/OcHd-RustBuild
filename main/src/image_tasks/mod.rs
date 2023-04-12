@@ -1,16 +1,16 @@
-use std::cell::RefCell;
+
 use std::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
-use std::sync::{Arc, RwLock, RwLockReadGuard};
-use std::sync::Mutex;
+use std::sync::{Arc};
+
 use lazy_static::lazy_static;
-use lockfree_object_pool::{LinearObjectPool, LinearOwnedReusable, LinearReusable};
+use lockfree_object_pool::{LinearObjectPool, LinearOwnedReusable};
 use tiny_skia::{Color, Pixmap};
-use crate::image_tasks::color::ComparableColor;
+
 use crate::image_tasks::MaybeFromPool::{FromPool, NotFromPool};
-use crate::image_tasks::repaint::AlphaChannel;
-use crate::image_tasks::task_spec::TaskResult;
+
+
 use crate::TILE_SIZE;
 
 pub mod color;
@@ -25,7 +25,7 @@ pub mod make_semitransparent;
 lazy_static! {
 static ref PIXMAP_POOL: Arc<LinearObjectPool<Pixmap>> = Arc::new(LinearObjectPool::new(
     || Pixmap::new(*TILE_SIZE, *TILE_SIZE).unwrap(),
-    |mut pixmap| pixmap.fill(Color::TRANSPARENT)
+    |pixmap| pixmap.fill(Color::TRANSPARENT)
 ));
 }
 
@@ -61,7 +61,7 @@ impl <'a> Clone for MaybeFromPool<'a, Pixmap> {
     fn clone(&self) -> Self {
         let mut pixmap = allocate_pixmap(self.width(), self.height());
         self.deref().clone_into(pixmap.deref_mut());
-        return pixmap
+        pixmap
     }
 }
 
