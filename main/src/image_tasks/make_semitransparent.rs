@@ -14,16 +14,15 @@ pub(crate) fn create_alpha_array(out_alpha: OrderedFloat<f32>) -> [u8; 256] {
 
 #[instrument]
 /// Multiplies the opacity of all pixels in the [input](given pixmap) by a given [alpha].
-pub fn make_semitransparent(input: &Pixmap, alpha: f32) -> TaskResult {
+pub fn make_semitransparent(mut input: Pixmap, alpha: f32) -> TaskResult {
     let alpha_array = create_alpha_array(alpha.into());
-    let mut output = input.to_owned();
-    let output_pixels = output.pixels_mut();
+    let output_pixels = input.pixels_mut();
     for index in 0..output_pixels.len() {
         let pixel = output_pixels[index].demultiply();
         output_pixels[index] = ColorU8::from_rgba(pixel.red(), pixel.green(), pixel.blue(),
                 alpha_array[pixel.alpha() as usize]).premultiply();
     }
-    return TaskResult::Pixmap {value: output};
+    return TaskResult::Pixmap {value: input};
 }
 
 #[test]
@@ -43,7 +42,7 @@ fn test_make_semitransparent() {
                      FillRule::EvenOdd, Transform::default(), None);
     let pixmap_pixels = pixmap.pixels();
     let semitransparent_red_circle: Pixmap
-        = make_semitransparent(&pixmap, alpha).try_into().unwrap();
+        = make_semitransparent(pixmap.to_owned(), alpha).try_into().unwrap();
     let semitransparent_pixels = semitransparent_red_circle.pixels();
     for index in 0usize..((side_length * side_length) as usize) {
         let expected_alpha: u8 = (u16::from(alpha_multiplier

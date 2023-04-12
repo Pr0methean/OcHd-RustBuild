@@ -417,7 +417,7 @@ impl TaskSpec {
                 dependencies.push(base_index);
                 CloneableFutureWrapper::new(name, Box::pin(
                     async move {
-                        make_semitransparent(&base_future.await.try_into()?, alpha)
+                        make_semitransparent(base_future.await.try_into()?, alpha)
                     }))
             },
             PngOutput { base, destinations } => {
