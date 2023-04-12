@@ -4,7 +4,7 @@ use cached::proc_macro::cached;
 use tiny_skia::{Pixmap, PremultipliedColorU8};
 use tracing::instrument;
 
-use crate::anyhoo;
+
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::make_semitransparent::create_alpha_array;
 use crate::image_tasks::task_spec::TaskResult;

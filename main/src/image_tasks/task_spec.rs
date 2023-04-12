@@ -15,7 +15,7 @@ use cached::lazy_static::lazy_static;
 use cooked_waker::{IntoWaker, ViaRawPointer, WakeRef};
 use fn_graph::{DataAccessDyn, TypeIds};
 use fn_graph::daggy::Dag;
-use futures::{FutureExt, ready};
+use futures::{FutureExt};
 
 
 use log::{info};

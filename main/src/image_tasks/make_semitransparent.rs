@@ -1,11 +1,11 @@
-use std::sync::Arc;
+
 use cached::proc_macro::cached;
 use ordered_float::OrderedFloat;
-use tiny_skia::Pixmap;
-use tracing::instrument;
-use crate::image_tasks::repaint::{AlphaChannel, to_alpha_channel};
 
-use crate::image_tasks::task_spec::TaskResult;
+use tracing::instrument;
+use crate::image_tasks::repaint::{AlphaChannel};
+
+
 
 #[cached(sync_writes = true)]
 pub(crate) fn create_alpha_array(out_alpha: OrderedFloat<f32>) -> [u8; 256] {
