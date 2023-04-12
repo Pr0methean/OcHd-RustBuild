@@ -248,10 +248,9 @@ impl WakeRef for MultiWaker {
     }
 }
 
-#[derive(Clone)]
 pub enum CloneableFutureWrapperState<'a, T> {
     Upcoming {
-        future: Arc<Mutex<SyncBoxFuture<'a, T>>>,
+        future: SyncBoxFuture<'a, T>,
         multiwaker: Arc<MultiWaker>,
         waker: Arc<Waker>
     },
@@ -283,12 +282,12 @@ impl <'a, T> CloneableFutureWrapper<'a, T> where T: Clone + Sync + Send + Debug 
         let waker = Arc::new(MultiWaker::new());
         CloneableFutureWrapper {
             state: Arc::new(Mutex::new(CloneableFutureWrapperState::Upcoming {
-                future: Arc::new(Mutex::new(Box::pin(async move {
+                future: Box::pin(async move {
                     info!("Starting {}", name);
                     let result = base.await;
                     info!("Finishing {} with result of {:?}", name, result);
                     result
-                }))),
+                }),
                 multiwaker: waker.to_owned(),
                 waker: Arc::new(waker.into_waker())
             }))
@@ -301,27 +300,22 @@ impl <'a, T> Future for CloneableFutureWrapper<'a, T> where T: Clone + Send + Sy
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut state = self.state.lock().unwrap();
-        let result: Poll<Arc<T>> = match state.deref() {
+        match state.deref_mut() {
             CloneableFutureWrapperState::Finished { result } => Poll::Ready(result.to_owned()),
             CloneableFutureWrapperState::Upcoming { future, multiwaker, waker} => {
-                let new_result = future.lock().unwrap().poll_unpin(
+                let new_result = future.poll_unpin(
                     &mut Context::from_waker(waker.deref()));
                 if let Poll::Ready(finished_result) = new_result {
+                    let result_arc = Arc::new(finished_result);
                     waker.wake_by_ref();
-                    Poll::Ready(Arc::new(finished_result))
+                    *state = CloneableFutureWrapperState::Finished {result: result_arc.to_owned()};
+                    Poll::Ready(result_arc)
                 } else {
                     multiwaker.add_waker(cx.waker().to_owned());
                     Poll::Pending
                 }
             }
-        };
-        if let Poll::Ready(finished_result) = &result {
-            let state = state.deref_mut();
-            if matches!(state, CloneableFutureWrapperState::Upcoming { .. }) {
-                *state = CloneableFutureWrapperState::Finished {result: finished_result.to_owned()};
-            }
         }
-        result
     }
 }
 

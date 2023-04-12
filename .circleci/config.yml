@@ -35,7 +35,7 @@ jobs:
       - persist_to_workspace:
           root: main/target/release
           paths:
-            - "OcHd-KotlinBuild-1.0-SNAPSHOT.jar"
+            - "OcHd-RustBuild"
       - store_artifacts:
           path: main/target/release
           destination: "OcHd"
@@ -60,7 +60,7 @@ jobs:
       - run: |
           cd main
           ./target/release/OcHd-RustBuild << parameters.size >>
-      - run: cd out && zip -9 -r OcHD-<< parameters.size >>x<< parameters.size >>.zip *
+      - run: cd main/out && zip -9 -r OcHD-<< parameters.size >>x<< parameters.size >>.zip *
       - store_artifacts:
           path: 'main/out/OcHD-<< parameters.size >>x<< parameters.size >>.zip'
       - store_artifacts:
