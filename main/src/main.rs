@@ -14,6 +14,7 @@
 #![feature(once_cell_try)]
 #![feature(allocator_api)]
 #![feature(poll_ready)]
+#![feature(arc_unwrap_or_clone)]
 
 use std::alloc::System;
 use std::cell::RefCell;

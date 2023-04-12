@@ -11,24 +11,25 @@ use tracing::instrument;
 pub async fn animate<'input>(background: TaskResultFuture<'input>, frames: Vec<TaskResultFuture<'input>>)
                                     -> TaskResult {
     let frame_count = frames.len() as u32;
-    let background: Arc<Pixmap> = background.await.try_into()?;
+    let background_result = background.await;
+    let background: Arc<Pixmap> = (&*background_result).try_into()?;
     let frame_height = background.height();
     let out = Mutex::new(Pixmap::new(background.width(),
                               frame_height * frame_count)
                             .ok_or(anyhoo!("Failed to create output Pixmap"))?);
     let results = join_all(frames.into_iter().enumerate().map(|(index, frame)| {
+        let background = (*background).as_ref();
         let out = &out;
-        let background = background.to_owned();
         async move || -> Result<(), CloneableError>  {
             out.lock().unwrap().draw_pixmap(0, (index as i32) * (frame_height as i32),
-                            background.as_ref().as_ref(),
+                            background,
                             &PixmapPaint::default(),
                             Transform::default(),
                             None).ok_or(anyhoo!("draw_pixmap failed"))?;
-            let frame_pixmap: Result<Arc<Pixmap>, CloneableError> = frame.await.try_into();
-            let frame_pixmap = frame_pixmap?;
+            let frame_result = frame.await;
+            let frame_pixmap: Arc<Pixmap> = (&*frame_result).try_into()?;
             out.lock().unwrap().draw_pixmap(0, (index as i32) * (frame_height as i32),
-                            frame_pixmap.as_ref().as_ref(),
+                            (*frame_pixmap).as_ref(),
                             &PixmapPaint::default(),
                             Transform::default(),
                             None).ok_or(anyhoo!("draw_pixmap failed"))

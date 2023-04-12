@@ -61,7 +61,7 @@ impl Mul<f32> for AlphaChannel {
 }
 
 impl Mul<ComparableColor> for AlphaChannel {
-    type Output = TaskResult;
+    type Output = Pixmap;
 
     fn mul(self, rhs: ComparableColor) -> Self::Output {
         paint(&self, &rhs)
@@ -81,17 +81,16 @@ fn create_paint_array(color: ComparableColor) -> [PremultipliedColorU8; 256] {
 
 /// Applies the given [color] to the given [input](alpha channel).
 #[instrument]
-pub fn paint(input: &AlphaChannel, color: &ComparableColor) -> TaskResult {
+pub fn paint(input: &AlphaChannel, color: &ComparableColor) -> Pixmap {
     let paint_array = create_paint_array(*color);
     let input_pixels = input.pixels();
-    let mut output = Pixmap::new(input.width, input.height)
-        .ok_or(anyhoo!("Failed to create output Pixmap"))?;
+    let mut output = Pixmap::new(input.width, input.height).unwrap();
     let output_pixels = output.pixels_mut();
     output_pixels.copy_from_slice(&(input_pixels.iter()
         .map(|input_pixel| {
             paint_array[usize::from(*input_pixel)]
         }).collect::<Vec<PremultipliedColorU8>>()[..]));
-    TaskResult::Pixmap {value: Arc::new(output)}
+    output
 }
 
 #[cfg(test)]

@@ -16,14 +16,13 @@ pub(crate) fn create_alpha_array(out_alpha: OrderedFloat<f32>) -> [u8; 256] {
 
 #[instrument]
 /// Multiplies the opacity of all pixels in the [input](given pixmap) by a given [alpha].
-pub fn make_semitransparent(mut input: AlphaChannel, alpha: f32) -> TaskResult {
+pub fn make_semitransparent(input: &mut AlphaChannel, alpha: f32) {
     let alpha_array = create_alpha_array(alpha.into());
     let output_pixels = input.pixels_mut();
     for index in 0..output_pixels.len() {
         let pixel = output_pixels[index];
         output_pixels[index] = alpha_array[pixel as usize];
     }
-    TaskResult::AlphaChannel {value: Arc::new(input)}
 }
 
 #[test]
@@ -43,8 +42,9 @@ fn test_make_semitransparent() {
     pixmap.fill_path(&circle, &red_paint,
                      FillRule::EvenOdd, Transform::default(), None);
     let pixmap_pixels = pixmap.pixels().to_owned();
+    let circle_alpha: Arc<AlphaChannel> = (&to_alpha_channel(pixmap)).try_into().unwrap();
     let semitransparent_circle =
-        make_semitransparent(to_alpha_channel(pixmap).try_into().unwrap(), alpha);
+        make_semitransparent(&mut *circle_alpha, alpha);
     let semitransparent_circle: Arc<AlphaChannel> = semitransparent_circle.try_into().unwrap();
     let semitransparent_red_circle: Arc<Pixmap> =
         paint(&*semitransparent_circle, &ComparableColor::RED).try_into().unwrap();
