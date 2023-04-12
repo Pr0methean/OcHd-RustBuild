@@ -460,7 +460,7 @@ impl TaskSpec {
                 let bg_future = graph[bg_index].get_mut().to_owned();
                 let fg_future = graph[fg_index].get_mut().to_owned();
                 CloneableFutureWrapper::new(name, Box::pin(async move {
-                    stack_layer_on_layer(&(bg_future.await.try_into()?), &(fg_future.await.try_into()?))
+                    stack_layer_on_layer(bg_future.await.try_into()?, &(fg_future.await.try_into()?))
                 }))
             },
             TaskSpec::ToAlphaChannel { base } => {
