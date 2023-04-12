@@ -37,5 +37,5 @@ pub async fn animate<'input>(background: TaskResultFuture<'input>, frames: Vec<T
     for result in results.await {
         result?;
     }
-    return TaskResult::Pixmap { value: Arc::new(out.into_inner().unwrap()) };
+    TaskResult::Pixmap { value: Arc::new(out.into_inner().unwrap()) }
 }

@@ -18,10 +18,10 @@ pub struct ComparableColor {
 }
 
 impl ComparableColor {
-    pub fn red(&self) -> u8 { return self.red; }
-    pub fn green(&self) -> u8 { return self.green; }
-    pub fn blue(&self) -> u8 { return self.blue; }
-    pub fn alpha(&self) -> u8 { return self.alpha; }
+    pub fn red(&self) -> u8 { self.red}
+    pub fn green(&self) -> u8 { self.green}
+    pub fn blue(&self) -> u8 { self.blue}
+    pub fn alpha(&self) -> u8 { self.alpha}
 
     pub const TRANSPARENT: ComparableColor = rgba(0,0,0,0);
     pub const BLACK: ComparableColor = gray(0);
@@ -51,7 +51,7 @@ impl Mul<f32> for ComparableColor {
 
     fn mul(self, rhs: f32) -> Self::Output {
         let out_alpha = f32::from(self.alpha) * rhs;
-        return ComparableColor {
+        ComparableColor {
             red: self.red,
             green: self.green,
             blue: self.blue,
@@ -74,71 +74,71 @@ const CHANNEL_MAX_F32: f32 = u8::MAX as f32;
 
 impl From<Color> for ComparableColor {
     fn from(value: Color) -> Self {
-        return ComparableColor {
+        ComparableColor {
             red: (value.red() * CHANNEL_MAX_F32) as u8,
             green: (value.green() * CHANNEL_MAX_F32) as u8,
             blue: (value.blue() * CHANNEL_MAX_F32) as u8,
             alpha: (value.alpha() * CHANNEL_MAX_F32) as u8,
-        };
+        }
     }
 }
 
 impl From<PremultipliedColor> for ComparableColor {
     fn from(value: PremultipliedColor) -> Self {
-        return ComparableColor::from(value.demultiply());
+        ComparableColor::from(value.demultiply())
     }
 }
 
 impl From<ColorU8> for ComparableColor {
     fn from(value: ColorU8) -> Self {
-        return ComparableColor {
+        ComparableColor {
             red: value.red(),
             green: value.green(),
             blue: value.blue(),
             alpha: value.alpha(),
-        };
+        }
     }
 }
 
 impl From<PremultipliedColorU8> for ComparableColor {
     fn from(value: PremultipliedColorU8) -> Self {
-        return ComparableColor::from(value.demultiply());
+        ComparableColor::from(value.demultiply())
     }
 }
 
-impl Into<Color> for ComparableColor {
-    fn into(self) -> Color {
-        return Color::from_rgba8(self.red, self.green, self.blue, self.alpha);
+impl From<ComparableColor> for Color {
+    fn from(val: ComparableColor) -> Self {
+        Color::from_rgba8(val.red, val.green, val.blue, val.alpha)
     }
 }
 
-impl Into<PremultipliedColor> for ComparableColor {
-    fn into(self) -> PremultipliedColor {
-        let color: Color = self.into();
-        return color.premultiply();
+impl From<ComparableColor> for PremultipliedColor {
+    fn from(val: ComparableColor) -> Self {
+        let color: Color = val.into();
+        color.premultiply()
     }
 }
 
-impl Into<ColorU8> for ComparableColor {
-    fn into(self) -> ColorU8 {
-        return ColorU8::from_rgba(self.red, self.green, self.blue, self.alpha);
+impl From<ComparableColor> for ColorU8 {
+    fn from(val: ComparableColor) -> Self {
+        ColorU8::from_rgba(val.red, val.green, val.blue, val.alpha)
     }
 }
 
-impl Into<PremultipliedColorU8> for ComparableColor {
-    fn into(self) -> PremultipliedColorU8 {
-        let color: ColorU8 = self.into();
-        return color.premultiply();
+impl From<ComparableColor> for PremultipliedColorU8 {
+    fn from(val: ComparableColor) -> Self {
+        let color: ColorU8 = val.into();
+        color.premultiply()
     }
 }
 
 impl PartialEq<Self> for ComparableColor {
     fn eq(&self, other: &Self) -> bool {
-        return (self.alpha == 0 && other.alpha == 0) ||
+        (self.alpha == 0 && other.alpha == 0) ||
             (self.red == other.red
                 && self.green == other.green
                 && self.blue == other.blue
-                && self.alpha == other.alpha);
+                && self.alpha == other.alpha)
     }
 }
 

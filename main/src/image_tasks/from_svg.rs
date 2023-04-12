@@ -11,7 +11,7 @@ use usvg::{Options, Tree, TreeParsing};
 use crate::anyhoo;
 use crate::image_tasks::task_spec::TaskResult;
 
-pub const COLOR_SVGS: &'static [&str] = &[
+pub const COLOR_SVGS: &[&str] = &[
     "./svg/bed.svg",
     "./svg/blastFurnaceHoles.svg",
     "./svg/blastFurnaceHoles1.svg",
@@ -47,5 +47,5 @@ pub fn from_svg(path: PathBuf, width: u32) -> TaskResult {
         Transform::default(),
         out.as_mut())
         .ok_or(anyhoo!("Failed to render output Pixmap"))?;
-    return TaskResult::Pixmap {value: Arc::new(out)};
+    TaskResult::Pixmap {value: Arc::new(out)}
 }

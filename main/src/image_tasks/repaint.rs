@@ -29,10 +29,10 @@ impl AlphaChannel {
 impl From<&Pixmap> for AlphaChannel {
     fn from(value: &Pixmap) -> Self {
         let pixels =
-            value.pixels().into_iter()
+            value.pixels().iter()
                 .map(|pixel| pixel.alpha())
                 .collect::<Vec<u8>>();
-        return AlphaChannel {
+        AlphaChannel {
             width: value.width(),
             height: value.height(),
             pixels
@@ -43,7 +43,7 @@ impl From<&Pixmap> for AlphaChannel {
 #[instrument]
 pub fn to_alpha_channel(pixmap: &Pixmap) -> TaskResult {
     let alpha = AlphaChannel::from(pixmap);
-    return TaskResult::AlphaChannel {value: Arc::new(alpha)};
+    TaskResult::AlphaChannel {value: Arc::new(alpha)}
 }
 
 impl Mul<f32> for AlphaChannel {
@@ -51,12 +51,12 @@ impl Mul<f32> for AlphaChannel {
 
     fn mul(self, rhs: f32) -> Self::Output {
         let alpha_array = create_alpha_array(rhs.into());
-        let mut output = self.to_owned();
+        let mut output = self;
         let output_pixels = output.pixels_mut();
         for index in 0..output_pixels.len() {
             output_pixels[index] = alpha_array[output_pixels[index] as usize];
         }
-        return output;
+        output
     }
 }
 
@@ -64,17 +64,17 @@ impl Mul<ComparableColor> for AlphaChannel {
     type Output = TaskResult;
 
     fn mul(self, rhs: ComparableColor) -> Self::Output {
-        return paint(&self, &rhs);
+        paint(&self, &rhs)
     }
 }
 
 #[cached(sync_writes = true)]
 fn create_paint_array(color: ComparableColor) -> [PremultipliedColorU8; 256] {
-    return (0u16..256u16).into_iter()
+    return (0u16..256u16)
         .map (|alpha| {
             let alpha_fraction = f32::from(alpha) / 255.0;
             let color_with_alpha: PremultipliedColorU8 = (color * alpha_fraction).into();
-            return color_with_alpha;
+            color_with_alpha
         })
         .collect::<Vec<PremultipliedColorU8>>().try_into().unwrap();
 }
@@ -91,7 +91,7 @@ pub fn paint(input: &AlphaChannel, color: &ComparableColor) -> TaskResult {
         .map(|input_pixel| {
             paint_array[usize::from(*input_pixel)]
         }).collect::<Vec<PremultipliedColorU8>>()[..]));
-    return TaskResult::Pixmap {value: Arc::new(output)};
+    TaskResult::Pixmap {value: Arc::new(output)}
 }
 
 #[cfg(test)]

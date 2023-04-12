@@ -8,7 +8,7 @@ use crate::image_tasks::task_spec::TaskResult;
 
 #[cached(sync_writes = true)]
 pub(crate) fn create_alpha_array(out_alpha: OrderedFloat<f32>) -> [u8; 256] {
-    return (0u16..256u16).into_iter()
+    return (0u16..256u16)
         .map (|alpha| (out_alpha.0 * f32::from(alpha)) as u8)
         .collect::<Vec<u8>>().try_into().unwrap();
 }
@@ -22,7 +22,7 @@ pub fn make_semitransparent(mut input: AlphaChannel, alpha: f32) -> TaskResult {
         let pixel = output_pixels[index];
         output_pixels[index] = alpha_array[pixel as usize];
     }
-    return TaskResult::AlphaChannel {value: Arc::new(input)};
+    TaskResult::AlphaChannel {value: Arc::new(input)}
 }
 
 #[test]

@@ -5,7 +5,7 @@ use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::task_spec::TaskSpec;
 use crate::image_tasks::task_spec::TaskSpec::PngOutput;
 
-pub static DYES: &'static [(&str, ComparableColor)] = &[
+pub static DYES: &[(&str, ComparableColor)] = &[
     ("black",       ComparableColor::BLACK),
     ("red",         rgb(0xb0, 0x00, 0x00)),
     ("green",       rgb(0x00, 0x7c, 0x00)),
@@ -34,5 +34,5 @@ pub fn dyed_block(name: &str,
             destinations: vec![PathBuf::from(format!("blocks/{}_{}", dye_name, name))]
         });
     }
-    return out;
+    out
 }
