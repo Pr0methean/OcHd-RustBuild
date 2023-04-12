@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use cached::proc_macro::cached;
 use ordered_float::OrderedFloat;
-use tiny_skia::Pixmap;
 use tracing::instrument;
 use crate::image_tasks::repaint::{AlphaChannel};
 
@@ -16,13 +15,14 @@ pub(crate) fn create_alpha_array(out_alpha: OrderedFloat<f32>) -> [u8; 256] {
 
 #[instrument]
 /// Multiplies the opacity of all pixels in the [input](given pixmap) by a given [alpha].
-pub fn make_semitransparent(input: &mut AlphaChannel, alpha: f32) {
+pub fn make_semitransparent(mut input: AlphaChannel, alpha: f32) -> TaskResult {
     let alpha_array = create_alpha_array(alpha.into());
     let output_pixels = input.pixels_mut();
     for index in 0..output_pixels.len() {
         let pixel = output_pixels[index];
         output_pixels[index] = alpha_array[pixel as usize];
     }
+    return TaskResult::AlphaChannel {value: Arc::new(input)};
 }
 
 #[test]
