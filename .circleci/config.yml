@@ -15,6 +15,7 @@ jobs:
             - cargo-deps-{{ checksum "main/Cargo.toml" }}
             - cargo-deps
           paths:
+            - /home/circleci/.cargo
             - main/target/debug/deps
             - main/target/release/deps
       - run: |
@@ -33,6 +34,7 @@ jobs:
       - save_cache:
           key: cargo-deps-{{ checksum "main/Cargo.toml" }}
           paths:
+            - /home/circleci/.cargo
             - main/target/debug/deps
             - main/target/release/deps
   execute:
