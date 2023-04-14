@@ -1,11 +1,11 @@
-use std::sync::{Arc};
+use std::sync::{Arc, Mutex};
+use futures::future::join_all;
 use log::info;
-
 use tiny_skia::{Pixmap, PixmapPaint};
 use tiny_skia_path::Transform;
 
 use crate::anyhoo;
-use crate::image_tasks::task_spec::{TaskResult, TaskResultLazy};
+use crate::image_tasks::task_spec::{CloneableError, TaskResult, TaskResultLazy};
 use tracing::instrument;
 
 #[instrument]

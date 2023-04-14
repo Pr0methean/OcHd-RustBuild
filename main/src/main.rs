@@ -19,14 +19,14 @@
 #![feature(iter_collect_into)]
 
 use std::alloc::System;
-
+use std::cell::RefCell;
 use std::collections::{HashMap};
 use std::io::ErrorKind::NotFound;
 use std::path::absolute;
 use std::time::Instant;
 
 use async_std::fs::{create_dir, remove_dir_all};
-
+use fn_graph::daggy::Dag;
 use petgraph::visit::{EdgeRef, IntoNodeReferences, IntoEdgeReferences, NodeIndexable};
 use fn_graph::daggy::petgraph::unionfind::UnionFind;
 use futures::future::join_all;
@@ -36,14 +36,14 @@ use logging_allocator::LoggingAllocator;
 use petgraph::graph::{DefaultIx, NodeIndex};
 use texture_base::material::Material;
 
-use crate::image_tasks::task_spec::{OUT_DIR, SVG_DIR, TaskGraph, TaskResultLazy, TaskToGraphNodeMap};
+use crate::image_tasks::task_spec::{OUT_DIR, SVG_DIR, TaskGraph, TaskResultLazy, TaskSpec, TaskToGraphNodeMap};
 
 mod image_tasks;
 mod texture_base;
 mod materials;
 #[cfg(not(any(test,clippy)))]
 use std::env;
-
+use std::rc::Rc;
 
 #[cfg(not(any(test,clippy)))]
 lazy_static! {
