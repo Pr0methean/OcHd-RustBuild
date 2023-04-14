@@ -1,6 +1,6 @@
 use std::fs::create_dir_all;
 use std::os::unix::fs::symlink;
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 use log::info;
 
 use tiny_skia::Pixmap;
