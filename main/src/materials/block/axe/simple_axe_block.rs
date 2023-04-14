@@ -2,6 +2,7 @@ use lazy_static::lazy_static;
 
 use crate::{group, stack};
 use crate::image_tasks::color::ComparableColor;
+use crate::image_tasks::stack::stack_alpha_on_alpha;
 use crate::image_tasks::task_spec::{from_svg_task, paint_svg_task};
 use crate::materials::block::axe::wood::{DARK_OAK, OAK};
 use crate::paint_stack;
@@ -19,10 +20,8 @@ single_texture_block!(CRAFTING_TABLE_SIDE = ComparableColor::TRANSPARENT,
 );
 single_texture_block!(CRAFTING_TABLE_TOP = OAK.color,
     paint_svg_task("waves", OAK.highlight),
-    *stack!(
-        *from_svg_task("waves2") * 0.5,
-        from_svg_task("craftingGridSquare")
-    ) * OAK.shadow,
+    paint_svg_task("waves2", OAK.shadow * 0.5),
+    paint_svg_task("craftingGridSquare", OAK.shadow),
     paint_svg_task("craftingGridSpaces", OAK.color),
     paint_svg_task("borderSolid", DARK_OAK.color),
     paint_svg_task("cornersTri", OAK.highlight)

@@ -124,12 +124,13 @@ async fn main() {
     let components: Vec<TaskResultLazy> = components.into_iter().flatten().collect();
     clean_out_dir.await.expect("Failed to create or replace output directory");
     info!("Starting tasks");
-    join_all(components
+    components.into_iter().for_each(|task| (&(**task)).try_into().unwrap());
+    /* join_all(components
                 .into_iter()
                 .map(async move |task| (&(**task)).try_into()))
         .await
         .into_iter()
-        .for_each(|result| result.expect("Task failure"));
+        .for_each(|result| result.expect("Task failure")); */
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     ALLOCATOR.disable_logging();
 }
