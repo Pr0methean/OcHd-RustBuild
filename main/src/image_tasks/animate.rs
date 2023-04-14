@@ -1,4 +1,5 @@
 use std::sync::{Arc};
+use log::info;
 
 use tiny_skia::{Pixmap, PixmapPaint};
 use tiny_skia_path::Transform;
@@ -10,11 +11,11 @@ use tracing::instrument;
 #[instrument]
 pub fn animate(background: TaskResultLazy, frames: Vec<TaskResultLazy>)
                                     -> TaskResult {
-    let frame_count = frames.len() as u32;
+    info!("Starting task: Animate");
     let background: Arc<Pixmap> = (&**background).try_into()?;
     let frame_height = background.height();
     let mut out = Pixmap::new(background.width(),
-                              frame_height * frame_count)
+                              frame_height * (frames.len() as u32))
                             .ok_or(anyhoo!("Failed to create output Pixmap"))?;
     for (index, frame) in frames.into_iter().enumerate() {
         let y_offset = (index as i32) * (frame_height as i32);
@@ -30,5 +31,6 @@ pub fn animate(background: TaskResultLazy, frames: Vec<TaskResultLazy>)
                             Transform::default(),
                             None).ok_or(anyhoo!("draw_pixmap failed"))?;
     }
+    info!("Finishing task: Animate");
     TaskResult::Pixmap { value: Arc::new(out) }
 }

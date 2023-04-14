@@ -1,4 +1,5 @@
 use cached::proc_macro::cached;
+use log::info;
 use ordered_float::OrderedFloat;
 
 use tracing::instrument;
@@ -16,12 +17,14 @@ pub(crate) fn create_alpha_array(out_alpha: OrderedFloat<f32>) -> [u8; 256] {
 #[instrument]
 /// Multiplies the opacity of all pixels in the [input](given pixmap) by a given [alpha].
 pub fn make_semitransparent(input: &mut AlphaChannel, alpha: f32) {
+    info!("Starting task: make semitransparent with alpha {}", alpha);
     let alpha_array = create_alpha_array(alpha.into());
     let output_pixels = input.pixels_mut();
     for index in 0..output_pixels.len() {
         let pixel = output_pixels[index];
         output_pixels[index] = alpha_array[pixel as usize];
     }
+    info!("Finishing task: make semitransparent with alpha {}", alpha);
 }
 
 #[test]

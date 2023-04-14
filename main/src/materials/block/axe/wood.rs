@@ -37,16 +37,11 @@ pub struct Wood {
 
 impl Wood {
     pub fn planks(&self) -> Box<TaskSpec> {
-        stack!(
-            stack_on!(self.color,
+        stack_on!(self.color,
                 paint_svg_task("waves2", self.highlight * self.planks_highlight_strength),
-                paint_task(stack!(
-                    Box::new(MakeSemitransparent {
-                        base: Box::new(ToAlphaChannel {base: from_svg_task("waves") }),
-                        alpha: OrderedFloat::from(self.planks_shadow_strength)
-                    }),
-                    from_svg_task("planksTopBorder")), self.shadow)),
-            paint_svg_task("borderShortDashes", self.highlight)
+                paint_svg_task("waves", self.shadow * self.planks_shadow_strength),
+                paint_svg_task("planksTopBorder", self.shadow),
+                paint_svg_task("borderShortDashes", self.highlight)
         )
     }
 
@@ -226,10 +221,8 @@ lazy_static! {pub static ref ACACIA: Wood = overworld_wood(
     Box::new(/*door_bottom*/ |_wood, door_common_layers| stack!(
         door_common_layers,
         paint_stack!(ACACIA.color, "strokeBottomLeftTopRight", "strokeTopLeftBottomRight"),
-        stack!(
-            paint_svg_task("doorHingesBig", ComparableColor::STONE_SHADOW),
-            paint_svg_task("doorHinges", ComparableColor::STONE_HIGHLIGHT)
-        )
+        paint_svg_task("doorHingesBig", ComparableColor::STONE_SHADOW),
+        paint_svg_task("doorHinges", ComparableColor::STONE_HIGHLIGHT)
     )),
     Box::new(Wood::default_door_top),
     Box::new(/*leaves*/ |_wood| stack!(

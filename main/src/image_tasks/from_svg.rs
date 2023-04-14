@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
+use log::info;
 
 use resvg::{FitTo, render};
 use tiny_skia::Pixmap;
@@ -35,6 +36,7 @@ pub const COLOR_SVGS: &[&str] = &[
 
 #[instrument]
 pub fn from_svg(path: &PathBuf, width: u32) -> TaskResult {
+    info!("Starting task: Import svg from {}", path.to_string_lossy());
     let svg_data = fs::read(path).map_err(|error| anyhoo!(error))?;
     let svg_tree = Tree::from_data(&svg_data, &Options::default()).map_err(|error| anyhoo!(error))?;
     let view_box = svg_tree.view_box;
@@ -47,5 +49,6 @@ pub fn from_svg(path: &PathBuf, width: u32) -> TaskResult {
         Transform::default(),
         out.as_mut())
         .ok_or(anyhoo!("Failed to render output Pixmap"))?;
+    info!("Finishing task: Import svg from {}", path.to_string_lossy());
     TaskResult::Pixmap {value: Arc::new(out)}
 }
