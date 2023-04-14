@@ -39,19 +39,11 @@ impl ComparableColor {
     pub const STONE_HIGHLIGHT: ComparableColor = gray(0xaa);
     pub const STONE_EXTREME_HIGHLIGHT: ComparableColor = gray(0xba);
 
-    pub const DEEPSLATE_SHADOW: ComparableColor = c(0x2f2f3f);
-    pub const DEEPSLATE: ComparableColor = ComparableColor::STONE_EXTREME_SHADOW;
-    pub const DEEPSLATE_HIGHLIGHT: ComparableColor = ComparableColor::STONE_SHADOW;
-
     pub const EXTRA_DARK_BIOME_COLORABLE: ComparableColor = ComparableColor::STONE_SHADOW;
     pub const DARK_BIOME_COLORABLE: ComparableColor = ComparableColor::STONE;
     pub const MEDIUM_BIOME_COLORABLE: ComparableColor = gray(0x9d);
     pub const LIGHT_BIOME_COLORABLE: ComparableColor = ComparableColor::STONE_EXTREME_HIGHLIGHT;
     pub const EXTRA_LIGHT_BIOME_COLORABLE: ComparableColor = gray(0xc3);
-
-    /// If I'm gonna use a gray any lighter than this, I may as well just use
-    /// [ComparableColor::WHITE] instead.
-    pub const LIGHTEST_GRAY: ComparableColor = gray(0xdc);
 }
 
 impl Mul<f32> for ComparableColor {

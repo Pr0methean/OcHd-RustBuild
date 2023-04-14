@@ -52,15 +52,9 @@ pub struct SingleTextureMaterial {
     pub texture: Box<TaskSpec>
 }
 
-pub struct ColorTriad {
-    pub color: ComparableColor,
-    pub shadow: ComparableColor,
-    pub highlight: ComparableColor
-}
-
 impl From<SingleTextureMaterial> for Box<TaskSpec> {
     fn from(val: SingleTextureMaterial) -> Self {
-        val.texture.to_owned()
+        val.texture
     }
 }
 
@@ -198,7 +192,3 @@ pub fn redstone_off_and_on(name: &str, generator: Box<dyn Fn(ComparableColor) ->
     });
     out
 }
-
-pub type AbstractTextureSupplier<T> = Box<dyn (Fn(&T) -> Box<TaskSpec>) + Sync + Send>;
-pub type AbstractTextureUnaryFunc<T> = Box<dyn (Fn(&T, Box<TaskSpec>) -> Box<TaskSpec>) + Sync + Send>;
-pub type AbstractTextureBinaryFunc<T> = Box<dyn (Fn(&T, Box<TaskSpec>, Box<TaskSpec>) -> Box<TaskSpec>) + Sync + Send>;
