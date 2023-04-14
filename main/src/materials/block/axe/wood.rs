@@ -1,10 +1,10 @@
 use lazy_static::lazy_static;
-use ordered_float::OrderedFloat;
+
 
 use crate::{group, paint_stack, stack, stack_on};
 use crate::image_tasks::color::{c, ComparableColor};
-use crate::image_tasks::task_spec::{from_svg_task, out_task, paint_svg_task, paint_task, TaskSpec};
-use crate::image_tasks::task_spec::TaskSpec::{MakeSemitransparent, ToAlphaChannel};
+use crate::image_tasks::task_spec::{from_svg_task, out_task, paint_svg_task, TaskSpec};
+
 use crate::texture_base::material::Material;
 
 pub struct Wood {
