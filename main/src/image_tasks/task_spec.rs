@@ -416,7 +416,7 @@ impl TaskSpec {
             FromSvg { source } => {
                 let source = source.to_owned();
                 CloneableFutureWrapper::new(name, Box::pin(
-                    async move { from_svg(source, *TILE_SIZE) }))
+                    async move { from_svg(&source, *TILE_SIZE) }))
             },
             TaskSpec::MakeSemitransparent { base, alpha } => {
                 let alpha: f32 = (*alpha).into();
@@ -611,7 +611,13 @@ impl Mul<ComparableColor> for TaskSpec {
 
     fn mul(self, rhs: ComparableColor) -> Self::Output {
         match &self {
-            TaskSpec::ToAlphaChannel { base: _base } => {
+            TaskSpec::ToAlphaChannel { .. } => {
+                TaskSpec::Repaint {
+                    base: Box::new(self),
+                    color: rhs
+                }
+            },
+            TaskSpec::MakeSemitransparent { .. } => {
                 TaskSpec::Repaint {
                     base: Box::new(self),
                     color: rhs
