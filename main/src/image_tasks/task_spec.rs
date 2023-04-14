@@ -478,18 +478,27 @@ impl FromStr for TaskSpec {
     }
 }
 
+impl Mul<f32> for TaskSpec {
+    type Output = TaskSpec;
+
+    fn mul(self, rhs: f32) -> Self::Output {
+        TaskSpec::MakeSemitransparent {
+            base: match self {
+                TaskSpec::ToAlphaChannel { .. } => {
+                    Box::new(self)
+                },
+                _ => Box::new(TaskSpec::ToAlphaChannel { base: Box::new(self) })},
+            alpha: OrderedFloat::from(rhs)
+        }
+    }
+}
+
 impl Mul<ComparableColor> for TaskSpec {
     type Output = TaskSpec;
 
     fn mul(self, rhs: ComparableColor) -> Self::Output {
         match &self {
-            TaskSpec::ToAlphaChannel { .. } => {
-                TaskSpec::Repaint {
-                    base: Box::new(self),
-                    color: rhs
-                }
-            },
-            TaskSpec::MakeSemitransparent { .. } => {
+            TaskSpec::ToAlphaChannel { base: _base } => {
                 TaskSpec::Repaint {
                     base: Box::new(self),
                     color: rhs
