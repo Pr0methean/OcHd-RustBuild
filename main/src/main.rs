@@ -126,10 +126,13 @@ async fn main() {
     info!("Starting tasks");
     join_all(components
                 .into_iter()
-                .map(async move |task| (&(**task)).try_into()))
+                .map(|task| tokio::spawn(async move {
+                    (&**task).try_into()
+                })))
         .await
         .into_iter()
-        .for_each(|result| result.expect("Task failure"));
+        .for_each(|result|
+            result.expect("Task failure").expect("Join error"));
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     ALLOCATOR.disable_logging();
 }
