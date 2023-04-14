@@ -34,7 +34,7 @@ pub const COLOR_SVGS: &[&str] = &[
 ];
 
 #[instrument]
-pub fn from_svg(path: PathBuf, width: u32) -> TaskResult {
+pub fn from_svg(path: &PathBuf, width: u32) -> TaskResult {
     let svg_data = fs::read(path).map_err(|error| anyhoo!(error))?;
     let svg_tree = Tree::from_data(&svg_data, &Options::default()).map_err(|error| anyhoo!(error))?;
     let view_box = svg_tree.view_box;

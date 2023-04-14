@@ -4,39 +4,31 @@ use tiny_skia::{Pixmap, PixmapPaint};
 use tiny_skia_path::Transform;
 
 use crate::anyhoo;
-use crate::image_tasks::task_spec::{CloneableError, TaskResult, TaskResultFuture};
+use crate::image_tasks::task_spec::{CloneableError, TaskResult, TaskResultLazy};
 use tracing::instrument;
 
 #[instrument]
-pub async fn animate<'input>(background: TaskResultFuture<'input>, frames: Vec<TaskResultFuture<'input>>)
+pub fn animate(background: TaskResultLazy, frames: Vec<TaskResultLazy>)
                                     -> TaskResult {
     let frame_count = frames.len() as u32;
-    let background_result = background.await;
-    let background: Arc<Pixmap> = (&*background_result).try_into()?;
+    let background: Arc<Pixmap> = (&**background).try_into()?;
     let frame_height = background.height();
-    let out = Mutex::new(Pixmap::new(background.width(),
+    let mut out = Pixmap::new(background.width(),
                               frame_height * frame_count)
-                            .ok_or(anyhoo!("Failed to create output Pixmap"))?);
-    let results = join_all(frames.into_iter().enumerate().map(|(index, frame)| {
-        let background = (*background).as_ref();
-        let out = &out;
-        async move || -> Result<(), CloneableError>  {
-            out.lock().unwrap().draw_pixmap(0, (index as i32) * (frame_height as i32),
-                            background,
+                            .ok_or(anyhoo!("Failed to create output Pixmap"))?;
+    for (index, frame) in frames.into_iter().enumerate() {
+        let y_offset = (index as i32) * (frame_height as i32);
+        out.draw_pixmap(0, y_offset,
+                        (*background).as_ref(),
                             &PixmapPaint::default(),
                             Transform::default(),
                             None).ok_or(anyhoo!("draw_pixmap failed"))?;
-            let frame_result = frame.await;
-            let frame_pixmap: Arc<Pixmap> = (&*frame_result).try_into()?;
-            out.lock().unwrap().draw_pixmap(0, (index as i32) * (frame_height as i32),
-                            (*frame_pixmap).as_ref(),
+        let frame_pixmap: Arc<Pixmap> = (&**frame).try_into()?;
+        out.draw_pixmap(0, y_offset,
+                        (*frame_pixmap).as_ref(),
                             &PixmapPaint::default(),
                             Transform::default(),
-                            None).ok_or(anyhoo!("draw_pixmap failed"))
-        }
-    }()));
-    for result in results.await {
-        result?;
+                            None).ok_or(anyhoo!("draw_pixmap failed"))?;
     }
-    TaskResult::Pixmap { value: Arc::new(out.into_inner().unwrap()) }
+    TaskResult::Pixmap { value: Arc::new(out) }
 }

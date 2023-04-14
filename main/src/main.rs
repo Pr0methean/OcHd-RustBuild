@@ -15,6 +15,8 @@
 #![feature(allocator_api)]
 #![feature(poll_ready)]
 #![feature(arc_unwrap_or_clone)]
+#![feature(lazy_cell)]
+#![feature(iter_collect_into)]
 
 use std::alloc::System;
 use std::cell::RefCell;
@@ -34,13 +36,14 @@ use logging_allocator::LoggingAllocator;
 use petgraph::graph::{DefaultIx, NodeIndex};
 use texture_base::material::Material;
 
-use crate::image_tasks::task_spec::{OUT_DIR, SVG_DIR, TaskResultFuture, TaskToFutureGraphNodeMap};
+use crate::image_tasks::task_spec::{OUT_DIR, SVG_DIR, TaskGraph, TaskResultLazy, TaskSpec, TaskToGraphNodeMap};
 
 mod image_tasks;
 mod texture_base;
 mod materials;
 #[cfg(not(any(test,clippy)))]
 use std::env;
+use std::rc::Rc;
 
 #[cfg(not(any(test,clippy)))]
 lazy_static! {
@@ -77,13 +80,13 @@ async fn main() {
         create_dir(OUT_DIR.to_owned()).await.expect("Failed to create output directory");
     });
 
+    let mut graph = TaskGraph::new();
+    let mut added_tasks = TaskToGraphNodeMap::new();
     let output_tasks = materials::ALL_MATERIALS.get_output_tasks();
-    let mut output_task_ids = Vec::with_capacity(1024);
-    let mut graph: Dag<RefCell<TaskResultFuture>, (), DefaultIx> = Dag::new();
-    let mut added_tasks: TaskToFutureGraphNodeMap<DefaultIx> = HashMap::new();
-    output_tasks.iter().for_each(|task| {
-        output_task_ids.push(task.add_to(&mut graph, &mut added_tasks));});
-    drop(added_tasks);
+    let mut output_task_ids: Vec<NodeIndex<DefaultIx>> = Vec::with_capacity(output_tasks.len());
+    for task in output_tasks.into_iter() {
+        output_task_ids.push(task.add_to(&mut graph, &mut added_tasks).node_id);
+    }
 
     // Split the graph into weakly-connected components (WCCs, groups that don't share any subtasks).
     // Used to save memory by minimizing the number of WCCs caching their subtasks at once.
@@ -95,33 +98,38 @@ async fn main() {
         // union the two vertices of the edge
         vertex_sets.union(a, b);
     }
-    let mut component_map: HashMap<NodeIndex<DefaultIx>, Vec<RefCell<TaskResultFuture>>> = HashMap::new();
+    let mut component_map: HashMap<NodeIndex<DefaultIx>, Vec<TaskResultLazy>> = HashMap::new();
     for (index, task) in graph.node_references() {
         let representative = vertex_sets.find(index);
         if output_task_ids.contains(&index) {
             match component_map.get_mut(&representative) {
                 Some(existing) => {
-                    existing.push(task.to_owned());
+                    existing.push(added_tasks[task].lazy.to_owned());
                 },
                 None => {
                     let mut vec = Vec::with_capacity(1024);
-                    vec.push(task.to_owned());
+                    vec.push(added_tasks[task].lazy.to_owned());
                     component_map.insert(representative, vec);
                 }
             };
         }
     }
     info!("Done with task graph");
-    drop(output_tasks);
+    drop(added_tasks);
     drop(graph);
 
     // Run small WCCs first so that their data can leave the heap before the big WCCs run
-    let mut components: Vec<Vec<RefCell<TaskResultFuture>>> = component_map.into_values().collect();
+    let mut components: Vec<Vec<TaskResultLazy>> = component_map.into_values().collect();
     components.sort_by_key(Vec::len);
-    let components: Vec<RefCell<TaskResultFuture>> = components.into_iter().flatten().collect();
+    let components: Vec<TaskResultLazy> = components.into_iter().flatten().collect();
     clean_out_dir.await.expect("Failed to create or replace output directory");
     info!("Starting tasks");
-    join_all(components.into_iter().map(|task| tokio::spawn(task.into_inner()))).await;
+    join_all(components
+                .into_iter()
+                .map(async move |task| (&(**task)).try_into()))
+        .await
+        .into_iter()
+        .for_each(|result| result.expect("Task failure"));
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     ALLOCATOR.disable_logging();
 }
