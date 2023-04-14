@@ -9,11 +9,9 @@ use crate::image_tasks::task_spec::{CloneableError, TaskResult, TaskResultFuture
 use tracing::instrument;
 
 #[instrument]
-pub async fn animate<'input>(background: TaskResultFuture<'input>, frames: Vec<TaskResultFuture<'input>>)
-                                    -> TaskResult {
+pub async fn animate<'bg_input, 'fg_input>(background: &'bg_input Pixmap, frames: Vec<TaskResultFuture<'fg_input>>)
+                     -> TaskResult {
     info!("Starting task: Animate");
-    let background_result = background.await;
-    let background: Arc<Pixmap> = (&*background_result).try_into()?;
     let frame_height = background.height();
     let out = Mutex::new(Pixmap::new(background.width(),
                               frame_height * (frames.len() as u32))

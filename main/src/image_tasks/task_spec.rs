@@ -410,7 +410,8 @@ impl TaskSpec {
                     dependencies.push(frame_index);
                 }
                 CloneableFutureWrapper::new(name, Box::pin(async move {
-                   animate(background_future, frame_futures).await
+                    let background: Arc<Pixmap> = (&*background_future.await).try_into()?;
+                   animate(&background, frame_futures).await
                 }))
             },
             FromSvg { source } => {
