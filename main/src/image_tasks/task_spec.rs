@@ -106,9 +106,9 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
                     Ok(out_image)
                 })
             },
-            ToPixmapTaskSpec::Repaint { base, color } => {
+            ToPixmapTaskSpec::PaintAlphaChannel { base, color } => {
                 if *color == ComparableColor::BLACK
-                        && let ToAlphaChannelTaskSpec::ToAlphaChannel{base: base_of_base} = base.deref()
+                        && let ToAlphaChannelTaskSpec::FromPixmap {base: base_of_base} = base.deref()
                         && base_of_base.is_all_black() {
                     return base_of_base.add_to(ctx);
                 }
@@ -162,7 +162,7 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
                     }
                 )
             },
-            ToAlphaChannelTaskSpec::ToAlphaChannel { base } => {
+            ToAlphaChannelTaskSpec::FromPixmap { base } => {
                 let (base_index, base_future) = base.add_to(ctx);
                 dependencies.push(base_index);
                 Box::pin(async move {
@@ -234,7 +234,7 @@ pub type CloneableResult<T> = Result<Arc<Box<T>>, CloneableError>;
 pub enum ToPixmapTaskSpec {
     Animate {background: Box<ToPixmapTaskSpec>, frames: Vec<ToPixmapTaskSpec>},
     FromSvg {source: PathBuf},
-    Repaint {base: Box<ToAlphaChannelTaskSpec>, color: ComparableColor},
+    PaintAlphaChannel {base: Box<ToAlphaChannelTaskSpec>, color: ComparableColor},
     StackLayerOnColor {background: ComparableColor, foreground: Box<ToPixmapTaskSpec>},
     StackLayerOnLayer {background: Box<ToPixmapTaskSpec>, foreground: Box<ToPixmapTaskSpec>},
     None {},
@@ -244,7 +244,7 @@ pub enum ToPixmapTaskSpec {
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum ToAlphaChannelTaskSpec {
     MakeSemitransparent {base: Box<ToAlphaChannelTaskSpec>, alpha: OrderedFloat<f32>},
-    ToAlphaChannel {base: Box<ToPixmapTaskSpec>},
+    FromPixmap {base: Box<ToPixmapTaskSpec>},
     StackAlphaOnAlpha {background: Box<ToAlphaChannelTaskSpec>, foreground: Box<ToAlphaChannelTaskSpec>},
 }
 
@@ -320,7 +320,7 @@ impl Display for ToPixmapTaskSpec {
             ToPixmapTaskSpec::FromSvg { source } => {
                 write!(f, "{}", source.to_string_lossy())
             }
-            ToPixmapTaskSpec::Repaint { base, color } => {
+            ToPixmapTaskSpec::PaintAlphaChannel { base, color } => {
                 write!(f, "{}@{}", *base, color)
             }
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
@@ -357,7 +357,7 @@ impl Display for ToAlphaChannelTaskSpec {
             ToAlphaChannelTaskSpec::MakeSemitransparent { base, alpha } => {
                 write!(f, "{:?}@{:?}", base, alpha)
             }
-            ToAlphaChannelTaskSpec::ToAlphaChannel {base} => {
+            ToAlphaChannelTaskSpec::FromPixmap {base} => {
                 write!(f, "Alpha({:?})", base)
             }
             ToAlphaChannelTaskSpec::StackAlphaOnAlpha {background, foreground} => {
@@ -533,7 +533,7 @@ impl ToPixmapTaskSpec {
             ToPixmapTaskSpec::Animate { background, frames } =>
                 background.is_all_black() && frames.iter().all(|frame| frame.is_all_black()),
             ToPixmapTaskSpec::FromSvg { source } => !(COLOR_SVGS.contains(&&*source.to_string_lossy())),
-            ToPixmapTaskSpec::Repaint { color, .. } => color.is_black_or_transparent(),
+            ToPixmapTaskSpec::PaintAlphaChannel { color, .. } => color.is_black_or_transparent(),
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } =>
                 background.is_black_or_transparent() && foreground.is_all_black(),
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => background.is_all_black() && foreground.is_all_black(),
@@ -543,7 +543,7 @@ impl ToPixmapTaskSpec {
 
 impl From<ToPixmapTaskSpec> for ToAlphaChannelTaskSpec {
     fn from(value: ToPixmapTaskSpec) -> Self {
-        ToAlphaChannelTaskSpec::ToAlphaChannel {base: Box::new(value)}
+        ToAlphaChannelTaskSpec::FromPixmap {base: Box::new(value)}
     }
 }
 
@@ -594,16 +594,16 @@ pub fn svg_alpha_task(name: &str) -> Box<ToAlphaChannelTaskSpec> {
 
 pub fn paint_task(base: Box<ToAlphaChannelTaskSpec>, color: ComparableColor) -> Box<ToPixmapTaskSpec> {
     Box::new(
-        ToPixmapTaskSpec::Repaint {base, color})
+        ToPixmapTaskSpec::PaintAlphaChannel {base, color})
 }
 
 pub fn paint_svg_task(name: &str, color: ComparableColor) -> Box<ToPixmapTaskSpec> {
-    paint_task(Box::new(ToAlphaChannelTaskSpec::ToAlphaChannel { base: from_svg_task(name) }),
+    paint_task(Box::new(ToAlphaChannelTaskSpec::FromPixmap { base: from_svg_task(name) }),
                color)
 }
 
 pub fn semitrans_svg_task(name: &str, alpha: f32) -> Box<ToAlphaChannelTaskSpec> {
-    Box::new(ToAlphaChannelTaskSpec::MakeSemitransparent {base: Box::from(ToAlphaChannelTaskSpec::ToAlphaChannel { base: from_svg_task(name) }),
+    Box::new(ToAlphaChannelTaskSpec::MakeSemitransparent {base: Box::from(ToAlphaChannelTaskSpec::FromPixmap { base: from_svg_task(name) }),
         alpha: alpha.into()})
 }
 
@@ -705,14 +705,14 @@ impl Mul<ComparableColor> for ToPixmapTaskSpec {
     type Output = ToPixmapTaskSpec;
     fn mul(self, rhs: ComparableColor) -> Self::Output {
         match &self {
-            ToPixmapTaskSpec::Repaint { base, .. } => {
-                ToPixmapTaskSpec::Repaint {
+            ToPixmapTaskSpec::PaintAlphaChannel { base, .. } => {
+                ToPixmapTaskSpec::PaintAlphaChannel {
                     base: Box::new(*base.to_owned()),
                     color: rhs
                 }
             },
-            _ => ToPixmapTaskSpec::Repaint {
-                base: Box::new(ToAlphaChannelTaskSpec::ToAlphaChannel { base: Box::new(self) }),
+            _ => ToPixmapTaskSpec::PaintAlphaChannel {
+                base: Box::new(ToAlphaChannelTaskSpec::FromPixmap { base: Box::new(self) }),
                 color: rhs
             }
         }
