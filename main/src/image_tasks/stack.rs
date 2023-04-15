@@ -23,7 +23,7 @@ pub fn stack_layer_on_background(background: &ComparableColor, foreground: &Pixm
     info!("Starting task: stack_layer_on_background (background: {})", background);
     let mut output = Pixmap::new(foreground.width(), foreground.height())
         .ok_or(anyhoo!("Failed to create background for stacking"))?;
-    output.fill(background.to_owned().into());
+    output.fill((*background).into());
     stack_layer_on_layer(&mut output, foreground);
     info!("Finishing task: stack_layer_on_background (background: {})", background);
     Ok(output)

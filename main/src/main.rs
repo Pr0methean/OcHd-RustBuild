@@ -17,7 +17,6 @@
 #![feature(arc_unwrap_or_clone)]
 
 use std::alloc::System;
-use std::cell::RefCell;
 use std::collections::{HashMap};
 use std::io::ErrorKind::NotFound;
 use std::path::absolute;
@@ -70,57 +69,55 @@ async fn main() {
     let start_time = Instant::now();
 
     let clean_out_dir = tokio::spawn(async {
-        let result = remove_dir_all(OUT_DIR.to_owned()).await;
+        let result = remove_dir_all(&*OUT_DIR).await;
         if result.is_err_and(|err| err.kind() != NotFound) {
             panic!("Failed to delete old output directory");
         }
-        create_dir(OUT_DIR.to_owned()).await.expect("Failed to create output directory");
+        create_dir(&*OUT_DIR).await.expect("Failed to create output directory");
     });
 
     let output_tasks = materials::ALL_MATERIALS.get_output_tasks();
     let mut output_task_ids = Vec::with_capacity(1024);
-    let ctx: RefCell<TaskGraphBuildingContext<(), DefaultIx>>
-        = RefCell::new(TaskGraphBuildingContext::new());
+    let mut ctx: TaskGraphBuildingContext<(), DefaultIx>
+        = TaskGraphBuildingContext::new();
     for task in output_tasks.iter() {
-        let (output_task_id, _) = task.add_to(&ctx);
+        let (output_task_id, _) = task.add_to(&mut ctx);
         output_task_ids.push(output_task_id);
     }
     // Split the graph into weakly-connected components (WCCs, groups that don't share any subtasks).
     // Used to save memory by minimizing the number of WCCs caching their subtasks at once.
     // Adapted from https://docs.rs/petgraph/latest/src/petgraph/algo/mod.rs.html#87-102.
-    let mut vertex_sets = UnionFind::new(ctx.borrow().graph.node_bound());
-    for edge in ctx.borrow().graph.edge_references() {
+    let mut vertex_sets = UnionFind::new(ctx.graph.node_bound());
+    for edge in ctx.graph.edge_references() {
         let (a, b) = (edge.source(), edge.target());
 
         // union the two vertices of the edge
         vertex_sets.union(a, b);
     }
     let mut component_map: HashMap<NodeIndex<DefaultIx>, Vec<TaskResultFuture<()>>> = HashMap::new();
-    for (index, task) in ctx.borrow().graph.node_references() {
+    for (index, task) in ctx.graph.node_references() {
         let representative = vertex_sets.find(index);
         let (_, future) = match task {
             TaskSpec::SinkTaskSpec(sink_task_spec) => {
-                ctx.borrow().output_task_to_future_map.get(&sink_task_spec).unwrap().to_owned()
+                ctx.output_task_to_future_map.get(&sink_task_spec).unwrap()
             }
             _ => continue
         };
-        if output_task_ids.contains(&index) {
-            match component_map.get_mut(&representative) {
-                Some(existing) => {
-                    existing.push(future);
-                },
-                None => {
-                    let mut vec = Vec::with_capacity(1024);
-                    vec.push(future);
-                    component_map.insert(representative, vec);
-                }
-            };
-        }
+        match component_map.get_mut(&representative) {
+            Some(existing) => {
+                existing.push(future.to_owned());
+            },
+            None => {
+                let mut vec = Vec::with_capacity(1024);
+                vec.push(future.to_owned());
+                component_map.insert(representative, vec);
+            }
+        };
     }
     info!("Done with task graph");
-    drop(output_tasks);
     drop(output_task_ids);
-    //drop(ctx);
+    drop(ctx);
+    drop(output_tasks);
 
     // Run small WCCs first so that their data can leave the heap before the big WCCs run
     let mut components: Vec<Vec<TaskResultFuture<()>>> = component_map.into_values().collect();

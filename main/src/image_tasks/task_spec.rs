@@ -1,5 +1,3 @@
-use std::any::{TypeId};
-use std::cell::RefCell;
 use std::collections::{HashMap};
 
 use std::fmt::{Debug, Display, Formatter};
@@ -24,7 +22,7 @@ use futures::{FutureExt};
 use itertools::Itertools;
 
 
-use log::{info};
+use log::{error, info};
 use ordered_float::OrderedFloat;
 use petgraph::graph::{IndexType, NodeIndex};
 
@@ -42,24 +40,24 @@ use crate::TILE_SIZE;
 
 pub trait TaskSpecTraits <T>: Clone + Debug + Display + Ord + Eq + Hash {
     fn add_to<'a, 'until_graph_built, E, Ix>(&'until_graph_built self,
-                                             ctx: &'until_graph_built RefCell<
-                                                 TaskGraphBuildingContext<'until_graph_built, 'a, E, Ix>>)
+                                             ctx: &mut
+                                             TaskGraphBuildingContext<'until_graph_built, 'a, E, Ix>)
                                              -> (NodeIndex<Ix>, TaskResultFuture<'a, T>)
         where Ix : IndexType, E: Default, 'a : 'until_graph_built;
 }
 
 impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
     fn add_to<'a, 'until_graph_built, E, Ix>(&'until_graph_built self,
-                                             ctx: &'until_graph_built RefCell<
-                                                TaskGraphBuildingContext<'until_graph_built, 'a, E, Ix>>)
+                                             ctx: &mut
+                                             TaskGraphBuildingContext<'until_graph_built, 'a, E, Ix>)
                                              -> (NodeIndex<Ix>, TaskResultFuture<'a, Pixmap>)
                                             where Ix : IndexType, E: Default, 'a : 'until_graph_built {
         let name: String = self.to_string();
-        if let Some((existing_index, existing_future)) = ctx.borrow().pixmap_task_to_future_map.get(&self) {
+        if let Some((existing_index, existing_future)) = ctx.pixmap_task_to_future_map.get(&self) {
             info!("Matched an existing node: {}", name);
             return (*existing_index, existing_future.to_owned());
         }
-        let self_id = ctx.borrow_mut().graph.add_node(TaskSpec::from(self));
+        let self_id = ctx.graph.add_node(TaskSpec::from(self));
         let mut dependencies: Vec<NodeIndex<Ix>> = Vec::with_capacity(16);
         let future: SyncBoxFuture<Result<Box<Pixmap>,CloneableError>> = match self {
             ToPixmapTaskSpec::None { .. } => panic!("Tried to add None task to graph"),
@@ -129,28 +127,28 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
             },
         };
         for dependency in dependencies {
-            ctx.borrow_mut().graph.add_edge(dependency, self_id, E::default())
+            ctx.graph.add_edge(dependency, self_id, E::default())
                 .expect("Tried to create a cycle");
         }
         let wrapped_future = CloneableFutureWrapper::new(name, future);
-        ctx.borrow_mut().pixmap_task_to_future_map.insert(self, (self_id, wrapped_future.to_owned()));
+        ctx.pixmap_task_to_future_map.insert(self, (self_id, wrapped_future.to_owned()));
         (self_id, wrapped_future)
     }
 }
 
 impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
     fn add_to<'a, 'until_graph_built, E, Ix>(&'until_graph_built self,
-                                             ctx: &'until_graph_built RefCell<
-                                                 TaskGraphBuildingContext<'until_graph_built, 'a, E, Ix>>)
+                                             ctx: &mut
+                                             TaskGraphBuildingContext<'until_graph_built, 'a, E, Ix>)
                                              -> (NodeIndex<Ix>, TaskResultFuture<'a, AlphaChannel>)
         where Ix : IndexType, E: Default, 'a : 'until_graph_built {
         let name: String = self.to_string();
         if let Some((existing_index, existing_future))
-                = ctx.borrow().alpha_task_to_future_map.get(&self) {
+                = ctx.alpha_task_to_future_map.get(&self) {
             info!("Matched an existing node: {}", name);
             return ((*existing_index).to_owned(), existing_future.to_owned());
         }
-        let self_id = ctx.borrow_mut().graph.add_node(TaskSpec::from(self));
+        let self_id = ctx.graph.add_node(TaskSpec::from(self));
         let mut dependencies: Vec<NodeIndex<Ix>> = Vec::with_capacity(16);
         let future: SyncBoxFuture<Result<Box<AlphaChannel>,CloneableError>> = match self {
                 ToAlphaChannelTaskSpec::MakeSemitransparent { base, alpha } => {
@@ -194,28 +192,28 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
             }
         };
         for dependency in dependencies {
-            ctx.borrow_mut().graph.add_edge(dependency, self_id, E::default())
+            ctx.graph.add_edge(dependency, self_id, E::default())
                 .expect("Tried to create a cycle");
         }
         let wrapped_future = CloneableFutureWrapper::new(name, future);
-        ctx.borrow_mut().alpha_task_to_future_map.insert(self, (self_id, wrapped_future.to_owned()));
+        ctx.alpha_task_to_future_map.insert(self, (self_id, wrapped_future.to_owned()));
         (self_id, wrapped_future)
     }
 }
 
 impl TaskSpecTraits<()> for SinkTaskSpec {
     fn add_to<'a, 'until_graph_built, E, Ix>(&'until_graph_built self,
-                                             ctx: &'until_graph_built RefCell<
-                                                 TaskGraphBuildingContext<'until_graph_built, 'a, E, Ix>>)
+                                             ctx: &mut
+                                                 TaskGraphBuildingContext<'until_graph_built, 'a, E, Ix>)
                                              -> (NodeIndex<Ix>, TaskResultFuture<'a, ()>)
         where Ix : IndexType, E: Default, 'a : 'until_graph_built {
         let name: String = self.to_string();
         if let Some((existing_index, existing_future))
-                = ctx.borrow().output_task_to_future_map.get(&self) {
+                = ctx.output_task_to_future_map.get(&self) {
             info!("Matched an existing node: {}", name);
             return ((*existing_index).to_owned(), existing_future.to_owned());
         }
-        let self_id = ctx.borrow_mut().graph.add_node(TaskSpec::from(self));
+        let self_id = ctx.graph.add_node(TaskSpec::from(self));
         let mut dependencies: Vec<NodeIndex<Ix>> = Vec::with_capacity(16);
         let future: SyncBoxFuture<Result<Box<()>,CloneableError>> = match self {
             SinkTaskSpec::PngOutput {base, destinations} => {
@@ -229,11 +227,11 @@ impl TaskSpecTraits<()> for SinkTaskSpec {
             }
         };
         for dependency in dependencies {
-            ctx.borrow_mut().graph.add_edge(dependency, self_id, E::default())
+            ctx.graph.add_edge(dependency, self_id, E::default())
                 .expect("Tried to create a cycle");
         }
         let wrapped_future = CloneableFutureWrapper::new(name, future);
-        ctx.borrow_mut().output_task_to_future_map.insert(self, (self_id, wrapped_future.to_owned()));
+        ctx.output_task_to_future_map.insert(self, (self_id, wrapped_future.to_owned()));
         (self_id, wrapped_future)
     }
 }
@@ -471,8 +469,7 @@ impl <'a, T: 'a> Debug for CloneableFutureWrapperState<'a, T> where T: ?Sized + 
             CloneableFutureWrapperState::Upcoming { waker, .. } =>
                 f.debug_struct("Upcoming").field("waker", waker).finish(),
             CloneableFutureWrapperState::Finished { .. } => {
-                let type_name = format!("{:?}", TypeId::of::<T>());
-                f.debug_struct("Finished").field("result", &type_name).finish()
+                f.write_str("Finished")
             },
             CloneableFutureWrapperState::Err { error } => f.debug_struct("Err").field("error", error).finish()
         }
@@ -487,7 +484,14 @@ impl <'a, T> CloneableFutureWrapper<'a, T> where T: Debug + Sync + Send + ?Sized
                 future: Box::pin(async move {
                     info!("Starting {}", name);
                     let result = base.await;
-                    info!("Finishing {} with result of {:?}", name, result);
+                    match &result {
+                        Ok(..) => {
+                            info!("Finishing {}", name);
+                        }
+                        Err(error) => {
+                            error!("Error in {}: {}", name, error.message);
+                        }
+                    }
                     result
                 }),
                 multiwaker: waker.to_owned(),
