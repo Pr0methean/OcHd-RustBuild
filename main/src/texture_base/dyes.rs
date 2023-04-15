@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use crate::image_tasks::color::{gray, rgb};
 use crate::image_tasks::color::ComparableColor;
-use crate::image_tasks::task_spec::{SinkTaskSpec, TaskSpec};
+use crate::image_tasks::task_spec::{SinkTaskSpec, TaskSpec, ToPixmapTaskSpec};
 
 pub static DYES: &[(&str, ComparableColor)] = &[
     ("black",       ComparableColor::BLACK),
@@ -24,7 +24,7 @@ pub static DYES: &[(&str, ComparableColor)] = &[
 ];
 
 pub fn dyed_block(name: &str,
-                  create_dyed_texture: Box<dyn Fn(&str, ComparableColor) -> TaskSpec>)
+                  create_dyed_texture: Box<dyn Fn(&str, ComparableColor) -> ToPixmapTaskSpec>)
         -> Box<dyn Iterator<Item=SinkTaskSpec>>{
     let mut out  = Vec::with_capacity(DYES.len());
     for (dye_name, dye_color) in DYES {

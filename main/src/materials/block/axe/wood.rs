@@ -23,16 +23,16 @@ pub struct Wood {
     name: &'static str,
     planks_highlight_strength: f32,
     planks_shadow_strength: f32,
-    bark: Box<dyn (Fn(&Self) -> Box<TaskSpec>) + Sync + Send>,
-    stripped_log_side: Box<dyn (Fn(&Self) -> Box<TaskSpec>) + Sync + Send>,
-    log_top: Box<dyn (Fn(&Self, Box<TaskSpec>) -> Box<TaskSpec>) + Sync + Send>,
-    stripped_log_top: Box<dyn (Fn(&Self) -> Box<TaskSpec>) + Sync + Send>,
-    trapdoor: Box<dyn (Fn(&Self, Box<TaskSpec>) -> Box<TaskSpec>) + Sync + Send>,
-    door_top: Box<dyn (Fn(&Self, Box<TaskSpec>, Box<TaskSpec>) -> Box<TaskSpec>) + Sync + Send>,
-    door_bottom: Box<dyn (Fn(&Self, Box<TaskSpec>) -> Box<TaskSpec>) + Sync + Send>,
-    leaves: Box<dyn (Fn(&Self) -> Box<TaskSpec>) + Sync + Send>,
-    sapling: Box<dyn (Fn(&Self) -> Box<TaskSpec>) + Sync + Send>,
-    door_common_layers: Box<dyn (Fn(&Self) -> Box<TaskSpec>) + Sync + Send>,
+    bark: Box<dyn (Fn(&Self) -> Box<ToPixmapTaskSpec>) + Sync + Send>,
+    stripped_log_side: Box<dyn (Fn(&Self) -> Box<ToPixmapTaskSpec>) + Sync + Send>,
+    log_top: Box<dyn (Fn(&Self, Box<ToPixmapTaskSpec>) -> Box<ToPixmapTaskSpec>) + Sync + Send>,
+    stripped_log_top: Box<dyn (Fn(&Self) -> Box<ToPixmapTaskSpec>) + Sync + Send>,
+    trapdoor: Box<dyn (Fn(&Self, Box<ToPixmapTaskSpec>) -> Box<ToPixmapTaskSpec>) + Sync + Send>,
+    door_top: Box<dyn (Fn(&Self, Box<ToPixmapTaskSpec>, Box<ToPixmapTaskSpec>) -> Box<ToPixmapTaskSpec>) + Sync + Send>,
+    door_bottom: Box<dyn (Fn(&Self, Box<ToPixmapTaskSpec>) -> Box<ToPixmapTaskSpec>) + Sync + Send>,
+    leaves: Box<dyn (Fn(&Self) -> Box<ToPixmapTaskSpec>) + Sync + Send>,
+    sapling: Box<dyn (Fn(&Self) -> Box<ToPixmapTaskSpec>) + Sync + Send>,
+    door_common_layers: Box<dyn (Fn(&Self) -> Box<ToPixmapTaskSpec>) + Sync + Send>,
 }
 
 impl Wood {
@@ -120,19 +120,19 @@ impl Wood {
 }
 
 pub fn empty_task() -> Box<dyn (Fn(&Wood) -> Box<ToPixmapTaskSpec>) + Sync + Send> {
-    Box::new(/*door_common_layers*/ |_wood| Box::new(TaskSpec::None {}))
+    Box::new(/*door_common_layers*/ |_wood| Box::new(ToPixmapTaskSpec::None {}))
 }
 
 pub fn overworld_wood(name: &'static str, color: ComparableColor,
                       highlight: ComparableColor, shadow: ComparableColor,
                       bark_color: ComparableColor, bark_highlight: ComparableColor,
                       bark_shadow: ComparableColor,
-                      door_common_layers: Box<dyn (Fn(&Wood) -> Box<TaskSpec>) + Sync + Send>,
-                      trapdoor: Box<dyn (Fn(&Wood, Box<TaskSpec>) -> Box<TaskSpec>) + Sync + Send>,
-                      door_bottom: Box<dyn (Fn(&Wood, Box<TaskSpec>) -> Box<TaskSpec>) + Sync + Send>,
-                      door_top: Box<dyn (Fn(&Wood, Box<TaskSpec>, Box<TaskSpec>) -> Box<TaskSpec>) + Sync + Send>,
-                      leaves: Box<dyn (Fn(&Wood) -> Box<TaskSpec>) + Sync + Send>,
-                      sapling: Box<dyn (Fn(&Wood) -> Box<TaskSpec>) + Sync + Send>) -> Wood {
+                      door_common_layers: Box<dyn (Fn(&Wood) -> Box<ToPixmapTaskSpec>) + Sync + Send>,
+                      trapdoor: Box<dyn (Fn(&Wood, Box<ToPixmapTaskSpec>) -> Box<ToPixmapTaskSpec>) + Sync + Send>,
+                      door_bottom: Box<dyn (Fn(&Wood, Box<ToPixmapTaskSpec>) -> Box<ToPixmapTaskSpec>) + Sync + Send>,
+                      door_top: Box<dyn (Fn(&Wood, Box<ToPixmapTaskSpec>, Box<ToPixmapTaskSpec>) -> Box<ToPixmapTaskSpec>) + Sync + Send>,
+                      leaves: Box<dyn (Fn(&Wood) -> Box<ToPixmapTaskSpec>) + Sync + Send>,
+                      sapling: Box<dyn (Fn(&Wood) -> Box<ToPixmapTaskSpec>) + Sync + Send>) -> Wood {
     Wood {
         color,
         highlight,
@@ -167,10 +167,10 @@ pub fn nether_fungus(name: &'static str, color: ComparableColor,
                      bark_color: ComparableColor, bark_highlight: ComparableColor,
                      bark_shadow: ComparableColor, leaves_color: ComparableColor,
                      leaves_highlight: ComparableColor, leaves_shadow: ComparableColor,
-                     trapdoor: Box<dyn (Fn(&Wood, Box<TaskSpec>) -> Box<TaskSpec>) + Sync + Send>,
-                     door_bottom: Box<dyn (Fn(&Wood, Box<TaskSpec>) -> Box<TaskSpec>) + Sync + Send>,
-                     leaves: Box<dyn (Fn(&Wood) -> Box<TaskSpec>) + Sync + Send>,
-                     sapling: Box<dyn (Fn(&Wood) -> Box<TaskSpec>) + Sync + Send>) -> Wood {
+                     trapdoor: Box<dyn (Fn(&Wood, Box<ToPixmapTaskSpec>) -> Box<ToPixmapTaskSpec>) + Sync + Send>,
+                     door_bottom: Box<dyn (Fn(&Wood, Box<ToPixmapTaskSpec>) -> Box<ToPixmapTaskSpec>) + Sync + Send>,
+                     leaves: Box<dyn (Fn(&Wood) -> Box<ToPixmapTaskSpec>) + Sync + Send>,
+                     sapling: Box<dyn (Fn(&Wood) -> Box<ToPixmapTaskSpec>) + Sync + Send>) -> Wood {
     return Wood {
         color,
         highlight,
@@ -564,12 +564,12 @@ lazy_static!{pub static ref WARPED: Wood = nether_fungus(
 );}
 
 impl Material for Wood {
-    fn get_output_tasks(&self) -> Box<dyn Iterator<Item=SinkTaskSpec> + Sync + Send> {
-        let door_common_layers: Box<TaskSpec> = (self.door_common_layers)(self);
-        let door_bottom: Box<TaskSpec> = (self.door_bottom)(self, door_common_layers.to_owned());
-        let stripped_log_side: Box<TaskSpec> = (self.stripped_log_side)(self);
-        let stripped_log_top: Box<TaskSpec> = (self.stripped_log_top)(self);
-        return vec![
+    fn get_output_tasks(&self) -> Vec<SinkTaskSpec> {
+        let door_common_layers: Box<ToPixmapTaskSpec> = (self.door_common_layers)(self);
+        let door_bottom: Box<ToPixmapTaskSpec> = (self.door_bottom)(self, door_common_layers.to_owned());
+        let stripped_log_side: Box<ToPixmapTaskSpec> = (self.stripped_log_side)(self);
+        let stripped_log_top: Box<ToPixmapTaskSpec> = (self.stripped_log_top)(self);
+        vec![
             out_task(&format!("block/{}_{}", self.name, self.log_synonym), (self.bark)(self)),
             out_task(&format!("block/stripped_{}_{}", self.name, self.log_synonym), stripped_log_side),
             out_task(&format!("block/stripped_{}_{}_top", self.name, self.log_synonym), stripped_log_top.to_owned()),
@@ -580,7 +580,7 @@ impl Material for Wood {
             out_task(&format!("block/{}_{}", self.name, self.leaves_synonym), (self.leaves)(self)),
             out_task(&format!("block/{}_{}", self.name, self.sapling_synonym), (self.sapling)(self)),
             out_task(&format!("block/{}_planks", self.name), self.planks())
-        ].into_iter().map(|boxed| *boxed);
+        ].into_iter().map(|boxed| *boxed).collect()
     }
 }
 
