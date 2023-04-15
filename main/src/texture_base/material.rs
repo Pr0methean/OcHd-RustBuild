@@ -174,7 +174,7 @@ pub struct SingleLayerMaterial {
 impl Material for SingleLayerMaterial {
     fn get_output_tasks(&self) -> Vec<SinkTaskSpec> {
         vec![*out_task(self.name,
-             paint_svg_task(self.layer_name, self.color.to_owned()))]
+             paint_svg_task(self.layer_name, self.color))]
     }
 }
 

@@ -63,12 +63,11 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
             ToPixmapTaskSpec::None { .. } => panic!("Tried to add None task to graph"),
             ToPixmapTaskSpec::Animate { background, frames } => {
                 let (background_index, background_future) = background.add_to(ctx);
-                let background_future = background_future.to_owned();
                 dependencies.push(background_index);
                 let mut frame_futures: Vec<TaskResultFuture<Pixmap>> = Vec::with_capacity(frames.len());
                 for frame in frames {
                     let (frame_index, frame_future) = frame.add_to(ctx);
-                    frame_futures.push(frame_future.to_owned());
+                    frame_futures.push(frame_future);
                     dependencies.push(frame_index);
                 }
                 Box::pin(async move {
@@ -88,7 +87,6 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
                 }
                 let background = background.to_owned();
                 let (fg_index, fg_future) = foreground.add_to(ctx);
-                let fg_future = fg_future.to_owned();
                 dependencies.push(fg_index);
                 Box::pin(async move {
                     let fg_image: Arc<Box<Pixmap>> = fg_future.await?.into();
@@ -97,10 +95,8 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
             },
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
                 let (bg_index, bg_future) = background.add_to(ctx);
-                let bg_future = bg_future.to_owned();
                 dependencies.push(bg_index);
                 let (fg_index, fg_future) = foreground.add_to(ctx);
-                let fg_future = fg_future.to_owned();
                 dependencies.push(fg_index);
                 Box::pin(async move {
                     let bg_image: Arc<Box<Pixmap>> = bg_future.await?.into();
@@ -118,7 +114,6 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
                 }
                 let color = color.to_owned();
                 let (base_index, base_future) = base.add_to(ctx);
-                let base_future = base_future.to_owned();
                 dependencies.push(base_index);
                 Box::pin(async move {
                     let base_image: Arc<Box<AlphaChannel>> = base_future.await?;
@@ -146,7 +141,7 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
         if let Some((existing_index, existing_future))
                 = ctx.alpha_task_to_future_map.get(&self) {
             info!("Matched an existing node: {}", name);
-            return ((*existing_index).to_owned(), existing_future.to_owned());
+            return (*existing_index, existing_future.to_owned());
         }
         let self_id = ctx.graph.add_node(TaskSpec::from(self));
         let mut dependencies: Vec<NodeIndex<Ix>> = Vec::with_capacity(16);
@@ -158,7 +153,6 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
                 let alpha: f32 = (*alpha).into();
                 let (base_index, base_future) = base.add_to(ctx);
                 dependencies.push(base_index);
-                let base_future = base_future.to_owned();
                 Box::pin(
                     async move {
                         let base_result: Arc<Box<AlphaChannel>> = base_future.await?.into();
@@ -171,7 +165,6 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
             ToAlphaChannelTaskSpec::ToAlphaChannel { base } => {
                 let (base_index, base_future) = base.add_to(ctx);
                 dependencies.push(base_index);
-                let base_future = base_future.to_owned();
                 Box::pin(async move {
                     let base_image: Arc<Box<Pixmap>> = base_future.await?.into();
                     Ok(Box::new(to_alpha_channel(base_image.deref())?))
@@ -182,8 +175,6 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
                 let (fg_index, fg_future) = foreground.add_to(ctx);
                 dependencies.push(bg_index);
                 dependencies.push(fg_index);
-                let bg_future = bg_future.to_owned();
-                let fg_future = fg_future.to_owned();
                 Box::pin(async move {
                     let mut bg_image = Arc::unwrap_or_clone(bg_future.await?);
                     stack_alpha_on_alpha(&mut bg_image, &*fg_future.await?);
@@ -211,7 +202,7 @@ impl TaskSpecTraits<()> for SinkTaskSpec {
         if let Some((existing_index, existing_future))
                 = ctx.output_task_to_future_map.get(&self) {
             info!("Matched an existing node: {}", name);
-            return ((*existing_index).to_owned(), existing_future.to_owned());
+            return (*existing_index, existing_future.to_owned());
         }
         let self_id = ctx.graph.add_node(TaskSpec::from(self));
         let mut dependencies: Vec<NodeIndex<Ix>> = Vec::with_capacity(16);
@@ -219,7 +210,6 @@ impl TaskSpecTraits<()> for SinkTaskSpec {
             SinkTaskSpec::PngOutput {base, destinations} => {
                 let destinations = destinations.to_owned();
                 let (base_index, base_future) = base.add_to(ctx);
-                let base_future = base_future.to_owned();
                 dependencies.push(base_index);
                 Box::pin(async move {
                     Ok(Box::new(png_output(&*base_future.await?, &destinations)?))
@@ -455,11 +445,11 @@ pub struct CloneableFutureWrapper<'a, T> where T: ?Sized + 'static {
 
 impl <'a, T> Clone for CloneableFutureWrapper<'a, T> where T: ?Sized {
     fn clone(&self) -> Self {
-        CloneableFutureWrapper {state: self.state.clone()}
+        CloneableFutureWrapper {state: self.state.to_owned()}
     }
 
     fn clone_from(&mut self, source: &Self) where Self: Destruct {
-        self.state = source.state.clone();
+        self.state = source.state.to_owned();
     }
 }
 
