@@ -1,4 +1,4 @@
-use std::sync::Arc;
+
 use log::info;
 use tiny_skia::{Pixmap, PixmapPaint};
 use tiny_skia_path::Transform;

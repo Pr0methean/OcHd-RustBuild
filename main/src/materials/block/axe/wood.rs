@@ -3,7 +3,7 @@ use lazy_static::lazy_static;
 
 use crate::{group, paint_stack, stack, stack_on};
 use crate::image_tasks::color::{c, ComparableColor};
-use crate::image_tasks::task_spec::{from_svg_task, out_task, paint_svg_task, SinkTaskSpec, TaskSpec, ToPixmapTaskSpec};
+use crate::image_tasks::task_spec::{from_svg_task, out_task, paint_svg_task, SinkTaskSpec, ToPixmapTaskSpec};
 
 use crate::texture_base::material::Material;
 

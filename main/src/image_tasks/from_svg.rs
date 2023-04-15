@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Arc;
+
 use log::info;
 
 use resvg::{FitTo, render};

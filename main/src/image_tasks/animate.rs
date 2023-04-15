@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Mutex};
 use futures::future::join_all;
 use log::info;
 use tiny_skia::{Pixmap, PixmapPaint};

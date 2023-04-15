@@ -1,5 +1,5 @@
 use std::ops::Mul;
-use std::sync::Arc;
+
 use cached::proc_macro::cached;
 use log::info;
 use tiny_skia::{Pixmap, PremultipliedColorU8};

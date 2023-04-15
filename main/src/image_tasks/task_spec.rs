@@ -1,13 +1,13 @@
-use std::any::{Any, TypeId};
+use std::any::{TypeId};
 use std::cell::RefCell;
 use std::collections::{HashMap};
-use std::convert::Infallible;
+
 use std::fmt::{Debug, Display, Formatter, Write};
-use std::future::{Future, IntoFuture};
+use std::future::{Future};
 use std::hash::Hash;
 use std::marker::Destruct;
-use std::mem;
-use std::ops::{Deref, DerefMut, FromResidual, Mul};
+
+use std::ops::{Deref, DerefMut, Mul};
 use std::path::{Path, PathBuf};
 use std::pin::{Pin};
 use std::str::FromStr;
@@ -27,7 +27,7 @@ use itertools::Itertools;
 use log::{info};
 use ordered_float::OrderedFloat;
 use petgraph::graph::{IndexType, NodeIndex};
-use resman::Resource;
+
 use tiny_skia::Pixmap;
 
 use crate::image_tasks::animate::animate;

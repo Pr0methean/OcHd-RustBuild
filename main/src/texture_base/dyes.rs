@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use crate::image_tasks::color::{gray, rgb};
 use crate::image_tasks::color::ComparableColor;
-use crate::image_tasks::task_spec::{SinkTaskSpec, TaskSpec, ToPixmapTaskSpec};
+use crate::image_tasks::task_spec::{SinkTaskSpec, ToPixmapTaskSpec};
 
 pub static DYES: &[(&str, ComparableColor)] = &[
     ("black",       ComparableColor::BLACK),

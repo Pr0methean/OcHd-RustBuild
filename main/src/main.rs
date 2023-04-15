@@ -24,7 +24,7 @@ use std::path::absolute;
 use std::time::Instant;
 
 use async_std::fs::{create_dir, remove_dir_all};
-use fn_graph::daggy::Dag;
+
 use petgraph::visit::{EdgeRef, IntoNodeReferences, IntoEdgeReferences, NodeIndexable};
 use fn_graph::daggy::petgraph::unionfind::UnionFind;
 use futures::future::join_all;
