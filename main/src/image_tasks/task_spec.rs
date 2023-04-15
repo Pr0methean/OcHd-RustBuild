@@ -2,7 +2,7 @@ use std::any::{TypeId};
 use std::cell::RefCell;
 use std::collections::{HashMap};
 
-use std::fmt::{Debug, Display, Formatter, Write};
+use std::fmt::{Debug, Display, Formatter};
 use std::future::{Future};
 use std::hash::Hash;
 use std::marker::Destruct;
@@ -509,10 +509,19 @@ impl <'a, T> Future for CloneableFutureWrapper<'a, T> where T: 'a + ?Sized {
                 let new_result = future.poll_unpin(
                     &mut Context::from_waker(waker.deref()));
                 if let Poll::Ready(finished_result) = new_result {
-                    let result_arc: Arc<Box<T>> = Arc::from(finished_result?);
-                    waker.wake_by_ref();
-                    *state = CloneableFutureWrapperState::Finished {result: result_arc.to_owned()};
-                    Poll::Ready(Ok(result_arc))
+                    match finished_result {
+                        Ok(successful_result) => {
+                            let result_arc: Arc<Box<T>> = Arc::from(successful_result);
+                            waker.wake_by_ref();
+                            *state = CloneableFutureWrapperState::Finished {result: result_arc.to_owned()};
+                            Poll::Ready(Ok(result_arc))
+                        },
+                        Err(error) => {
+                            waker.wake_by_ref();
+                            *state = CloneableFutureWrapperState::Err {error: Arc::new(error.to_owned())};
+                            Poll::Ready(Err(error))
+                        }
+                    }
                 } else {
                     multiwaker.add_waker(cx.waker().to_owned());
                     Poll::Pending

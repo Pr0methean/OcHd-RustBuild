@@ -33,12 +33,12 @@ macro_rules! group {
     ($name:ident = $( $members:expr ),* ) => {
         lazy_static::lazy_static! {pub static ref $name: $crate::texture_base::material::MaterialGroup
         = {
-            use crate::texture_base::material::Material;
             let mut tasks: Vec<crate::image_tasks::task_spec::SinkTaskSpec>
                 = Vec::with_capacity($crate::texture_base::material::DEFAULT_GROUP_SIZE);
-            $(
+            $({
+                use crate::texture_base::material::Material;
                 tasks.extend($members.get_output_tasks());
-            )*
+            })*
             tasks.shrink_to_fit();
             crate::texture_base::material::MaterialGroup { tasks }
         };}
