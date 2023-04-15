@@ -6,24 +6,23 @@ use std::sync::Arc;
 
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::color::rgb;
-use crate::image_tasks::task_spec::{out_task, paint_svg_task, TaskSpec};
-use crate::image_tasks::task_spec::TaskSpec::{PngOutput, StackLayerOnLayer};
+use crate::image_tasks::task_spec::{out_task, paint_svg_task, SinkTaskSpec, TaskSpec, ToPixmapTaskSpec};
 
 /// Specification in DSL form of how one or more texture images are to be generated.
-pub trait Material: Sync + Send {
+pub trait Material: Send {
     /// Converts this specification to a number of [PngOutput] instances, each of which references
     /// another [TaskSpec] to generate the image it will output.
-    fn get_output_tasks(&self) -> Vec<TaskSpec>;
+    fn get_output_tasks(&self) -> Box<dyn Iterator<Item=SinkTaskSpec> + Send + Sync>;
 }
 
 #[derive(Clone)]
 pub struct MaterialGroup {
-    pub(crate) tasks: Vec<TaskSpec>
+    pub(crate) tasks: Vec<Box<dyn Iterator<Item=SinkTaskSpec> + Send + Sync>>
 }
 
 impl Material for MaterialGroup {
-    fn get_output_tasks(&self) -> Vec<TaskSpec> {
-        self.tasks.to_owned()
+    fn get_output_tasks(&self) -> Box<dyn Iterator<Item=SinkTaskSpec> + Send + Sync> {
+        Box::new((*self.tasks).iter().flatten())
     }
 }
 
@@ -36,8 +35,7 @@ macro_rules! group {
         = {
             let mut tasks = Vec::with_capacity($crate::texture_base::material::DEFAULT_GROUP_SIZE);
             $(
-            let mut more_tasks = crate::texture_base::material::Material::get_output_tasks($members.deref());
-            tasks.append(&mut more_tasks);)*
+            tasks.push(crate::texture_base::material::Material::get_output_tasks($members.deref()));)*
             tasks.shrink_to_fit();
             crate::texture_base::material::MaterialGroup { tasks }
         };}
@@ -49,7 +47,7 @@ pub struct SingleTextureMaterial {
     pub name: &'static str,
     pub directory: &'static str,
     pub has_output: bool,
-    pub texture: Box<TaskSpec>
+    pub texture: Box<ToPixmapTaskSpec>
 }
 
 impl From<SingleTextureMaterial> for Box<TaskSpec> {
@@ -59,7 +57,7 @@ impl From<SingleTextureMaterial> for Box<TaskSpec> {
 }
 
 impl Material for SingleTextureMaterial {
-    fn get_output_tasks(&self) -> Vec<TaskSpec> {
+    fn get_output_tasks(&self) -> Box<dyn Iterator<Item=SinkTaskSpec> + Sync + Send> {
         return if !self.has_output { vec![] } else {
             vec![out_task(&format!("{}/{}", self.directory, self.name),
                           self.texture.to_owned()).deref().to_owned()]
@@ -80,7 +78,7 @@ macro_rules! single_texture_material {
     }
 }
 
-pub fn item(name: &'static str, texture: Box<TaskSpec>) -> SingleTextureMaterial {
+pub fn item(name: &'static str, texture: Box<ToPixmapTaskSpec>) -> SingleTextureMaterial {
     SingleTextureMaterial {
         name, directory: "items", has_output: true, texture
     }
@@ -93,7 +91,7 @@ macro_rules! single_texture_item {
     }
 }
 
-pub fn block(name: &'static str, texture: Box<TaskSpec>) -> SingleTextureMaterial {
+pub fn block(name: &'static str, texture: Box<ToPixmapTaskSpec>) -> SingleTextureMaterial {
     SingleTextureMaterial {
         name, directory: "blocks", has_output: true, texture
     }
@@ -106,7 +104,7 @@ macro_rules! single_texture_block {
     }
 }
 
-pub fn particle(name: &'static str, texture: Box<TaskSpec>) -> SingleTextureMaterial {
+pub fn particle(name: &'static str, texture: Box<ToPixmapTaskSpec>) -> SingleTextureMaterial {
     SingleTextureMaterial {
         name, directory: "particles", has_output: true, texture
     }
@@ -144,17 +142,17 @@ impl Material for DoubleTallBlock<'static> {
 pub struct GroundCoverBlock {
     pub name: &'static str,
     pub base: Box<TaskSpec>,
-    pub cover_side_layers: Box<TaskSpec>,
-    pub top: Box<TaskSpec>,
+    pub cover_side_layers: Box<ToPixmapTaskSpec>,
+    pub top: Box<ToPixmapTaskSpec>,
 }
 
 impl Material for GroundCoverBlock {
-    fn get_output_tasks(&self) -> Vec<TaskSpec> {
-        vec![PngOutput {
+    fn get_output_tasks(&self) -> Box<dyn Iterator<Item=SinkTaskSpec> + Sync + Send> {
+        vec![SinkTaskSpec::PngOutput {
             base: self.top.clone(),
             destinations: vec![PathBuf::from(format!("block/{}_top", self.name))]},
-        PngOutput {
-            base: Box::new(StackLayerOnLayer {
+        SinkTaskSpec::PngOutput {
+            base: Box::new(ToPixmapTaskSpec::StackLayerOnLayer {
                 background: self.base.clone(),
                 foreground: self.cover_side_layers.clone()
             }),
@@ -171,7 +169,7 @@ pub struct SingleLayerMaterial {
 }
 
 impl Material for SingleLayerMaterial {
-    fn get_output_tasks(&self) -> Vec<TaskSpec> {
+    fn get_output_tasks(&self) -> Box<dyn Iterator<Item=SinkTaskSpec> + Sync + Send> {
         return vec!(*out_task(self.name,
              paint_svg_task(self.layer_name, self.color.to_owned())));
     }
@@ -180,15 +178,13 @@ impl Material for SingleLayerMaterial {
 pub const REDSTONE_ON: ComparableColor = rgb(0xff, 0x5e, 0x5e);
 
 pub fn redstone_off_and_on(name: &str, generator: Box<dyn Fn(ComparableColor) -> TaskSpec>)
--> Vec<TaskSpec> {
-    let mut out: Vec<TaskSpec> = Vec::with_capacity(2);
-    out.push(PngOutput {
+-> Box<dyn Iterator<Item=SinkTaskSpec>> {
+    vec![ToPixmapTaskSpec::PngOutput {
         base: Box::new(generator(ComparableColor::BLACK)),
         destinations: vec![PathBuf::from(name)]
-    });
-    out.push(PngOutput {
+    },
+    ToPixmapTaskSpec::PngOutput {
         base: Box::new(generator(REDSTONE_ON)),
         destinations: vec![PathBuf::from(format!("{}_on", name))]
-    });
-    out
+    }]
 }

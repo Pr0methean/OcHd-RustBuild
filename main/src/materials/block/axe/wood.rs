@@ -3,7 +3,7 @@ use lazy_static::lazy_static;
 
 use crate::{group, paint_stack, stack, stack_on};
 use crate::image_tasks::color::{c, ComparableColor};
-use crate::image_tasks::task_spec::{from_svg_task, out_task, paint_svg_task, TaskSpec};
+use crate::image_tasks::task_spec::{from_svg_task, out_task, paint_svg_task, SinkTaskSpec, TaskSpec, ToPixmapTaskSpec};
 
 use crate::texture_base::material::Material;
 
@@ -36,7 +36,7 @@ pub struct Wood {
 }
 
 impl Wood {
-    pub fn planks(&self) -> Box<TaskSpec> {
+    pub fn planks(&self) -> Box<ToPixmapTaskSpec> {
         stack_on!(self.color,
                 paint_svg_task("waves2", self.highlight * self.planks_highlight_strength),
                 paint_svg_task("waves", self.shadow * self.planks_shadow_strength),
@@ -45,7 +45,7 @@ impl Wood {
         )
     }
 
-    pub fn overworld_bark(&self) -> Box<TaskSpec> {
+    pub fn overworld_bark(&self) -> Box<ToPixmapTaskSpec> {
         stack_on!(self.bark_color,
             paint_svg_task("borderSolid", self.bark_shadow),
             paint_svg_task("borderDotted", self.bark_highlight),
@@ -54,27 +54,27 @@ impl Wood {
         )
     }
 
-    pub fn fungus_bark(&self) -> Box<TaskSpec> {
+    pub fn fungus_bark(&self) -> Box<ToPixmapTaskSpec> {
         stack_on!(self.bark_color,
             paint_stack!(self.bark_shadow, "borderSolid", "waves2"),
             paint_svg_task("waves", self.bark_highlight)
         )
     }
 
-    pub fn overworld_stripped_log_side(&self) -> Box<TaskSpec> {
+    pub fn overworld_stripped_log_side(&self) -> Box<ToPixmapTaskSpec> {
         stack_on!(self.color,
             paint_svg_task("borderSolid", self.shadow),
             paint_svg_task("borderShortDashes", self.highlight)
         )
     }
 
-    pub fn fungus_stripped_log_side(&self) -> Box<TaskSpec> {
+    pub fn fungus_stripped_log_side(&self) -> Box<ToPixmapTaskSpec> {
         stack_on!(self.color,
             paint_svg_task("borderSolid", self.shadow),
             paint_svg_task("borderDotted", self.highlight))
     }
 
-    pub fn overworld_stripped_log_top(&self) -> Box<TaskSpec> {
+    pub fn overworld_stripped_log_top(&self) -> Box<ToPixmapTaskSpec> {
         stack_on!(
             self.color,
             paint_svg_task("ringsCentralBullseye", self.highlight),
@@ -82,7 +82,7 @@ impl Wood {
         )
     }
 
-    pub fn fungus_stripped_log_top(&self) -> Box<TaskSpec> {
+    pub fn fungus_stripped_log_top(&self) -> Box<ToPixmapTaskSpec> {
         stack_on!(
             self.color,
             stack!(
@@ -92,7 +92,7 @@ impl Wood {
         )
     }
 
-    pub fn overworld_log_top(&self, stripped_log_top: Box<TaskSpec>) -> Box<TaskSpec> {
+    pub fn overworld_log_top(&self, stripped_log_top: Box<ToPixmapTaskSpec>) -> Box<ToPixmapTaskSpec> {
         stack!(
             stripped_log_top,
             paint_svg_task("borderSolid", self.bark_color),
@@ -100,7 +100,7 @@ impl Wood {
         )
     }
 
-    pub fn fungus_log_top(&self, _stripped_log_top: Box<TaskSpec>) -> Box<TaskSpec> {
+    pub fn fungus_log_top(&self, _stripped_log_top: Box<ToPixmapTaskSpec>) -> Box<ToPixmapTaskSpec> {
         stack_on!(self.color,
             stack!(
                 paint_svg_task("ringsCentralBullseye", self.shadow),
@@ -111,7 +111,7 @@ impl Wood {
         )
     }
 
-    pub fn default_door_top(&self, door_bottom: Box<TaskSpec>, _: Box<TaskSpec>) -> Box<TaskSpec> {
+    pub fn default_door_top(&self, door_bottom: Box<ToPixmapTaskSpec>, _: Box<ToPixmapTaskSpec>) -> Box<ToPixmapTaskSpec> {
         stack!(
             door_bottom,
             from_svg_task("doorKnob")
@@ -119,7 +119,7 @@ impl Wood {
     }
 }
 
-pub fn empty_task() -> Box<dyn (Fn(&Wood) -> Box<TaskSpec>) + Sync + Send> {
+pub fn empty_task() -> Box<dyn (Fn(&Wood) -> Box<ToPixmapTaskSpec>) + Sync + Send> {
     Box::new(/*door_common_layers*/ |_wood| Box::new(TaskSpec::None {}))
 }
 
@@ -564,7 +564,7 @@ lazy_static!{pub static ref WARPED: Wood = nether_fungus(
 );}
 
 impl Material for Wood {
-    fn get_output_tasks(&self) -> Vec<TaskSpec> {
+    fn get_output_tasks(&self) -> Box<dyn Iterator<Item=SinkTaskSpec> + Sync + Send> {
         let door_common_layers: Box<TaskSpec> = (self.door_common_layers)(self);
         let door_bottom: Box<TaskSpec> = (self.door_bottom)(self, door_common_layers.to_owned());
         let stripped_log_side: Box<TaskSpec> = (self.stripped_log_side)(self);
@@ -580,7 +580,7 @@ impl Material for Wood {
             out_task(&format!("block/{}_{}", self.name, self.leaves_synonym), (self.leaves)(self)),
             out_task(&format!("block/{}_{}", self.name, self.sapling_synonym), (self.sapling)(self)),
             out_task(&format!("block/{}_planks", self.name), self.planks())
-        ].into_iter().map(|boxed| *boxed).collect();
+        ].into_iter().map(|boxed| *boxed);
     }
 }
 

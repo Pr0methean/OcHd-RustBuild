@@ -7,11 +7,10 @@ use tiny_skia::Pixmap;
 use tracing::instrument;
 
 use crate::anyhoo;
-use crate::image_tasks::task_spec::TaskResult;
-use crate::image_tasks::task_spec::TaskResult::Empty;
+use crate::image_tasks::task_spec::CloneableError;
 
 #[instrument]
-pub fn png_output(image: &Pixmap, files: &Vec<PathBuf>) -> TaskResult {
+pub fn png_output(image: &Pixmap, files: &Vec<PathBuf>) -> Result<(),CloneableError> {
     let file_strings: Vec<String> = files.iter().map(|path| path.to_string_lossy().to_string()).collect();
     let files_string = file_strings.join(", ");
     drop(file_strings);
@@ -25,5 +24,5 @@ pub fn png_output(image: &Pixmap, files: &Vec<PathBuf>) -> TaskResult {
         symlink(first_file, file).map_err(|error| anyhoo!(error))?;
     }
     info!("Finishing task: write {}", files_string);
-    Empty {}
+    Ok(())
 }

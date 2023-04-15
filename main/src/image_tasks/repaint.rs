@@ -8,7 +8,7 @@ use tracing::instrument;
 
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::make_semitransparent::create_alpha_array;
-use crate::image_tasks::task_spec::TaskResult;
+use crate::image_tasks::task_spec::CloneableError;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialOrd, PartialEq)]
 pub struct AlphaChannel {
@@ -44,9 +44,9 @@ impl From<&Pixmap> for AlphaChannel {
 }
 
 #[instrument]
-pub fn to_alpha_channel(pixmap: &Pixmap) -> TaskResult {
+pub fn to_alpha_channel(pixmap: &Pixmap) -> Result<AlphaChannel,CloneableError> {
     let alpha = AlphaChannel::from(pixmap);
-    TaskResult::AlphaChannel {value: Arc::new(alpha)}
+    Ok(alpha)
 }
 
 impl Mul<f32> for AlphaChannel {

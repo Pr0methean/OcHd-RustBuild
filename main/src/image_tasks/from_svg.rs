@@ -10,7 +10,7 @@ use tracing::instrument;
 use usvg::{Options, Tree, TreeParsing};
 
 use crate::anyhoo;
-use crate::image_tasks::task_spec::TaskResult;
+use crate::image_tasks::task_spec::{CloneableError};
 
 pub const COLOR_SVGS: &[&str] = &[
     "./svg/bed.svg",
@@ -35,7 +35,7 @@ pub const COLOR_SVGS: &[&str] = &[
 ];
 
 #[instrument]
-pub fn from_svg(path: &PathBuf, width: u32) -> TaskResult {
+pub fn from_svg(path: &PathBuf, width: u32) -> Result<Pixmap,CloneableError> {
     info!("Starting task: Import svg from {}", path.to_string_lossy());
     let svg_data = fs::read(path).map_err(|error| anyhoo!(error))?;
     let svg_tree = Tree::from_data(&svg_data, &Options::default()).map_err(|error| anyhoo!(error))?;
@@ -50,5 +50,5 @@ pub fn from_svg(path: &PathBuf, width: u32) -> TaskResult {
         out.as_mut())
         .ok_or(anyhoo!("Failed to render output Pixmap"))?;
     info!("Finishing task: Import svg from {}", path.to_string_lossy());
-    TaskResult::Pixmap {value: Arc::new(out)}
+    Ok(out)
 }

@@ -7,7 +7,7 @@ use tracing::instrument;
 use crate::anyhoo;
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::repaint::AlphaChannel;
-use crate::image_tasks::task_spec::TaskResult;
+use crate::image_tasks::task_spec::CloneableError;
 
 #[instrument]
 pub fn stack_layer_on_layer(background: &mut Pixmap, foreground: &Pixmap) {
@@ -18,17 +18,19 @@ pub fn stack_layer_on_layer(background: &mut Pixmap, foreground: &Pixmap) {
 }
 
 #[instrument]
-pub fn stack_layer_on_background(background: &ComparableColor, foreground: &Pixmap) -> TaskResult {
+pub fn stack_layer_on_background(background: &ComparableColor, foreground: &Pixmap)
+        -> Result<Pixmap,CloneableError> {
     info!("Starting task: stack_layer_on_background (background: {})", background);
     let mut output = Pixmap::new(foreground.width(), foreground.height())
         .ok_or(anyhoo!("Failed to create background for stacking"))?;
     output.fill(background.to_owned().into());
     stack_layer_on_layer(&mut output, foreground);
     info!("Finishing task: stack_layer_on_background (background: {})", background);
-    TaskResult::Pixmap {value: Arc::new(output)}
+    Ok(output)
 }
 
-pub fn stack_alpha_on_alpha(background: &mut AlphaChannel, foreground: &AlphaChannel) {
+pub fn stack_alpha_on_alpha(background: &mut AlphaChannel, foreground: &AlphaChannel)
+        {
     let output_pixels = background.pixels_mut();
     for (index, &pixel) in foreground.pixels().iter().enumerate() {
         output_pixels[index] = (pixel as u16 +

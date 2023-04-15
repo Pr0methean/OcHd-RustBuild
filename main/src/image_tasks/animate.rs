@@ -5,12 +5,12 @@ use tiny_skia::{Pixmap, PixmapPaint};
 use tiny_skia_path::Transform;
 
 use crate::anyhoo;
-use crate::image_tasks::task_spec::{CloneableError, TaskResult, TaskResultFuture};
+use crate::image_tasks::task_spec::{CloneableError, CloneableResult, TaskResultFuture};
 use tracing::instrument;
 
 #[instrument]
-pub async fn animate<'bg_input, 'fg_input>(background: &'bg_input Pixmap, frames: Vec<TaskResultFuture<'fg_input>>)
-                     -> TaskResult {
+pub async fn animate<'bg_input, 'fg_input>(background: &'bg_input Pixmap, frames: Vec<TaskResultFuture<'fg_input, Pixmap>>)
+                     -> Result<Pixmap,CloneableError> {
     info!("Starting task: Animate");
     let frame_height = background.height();
     let out = Mutex::new(Pixmap::new(background.width(),
@@ -25,10 +25,10 @@ pub async fn animate<'bg_input, 'fg_input>(background: &'bg_input Pixmap, frames
                             &PixmapPaint::default(),
                             Transform::default(),
                             None).ok_or(anyhoo!("draw_pixmap failed"))?;
-            let frame_result = frame.await;
-            let frame_pixmap: Arc<Pixmap> = (&*frame_result).try_into()?;
+            let frame_result: CloneableResult<Pixmap> = frame.await;
+            let frame_pixmap: &Pixmap = &*frame_result?;
             out.lock().unwrap().draw_pixmap(0, (index as i32) * (frame_height as i32),
-                            (*frame_pixmap).as_ref(),
+                            frame_pixmap.as_ref(),
                             &PixmapPaint::default(),
                             Transform::default(),
                             None).ok_or(anyhoo!("draw_pixmap failed"))
@@ -38,5 +38,5 @@ pub async fn animate<'bg_input, 'fg_input>(background: &'bg_input Pixmap, frames
         result?;
     }
     info!("Finishing task: Animate");
-    TaskResult::Pixmap { value: Arc::new(out.into_inner().unwrap()) }
+    out.into_inner().map_err(|e| anyhoo!(e))
 }
