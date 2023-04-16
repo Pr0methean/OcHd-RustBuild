@@ -1,42 +1,34 @@
-use std::sync::{Mutex};
-use futures::future::join_all;
 use log::info;
 use tiny_skia::{Pixmap, PixmapPaint};
 use tiny_skia_path::Transform;
 
 use crate::anyhoo;
-use crate::image_tasks::task_spec::{CloneableError, CloneableResult, TaskResultFuture};
+use crate::image_tasks::task_spec::{CloneableError, CloneableLazyTask, CloneableResult};
 use tracing::instrument;
 
 #[instrument]
-pub async fn animate<'bg_input, 'fg_input>(background: &'bg_input Pixmap, frames: Vec<TaskResultFuture<'fg_input, Pixmap>>)
-                     -> Result<Pixmap,CloneableError> {
+pub fn animate(background: &Pixmap, frames: Vec<CloneableLazyTask<Pixmap>>)
+                     -> Result<Box<Pixmap>, CloneableError> {
     info!("Starting task: Animate");
     let frame_height = background.height();
-    let out = Mutex::new(Pixmap::new(background.width(),
+    let mut out = Pixmap::new(background.width(),
                               frame_height * (frames.len() as u32))
-                            .ok_or(anyhoo!("Failed to create output Pixmap"))?);
-    let results = join_all(frames.into_iter().enumerate().map(|(index, frame)| {
+                            .ok_or(anyhoo!("Failed to create output Pixmap"))?;
+    for (index, frame) in frames.into_iter().enumerate() {
         let background = (*background).as_ref();
-        let out = &out;
-        async move || -> Result<(), CloneableError>  {
-            out.lock().unwrap().draw_pixmap(0, (index as i32) * (frame_height as i32),
-                            background,
-                            &PixmapPaint::default(),
-                            Transform::default(),
-                            None).ok_or(anyhoo!("draw_pixmap failed"))?;
-            let frame_result: CloneableResult<Pixmap> = frame.await;
-            let frame_pixmap: &Pixmap = &*frame_result?;
-            out.lock().unwrap().draw_pixmap(0, (index as i32) * (frame_height as i32),
-                            frame_pixmap.as_ref(),
-                            &PixmapPaint::default(),
-                            Transform::default(),
-                            None).ok_or(anyhoo!("draw_pixmap failed"))
-        }
-    }()));
-    for result in results.await {
-        result?;
+        out.draw_pixmap(0, (index as i32) * (frame_height as i32),
+                        background,
+                        &PixmapPaint::default(),
+                        Transform::default(),
+                        None).ok_or(anyhoo!("draw_pixmap failed"))?;
+        let frame_result: CloneableResult<Pixmap> = frame.get();
+        let frame_pixmap: &Pixmap = &*frame_result?;
+        out.draw_pixmap(0, (index as i32) * (frame_height as i32),
+                        frame_pixmap.as_ref(),
+                        &PixmapPaint::default(),
+                        Transform::default(),
+                        None).ok_or(anyhoo!("draw_pixmap failed"))?;
     }
     info!("Finishing task: Animate");
-    out.into_inner().map_err(|e| anyhoo!(e))
+    Ok(Box::from(out))
 }

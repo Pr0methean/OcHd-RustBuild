@@ -1,30 +1,26 @@
 use std::collections::{HashMap};
 
 use std::fmt::{Debug, Display, Formatter};
-use std::future::{Future};
 use std::hash::Hash;
-use std::marker::Destruct;
 
 use std::ops::{Deref, DerefMut, Mul};
 use std::path::{Path, PathBuf};
-use std::pin::{Pin};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
-use std::task::{Context, Poll, Waker};
 use anyhow::{Error};
 
 use cached::lazy_static::lazy_static;
-use cooked_waker::{IntoWaker, ViaRawPointer, WakeRef};
+use once_cell::sync::Lazy;
 use crate::anyhoo;
 use fn_graph::{DataAccessDyn, TypeIds};
 use fn_graph::daggy::Dag;
-use futures::{FutureExt};
 use itertools::Itertools;
 
 
-use log::{error, info};
+use log::{info};
 use ordered_float::OrderedFloat;
 use petgraph::graph::{IndexType, NodeIndex};
+use replace_with::replace_with_and_return;
 
 use tiny_skia::Pixmap;
 
@@ -39,19 +35,15 @@ use crate::image_tasks::stack::{stack_alpha_on_alpha, stack_layer_on_background,
 use crate::TILE_SIZE;
 
 pub trait TaskSpecTraits <T>: Clone + Debug + Display + Ord + Eq + Hash {
-    fn add_to<'a, 'until_graph_built, E, Ix>(&'until_graph_built self,
-                                             ctx: &mut
-                                             TaskGraphBuildingContext<'until_graph_built, 'a, E, Ix>)
-                                             -> (NodeIndex<Ix>, TaskResultFuture<'a, T>)
-        where Ix : IndexType, E: Default, 'a : 'until_graph_built;
+    fn add_to<'a, E, Ix>(&'a self, ctx: &mut TaskGraphBuildingContext<'a, E, Ix>)
+                         -> (NodeIndex<Ix>, CloneableLazyTask<T>)
+        where Ix : IndexType, E: Default;
 }
 
 impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
-    fn add_to<'a, 'until_graph_built, E, Ix>(&'until_graph_built self,
-                                             ctx: &mut
-                                             TaskGraphBuildingContext<'until_graph_built, 'a, E, Ix>)
-                                             -> (NodeIndex<Ix>, TaskResultFuture<'a, Pixmap>)
-                                            where Ix : IndexType, E: Default, 'a : 'until_graph_built {
+    fn add_to<'a, E, Ix>(&'a self, ctx: &mut TaskGraphBuildingContext<'a, E, Ix>)
+                         -> (NodeIndex<Ix>, CloneableLazyTask<Pixmap>)
+                         where Ix : IndexType, E: Default {
         let name: String = self.to_string();
         if let Some((existing_index, existing_future)) = ctx.pixmap_task_to_future_map.get(&self) {
             info!("Matched an existing node: {}", name);
@@ -59,27 +51,27 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
         }
         let self_id = ctx.graph.add_node(TaskSpec::from(self));
         let mut dependencies: Vec<NodeIndex<Ix>> = Vec::with_capacity(16);
-        let future: SyncBoxFuture<Result<Box<Pixmap>,CloneableError>> = match self {
+        let function: LazyTaskFunction<Pixmap> = match self {
             ToPixmapTaskSpec::None { .. } => panic!("Tried to add None task to graph"),
             ToPixmapTaskSpec::Animate { background, frames } => {
                 let (background_index, background_future) = background.add_to(ctx);
                 dependencies.push(background_index);
-                let mut frame_futures: Vec<TaskResultFuture<Pixmap>> = Vec::with_capacity(frames.len());
+                let mut frame_futures: Vec<CloneableLazyTask<Pixmap>> = Vec::with_capacity(frames.len());
                 for frame in frames {
                     let (frame_index, frame_future) = frame.add_to(ctx);
                     frame_futures.push(frame_future);
                     dependencies.push(frame_index);
                 }
-                Box::pin(async move {
-                    let background: Arc<Box<Pixmap>> = background_future.await?.into();
-                    Ok(Box::new(animate(&background, frame_futures).await?))
+                Box::new(move || {
+                    let background: Arc<Box<Pixmap>> = background_future.get()?;
+                    animate(&background, frame_futures)
                 })
             },
             ToPixmapTaskSpec::FromSvg { source } => {
                 let source = source.to_owned();
-                Box::pin(
-                    async move { Ok(Box::new(from_svg(&source, *TILE_SIZE)?)) }
-                )
+                Box::new(move || {
+                    Ok(Box::new(from_svg(&source, *TILE_SIZE)?))
+                })
             },
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
                 if *background == ComparableColor::TRANSPARENT {
@@ -88,8 +80,8 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
                 let background = background.to_owned();
                 let (fg_index, fg_future) = foreground.add_to(ctx);
                 dependencies.push(fg_index);
-                Box::pin(async move {
-                    let fg_image: Arc<Box<Pixmap>> = fg_future.await?.into();
+                Box::new(move || {
+                    let fg_image: Arc<Box<Pixmap>> = fg_future.get()?;
                     Ok(Box::new(stack_layer_on_background(&background, &fg_image)?))
                 })
             },
@@ -98,10 +90,10 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
                 dependencies.push(bg_index);
                 let (fg_index, fg_future) = foreground.add_to(ctx);
                 dependencies.push(fg_index);
-                Box::pin(async move {
-                    let bg_image: Arc<Box<Pixmap>> = bg_future.await?.into();
+                Box::new(move || {
+                    let bg_image: Arc<Box<Pixmap>> = bg_future.get()?;
                     let mut out_image = Arc::unwrap_or_clone(bg_image);
-                    let fg_image: Arc<Box<Pixmap>> = fg_future.await?.into();
+                    let fg_image: Arc<Box<Pixmap>> = fg_future.get()?;
                     stack_layer_on_layer(&mut out_image, fg_image.deref());
                     Ok(out_image)
                 })
@@ -115,8 +107,8 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
                 let color = color.to_owned();
                 let (base_index, base_future) = base.add_to(ctx);
                 dependencies.push(base_index);
-                Box::pin(async move {
-                    let base_image: Arc<Box<AlphaChannel>> = base_future.await?;
+                Box::new(move || {
+                    let base_image: Arc<Box<AlphaChannel>> = base_future.get()?;
                     Ok(Box::new(paint(&*base_image, &color)))
                 })
             },
@@ -125,18 +117,16 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
             ctx.graph.add_edge(dependency, self_id, E::default())
                 .expect("Tried to create a cycle");
         }
-        let wrapped_future = CloneableFutureWrapper::new(name, future);
-        ctx.pixmap_task_to_future_map.insert(self, (self_id, wrapped_future.to_owned()));
-        (self_id, wrapped_future)
+        let task = CloneableLazyTask::new(function);
+        ctx.pixmap_task_to_future_map.insert(self, (self_id, task.to_owned()));
+        (self_id, task)
     }
 }
 
 impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
-    fn add_to<'a, 'until_graph_built, E, Ix>(&'until_graph_built self,
-                                             ctx: &mut
-                                             TaskGraphBuildingContext<'until_graph_built, 'a, E, Ix>)
-                                             -> (NodeIndex<Ix>, TaskResultFuture<'a, AlphaChannel>)
-        where Ix : IndexType, E: Default, 'a : 'until_graph_built {
+    fn add_to<'a, E, Ix>(&'a self, ctx: &mut TaskGraphBuildingContext<'a, E, Ix>)
+                         -> (NodeIndex<Ix>, CloneableLazyTask<AlphaChannel>)
+                         where Ix : IndexType, E: Default {
         let name: String = self.to_string();
         if let Some((existing_index, existing_future))
                 = ctx.alpha_task_to_future_map.get(&self) {
@@ -145,7 +135,7 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
         }
         let self_id = ctx.graph.add_node(TaskSpec::from(self));
         let mut dependencies: Vec<NodeIndex<Ix>> = Vec::with_capacity(16);
-        let future: SyncBoxFuture<Result<Box<AlphaChannel>,CloneableError>> = match self {
+        let function: LazyTaskFunction<AlphaChannel> = match self {
                 ToAlphaChannelTaskSpec::MakeSemitransparent { base, alpha } => {
                 if *alpha == 1.0 {
                     return base.add_to(ctx);
@@ -153,20 +143,18 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
                 let alpha: f32 = (*alpha).into();
                 let (base_index, base_future) = base.add_to(ctx);
                 dependencies.push(base_index);
-                Box::pin(
-                    async move {
-                        let base_result: Arc<Box<AlphaChannel>> = base_future.await?.into();
-                        let mut channel = Arc::unwrap_or_clone(base_result);
-                        make_semitransparent(&mut channel, alpha);
-                        Ok(channel)
-                    }
-                )
+                Box::new(move || {
+                    let base_result: Arc<Box<AlphaChannel>> = base_future.get()?;
+                    let mut channel = Arc::unwrap_or_clone(base_result);
+                    make_semitransparent(&mut channel, alpha);
+                    Ok(channel)
+                })
             },
             ToAlphaChannelTaskSpec::FromPixmap { base } => {
                 let (base_index, base_future) = base.add_to(ctx);
                 dependencies.push(base_index);
-                Box::pin(async move {
-                    let base_image: Arc<Box<Pixmap>> = base_future.await?.into();
+                Box::new(move || {
+                    let base_image: Arc<Box<Pixmap>> = base_future.get()?;
                     Ok(Box::new(to_alpha_channel(base_image.deref())?))
                 })
             },
@@ -175,9 +163,10 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
                 let (fg_index, fg_future) = foreground.add_to(ctx);
                 dependencies.push(bg_index);
                 dependencies.push(fg_index);
-                Box::pin(async move {
-                    let mut bg_image = Arc::unwrap_or_clone(bg_future.await?);
-                    stack_alpha_on_alpha(&mut bg_image, &*fg_future.await?);
+                Box::new(move || {
+                    let bg_arc: Arc<Box<AlphaChannel>> = bg_future.get()?;
+                    let mut bg_image = Arc::unwrap_or_clone(bg_arc);
+                    stack_alpha_on_alpha(&mut bg_image, &*(fg_future.get()?));
                     Ok(bg_image)
                 })
             }
@@ -186,18 +175,16 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
             ctx.graph.add_edge(dependency, self_id, E::default())
                 .expect("Tried to create a cycle");
         }
-        let wrapped_future = CloneableFutureWrapper::new(name, future);
-        ctx.alpha_task_to_future_map.insert(self, (self_id, wrapped_future.to_owned()));
-        (self_id, wrapped_future)
+        let task = CloneableLazyTask::new(function);
+        ctx.alpha_task_to_future_map.insert(self, (self_id, task.to_owned()));
+        (self_id, task)
     }
 }
 
 impl TaskSpecTraits<()> for SinkTaskSpec {
-    fn add_to<'a, 'until_graph_built, E, Ix>(&'until_graph_built self,
-                                             ctx: &mut
-                                                 TaskGraphBuildingContext<'until_graph_built, 'a, E, Ix>)
-                                             -> (NodeIndex<Ix>, TaskResultFuture<'a, ()>)
-        where Ix : IndexType, E: Default, 'a : 'until_graph_built {
+    fn add_to<'a, E, Ix>(&'a self, ctx: &mut TaskGraphBuildingContext<'a, E, Ix>)
+                         -> (NodeIndex<Ix>, CloneableLazyTask<()>)
+                         where Ix : IndexType, E: Default {
         let name: String = self.to_string();
         if let Some((existing_index, existing_future))
                 = ctx.output_task_to_future_map.get(&self) {
@@ -206,13 +193,13 @@ impl TaskSpecTraits<()> for SinkTaskSpec {
         }
         let self_id = ctx.graph.add_node(TaskSpec::from(self));
         let mut dependencies: Vec<NodeIndex<Ix>> = Vec::with_capacity(16);
-        let future: SyncBoxFuture<Result<Box<()>,CloneableError>> = match self {
+        let function: LazyTaskFunction<()> = match self {
             SinkTaskSpec::PngOutput {base, destinations} => {
                 let destinations = destinations.to_owned();
                 let (base_index, base_future) = base.add_to(ctx);
                 dependencies.push(base_index);
-                Box::pin(async move {
-                    Ok(Box::new(png_output(&*base_future.await?, &destinations)?))
+                Box::new(move || {
+                    Ok(Box::new(png_output(&*base_future.get()?, &destinations)?))
                 })
             }
         };
@@ -220,13 +207,12 @@ impl TaskSpecTraits<()> for SinkTaskSpec {
             ctx.graph.add_edge(dependency, self_id, E::default())
                 .expect("Tried to create a cycle");
         }
-        let wrapped_future = CloneableFutureWrapper::new(name, future);
+        let wrapped_future = CloneableLazyTask::new(function);
         ctx.output_task_to_future_map.insert(self, (self_id, wrapped_future.to_owned()));
         (self_id, wrapped_future)
     }
 }
 
-pub type TaskResultFuture<'a, T> = CloneableFutureWrapper<'a, T>;
 pub type CloneableResult<T> = Result<Arc<Box<T>>, CloneableError>;
 
 /// [TaskSpec] for a task that produces a [Pixmap].
@@ -380,146 +366,90 @@ impl DataAccessDyn for &TaskSpec {
     }
 }
 
-pub type SyncBoxFuture<'a, T> = Pin<Box<dyn Future<Output=T> + Send + Sync + 'a>>;
-
-/// Stores the wakers for all clones of a given [CloneableFutureWrapper] and wakes them when the
-/// wrapped future wakes the MultiWaker or is found to be ready.
-#[derive(Debug)]
-pub struct MultiWaker {
-    wakers: Mutex<Vec<Waker>>
-}
-
-unsafe impl ViaRawPointer for &MultiWaker {
-    type Target = MultiWaker;
-
-    fn into_raw(self) -> *mut Self::Target {
-        (unsafe { Pin::into_inner_unchecked(Pin::new_unchecked(self)) }
-        as *const MultiWaker)
-        as *mut MultiWaker
-    }
-
-    unsafe fn from_raw(ptr: *mut Self::Target) -> Self {
-        Pin::into_inner_unchecked(Pin::new_unchecked(&*ptr))
-    }
-}
-
-impl MultiWaker {
-    fn new() -> MultiWaker {
-        MultiWaker {wakers: Mutex::new(Vec::with_capacity(16))}
-    }
-
-    fn add_waker(&self, waker: Waker) {
-        self.wakers.lock().unwrap().push(waker);
-    }
-}
-
-impl WakeRef for MultiWaker {
-    fn wake_by_ref(&self) {
-        for waker in self.wakers.lock().unwrap().drain(..) {
-            waker.wake_by_ref();
-        }
-    }
-}
-
-pub enum CloneableFutureWrapperState<'a, T> where T: ?Sized {
+pub enum CloneableLazyTaskState<T> where T: ?Sized {
     Upcoming {
-        future: SyncBoxFuture<'a, Result<Box<T>,CloneableError>>,
-        multiwaker: Arc<MultiWaker>,
-        waker: Arc<Waker>
+        future: Lazy<Result<Box<T>,CloneableError>, LazyTaskFunction<T>>,
     },
     Finished {
         result: Arc<Box<T>>
     },
     Err {
-        error: Arc<CloneableError>
+        error: CloneableError
     }
 }
 
-/// Wraps a future so it can be consumed by multiple dependencies. Implemented because I was told
-/// [futures::future::Shared] would probably have a memory leak. Unlike Shared, this doesn't
-/// directly use a [std::cell::UnsafeCell].
-#[derive(Debug)]
-pub struct CloneableFutureWrapper<'a, T> where T: ?Sized + 'static {
-    state: Arc<Mutex<CloneableFutureWrapperState<'a, T>>>
+#[derive(Clone,Debug)]
+pub struct CloneableLazyTask<T> where T: ?Sized {
+    state: Arc<Mutex<CloneableLazyTaskState<T>>>
 }
 
-impl <'a, T> Clone for CloneableFutureWrapper<'a, T> where T: ?Sized {
-    fn clone(&self) -> Self {
-        CloneableFutureWrapper {state: self.state.to_owned()}
-    }
+pub type LazyTaskFunction<T> = Box<dyn FnOnce() -> Result<Box<T>, CloneableError> + Send>;
 
-    fn clone_from(&mut self, source: &Self) where Self: Destruct {
-        self.state = source.state.to_owned();
-    }
-}
-
-impl <'a, T: 'a> Debug for CloneableFutureWrapperState<'a, T> where T: ?Sized + 'static {
+impl <T> Debug for CloneableLazyTaskState<T> where T: ?Sized {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            CloneableFutureWrapperState::Upcoming { waker, .. } =>
-                f.debug_struct("Upcoming").field("waker", waker).finish(),
-            CloneableFutureWrapperState::Finished { .. } => {
+            CloneableLazyTaskState::Upcoming { .. } => {
+                f.write_str("Upcoming")
+            },
+            CloneableLazyTaskState::Finished { .. } => {
                 f.write_str("Finished")
             },
-            CloneableFutureWrapperState::Err { error } => f.debug_struct("Err").field("error", error).finish()
+            CloneableLazyTaskState::Err { error } => {
+                f.debug_struct("Err").field("error", error).finish()
+            }
         }
     }
 }
 
-impl <'a, T> CloneableFutureWrapper<'a, T> where T: Debug + Sync + Send + ?Sized + 'a {
-    pub fn new(name: String, base: SyncBoxFuture<'a, Result<Box<T>, CloneableError>>) -> CloneableFutureWrapper<'a, T> {
-        let waker = Arc::new(MultiWaker::new());
-        CloneableFutureWrapper {
-            state: Arc::new(Mutex::new(CloneableFutureWrapperState::Upcoming {
-                future: Box::pin(async move {
-                    info!("Starting {}", name);
-                    let result = base.await;
-                    match &result {
-                        Ok(..) => {
-                            info!("Finishing {}", name);
-                        }
-                        Err(error) => {
-                            error!("Error in {}: {}", name, error.message);
-                        }
-                    }
-                    result
-                }),
-                multiwaker: waker.to_owned(),
-                waker: Arc::new(waker.into_waker())
+impl <T> CloneableLazyTask<T> where T: ?Sized{
+    pub fn new(base: LazyTaskFunction<T>) -> CloneableLazyTask<T> {
+        CloneableLazyTask {
+            state: Arc::new(Mutex::new(CloneableLazyTaskState::Upcoming {
+                future: Lazy::new(base)
             }))
         }
     }
-}
-
-impl <'a, T> Future for CloneableFutureWrapper<'a, T> where T: 'a + ?Sized {
-    type Output = CloneableResult<T>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut state = self.state.lock().unwrap();
-        match state.deref_mut() {
-            CloneableFutureWrapperState::Finished { result } => Poll::Ready(Ok(result.to_owned())),
-            CloneableFutureWrapperState::Err { error } => Poll::Ready(Err(anyhoo!(error.message.to_owned()))),
-            CloneableFutureWrapperState::Upcoming { future, multiwaker, waker} => {
-                let new_result = future.poll_unpin(
-                    &mut Context::from_waker(waker.deref()));
-                if let Poll::Ready(finished_result) = new_result {
-                    match finished_result {
-                        Ok(successful_result) => {
-                            let result_arc: Arc<Box<T>> = Arc::from(successful_result);
-                            waker.wake_by_ref();
-                            *state = CloneableFutureWrapperState::Finished {result: result_arc.to_owned()};
-                            Poll::Ready(Ok(result_arc))
+    pub fn get(&self) -> Result<Arc<Box<T>>, CloneableError> {
+        let lock_result = self.state.lock();
+        match lock_result {
+            Ok(mut guard) => replace_with_and_return(
+                guard.deref_mut(),
+                || CloneableLazyTaskState::Err {error: anyhoo!("replace_with failed")},
+                |state| -> (CloneableResult<T>, CloneableLazyTaskState<T>) {
+                    match state {
+                        CloneableLazyTaskState::Upcoming { future } => {
+                            Lazy::force(&future); // ensures initialized
+                            match Lazy::into_value(future) {
+                                Ok(Ok(success)) => {
+                                    let arc: Arc<Box<T>> = Arc::from(success);
+                                    (
+                                        Ok(arc.to_owned()),
+                                        CloneableLazyTaskState::Finished { result: arc }
+                                    )
+                                },
+                                Ok(Err(error)) => {
+                                    (
+                                        Err(error.to_owned()),
+                                        CloneableLazyTaskState::Err { error }
+                                    )
+                                },
+                                Err(..) => {
+                                    (
+                                        Err(anyhoo!("Lazy not initialized!")),
+                                        CloneableLazyTaskState::Err { error: anyhoo!("Lazy not initialized!") }
+                                    )
+                                }
+                            }
                         },
-                        Err(error) => {
-                            waker.wake_by_ref();
-                            *state = CloneableFutureWrapperState::Err {error: Arc::new(error.to_owned())};
-                            Poll::Ready(Err(error))
-                        }
+                        CloneableLazyTaskState::Finished { result } =>
+                            (Ok(result.to_owned()), CloneableLazyTaskState::Finished {result}),
+                        CloneableLazyTaskState::Err { error } =>
+                            (Err(error.to_owned()), CloneableLazyTaskState::Err {error})
                     }
-                } else {
-                    multiwaker.add_waker(cx.waker().to_owned());
-                    Poll::Pending
                 }
+            ),
+            Err(e) => {
+                Err(anyhoo!(e.to_string()))
             }
         }
     }
@@ -548,14 +478,14 @@ impl From<ToPixmapTaskSpec> for ToAlphaChannelTaskSpec {
 }
 
 pub type TaskGraph<E, Ix> = Dag<TaskSpec, E, Ix>;
-pub struct TaskGraphBuildingContext<'a, 'b, E, Ix> where Ix: IndexType, 'b : 'a {
+pub struct TaskGraphBuildingContext<'a, E, Ix> where Ix: IndexType {
     pub graph: TaskGraph<E, Ix>,
-    pixmap_task_to_future_map: HashMap<&'a ToPixmapTaskSpec, (NodeIndex<Ix>, TaskResultFuture<'b, Pixmap>)>,
-    alpha_task_to_future_map: HashMap<&'a ToAlphaChannelTaskSpec, (NodeIndex<Ix>, TaskResultFuture<'b, AlphaChannel>)>,
-    pub output_task_to_future_map: HashMap<&'a SinkTaskSpec, (NodeIndex<Ix>, TaskResultFuture<'b, ()>)>
+    pixmap_task_to_future_map: HashMap<&'a ToPixmapTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<Pixmap>)>,
+    alpha_task_to_future_map: HashMap<&'a ToAlphaChannelTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<AlphaChannel>)>,
+    pub output_task_to_future_map: HashMap<&'a SinkTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<()>)>
 }
 
-impl <'a,'b,E,Ix> TaskGraphBuildingContext<'a,'b,E,Ix> where Ix: IndexType {
+impl <'a,E,Ix> TaskGraphBuildingContext<'a,E,Ix> where Ix: IndexType {
     pub(crate) fn new() -> Self {
         TaskGraphBuildingContext {
             graph: TaskGraph::new(),
