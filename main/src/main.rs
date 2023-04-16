@@ -122,7 +122,7 @@ fn main() {
     });
     info!("Starting tasks");
     components.into_par_iter()
-        .map(|task| task.get())
+        .map(|task| task.into_result())
         .for_each(|result| {
             **result.expect("Error running a task");
         });

@@ -6,7 +6,7 @@ use std::hash::Hash;
 use std::ops::{Deref, DerefMut, Mul};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, LockResult, Mutex};
 use anyhow::{Error};
 
 use cached::lazy_static::lazy_static;
@@ -14,7 +14,7 @@ use once_cell::sync::Lazy;
 use crate::anyhoo;
 use fn_graph::{DataAccessDyn, TypeIds};
 use fn_graph::daggy::Dag;
-use itertools::Itertools;
+use itertools::{any, Itertools};
 
 
 use log::{info};
@@ -63,7 +63,7 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
                     dependencies.push(frame_index);
                 }
                 Box::new(move || {
-                    let background: Arc<Box<Pixmap>> = background_future.get()?;
+                    let background: Arc<Box<Pixmap>> = background_future.into_result()?;
                     animate(&background, frame_futures)
                 })
             },
@@ -81,7 +81,7 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
                 let (fg_index, fg_future) = foreground.add_to(ctx);
                 dependencies.push(fg_index);
                 Box::new(move || {
-                    let fg_image: Arc<Box<Pixmap>> = fg_future.get()?;
+                    let fg_image: Arc<Box<Pixmap>> = fg_future.into_result()?;
                     Ok(Box::new(stack_layer_on_background(&background, &fg_image)?))
                 })
             },
@@ -91,9 +91,9 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
                 let (fg_index, fg_future) = foreground.add_to(ctx);
                 dependencies.push(fg_index);
                 Box::new(move || {
-                    let bg_image: Arc<Box<Pixmap>> = bg_future.get()?;
+                    let bg_image: Arc<Box<Pixmap>> = bg_future.into_result()?;
                     let mut out_image = Arc::unwrap_or_clone(bg_image);
-                    let fg_image: Arc<Box<Pixmap>> = fg_future.get()?;
+                    let fg_image: Arc<Box<Pixmap>> = fg_future.into_result()?;
                     stack_layer_on_layer(&mut out_image, fg_image.deref());
                     Ok(out_image)
                 })
@@ -108,7 +108,7 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
                 let (base_index, base_future) = base.add_to(ctx);
                 dependencies.push(base_index);
                 Box::new(move || {
-                    let base_image: Arc<Box<AlphaChannel>> = base_future.get()?;
+                    let base_image: Arc<Box<AlphaChannel>> = base_future.into_result()?;
                     Ok(Box::new(paint(&*base_image, &color)))
                 })
             },
@@ -144,7 +144,7 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
                 let (base_index, base_future) = base.add_to(ctx);
                 dependencies.push(base_index);
                 Box::new(move || {
-                    let base_result: Arc<Box<AlphaChannel>> = base_future.get()?;
+                    let base_result: Arc<Box<AlphaChannel>> = base_future.into_result()?;
                     let mut channel = Arc::unwrap_or_clone(base_result);
                     make_semitransparent(&mut channel, alpha);
                     Ok(channel)
@@ -154,7 +154,7 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
                 let (base_index, base_future) = base.add_to(ctx);
                 dependencies.push(base_index);
                 Box::new(move || {
-                    let base_image: Arc<Box<Pixmap>> = base_future.get()?;
+                    let base_image: Arc<Box<Pixmap>> = base_future.into_result()?;
                     Ok(Box::new(to_alpha_channel(base_image.deref())?))
                 })
             },
@@ -164,9 +164,9 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
                 dependencies.push(bg_index);
                 dependencies.push(fg_index);
                 Box::new(move || {
-                    let bg_arc: Arc<Box<AlphaChannel>> = bg_future.get()?;
+                    let bg_arc: Arc<Box<AlphaChannel>> = bg_future.into_result()?;
                     let mut bg_image = Arc::unwrap_or_clone(bg_arc);
-                    stack_alpha_on_alpha(&mut bg_image, &*(fg_future.get()?));
+                    stack_alpha_on_alpha(&mut bg_image, &*(fg_future.into_result()?));
                     Ok(bg_image)
                 })
             }
@@ -199,7 +199,7 @@ impl TaskSpecTraits<()> for SinkTaskSpec {
                 let (base_index, base_future) = base.add_to(ctx);
                 dependencies.push(base_index);
                 Box::new(move || {
-                    Ok(Box::new(png_output(&*base_future.get()?, &destinations)?))
+                    Ok(Box::new(png_output(&*base_future.into_result()?, &destinations)?))
                 })
             }
         };
@@ -401,7 +401,7 @@ impl <T> Debug for CloneableLazyTaskState<T> where T: ?Sized {
     }
 }
 
-impl <T> CloneableLazyTask<T> where T: ?Sized{
+impl <T> CloneableLazyTask<T> where T: ?Sized {
     pub fn new(base: LazyTaskFunction<T>) -> CloneableLazyTask<T> {
         CloneableLazyTask {
             state: Arc::new(Mutex::new(CloneableLazyTaskState::Upcoming {
@@ -409,47 +409,74 @@ impl <T> CloneableLazyTask<T> where T: ?Sized{
             }))
         }
     }
-    pub fn get(&self) -> Result<Arc<Box<T>>, CloneableError> {
-        let lock_result = self.state.lock();
-        match lock_result {
-            Ok(mut guard) => replace_with_and_return(
-                guard.deref_mut(),
-                || CloneableLazyTaskState::Err {error: anyhoo!("replace_with failed")},
-                |state| -> (CloneableResult<T>, CloneableLazyTaskState<T>) {
+    pub fn into_result(self) -> CloneableResult<T> {
+        let state = self.state;
+        let result = Arc::try_unwrap(state);
+        match result {
+            Ok(mutex) => match mutex.into_inner() {
+                Ok(state) => {
                     match state {
                         CloneableLazyTaskState::Upcoming { future } => {
-                            Lazy::force(&future); // ensures initialized
-                            match Lazy::into_value(future) {
-                                Ok(Ok(success)) => {
-                                    let arc: Arc<Box<T>> = Arc::from(success);
-                                    (
-                                        Ok(arc.to_owned()),
-                                        CloneableLazyTaskState::Finished { result: arc }
-                                    )
-                                },
-                                Ok(Err(error)) => {
-                                    (
-                                        Err(error.to_owned()),
-                                        CloneableLazyTaskState::Err { error }
-                                    )
-                                },
-                                Err(..) => {
-                                    (
-                                        Err(anyhoo!("Lazy not initialized!")),
-                                        CloneableLazyTaskState::Err { error: anyhoo!("Lazy not initialized!") }
-                                    )
-                                }
-                            }
+                            Lazy::force(&future);
+                            Lazy::into_value(future)
+                                .map_err(|_| anyhoo!("Failed to initialize lazy"))?
+                                .map(Arc::new)
                         },
-                        CloneableLazyTaskState::Finished { result } =>
-                            (Ok(result.to_owned()), CloneableLazyTaskState::Finished {result}),
-                        CloneableLazyTaskState::Err { error } =>
-                            (Err(error.to_owned()), CloneableLazyTaskState::Err {error})
+                        CloneableLazyTaskState::Finished { result } => {
+                            Ok(result)
+                        },
+                        CloneableLazyTaskState::Err { error } => {
+                            Err(error)
+                        }
+                    }
+                },
+                Err(e) => {
+                    Err(anyhoo!(e.to_string()))
+                }
+            },
+            Err(arc) => {
+                let lock_result = arc.lock();
+                match lock_result {
+                    Ok(mut guard) => replace_with_and_return(
+                        guard.deref_mut(),
+                        || CloneableLazyTaskState::Err { error: anyhoo!("replace_with failed") },
+                        |state| -> (CloneableResult<T>, CloneableLazyTaskState<T>) {
+                            match state {
+                                CloneableLazyTaskState::Upcoming { future } => {
+                                    Lazy::force(&future); // ensures initialized
+                                    match Lazy::into_value(future) {
+                                        Ok(Ok(success)) => {
+                                            let arc: Arc<Box<T>> = Arc::from(success);
+                                            (
+                                                Ok(arc.to_owned()),
+                                                CloneableLazyTaskState::Finished { result: arc }
+                                            )
+                                        },
+                                        Ok(Err(error)) => {
+                                            (
+                                                Err(error.to_owned()),
+                                                CloneableLazyTaskState::Err { error }
+                                            )
+                                        },
+                                        Err(..) => {
+                                            (
+                                                Err(anyhoo!("Lazy not initialized!")),
+                                                CloneableLazyTaskState::Err { error: anyhoo!("Lazy not initialized!") }
+                                            )
+                                        }
+                                    }
+                                },
+                                CloneableLazyTaskState::Finished { result } =>
+                                    (Ok(result.to_owned()), CloneableLazyTaskState::Finished { result }),
+                                CloneableLazyTaskState::Err { error } =>
+                                    (Err(error.to_owned()), CloneableLazyTaskState::Err { error })
+                            }
+                        }
+                    ),
+                    Err(e) => {
+                        Err(anyhoo!(e.to_string()))
                     }
                 }
-            ),
-            Err(e) => {
-                Err(anyhoo!(e.to_string()))
             }
         }
     }
