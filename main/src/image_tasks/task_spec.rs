@@ -49,11 +49,11 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
             return (*existing_index, existing_future.to_owned());
         }
         let self_id = ctx.graph.add_node(TaskSpec::from(self));
-        let mut dependencies: Vec<NodeIndex<Ix>> = Vec::with_capacity(16);
-        let function: LazyTaskFunction<Pixmap> = match self {
+        let (dependencies, function): (Vec<NodeIndex<Ix>>, LazyTaskFunction<Pixmap>) = match self {
             ToPixmapTaskSpec::None { .. } => panic!("Tried to add None task to graph"),
             ToPixmapTaskSpec::Animate { background, frames } => {
                 let (background_index, background_future) = background.add_to(ctx);
+                let mut dependencies = Vec::with_capacity(frames.len() + 1);
                 dependencies.push(background_index);
                 let mut frame_futures: Vec<CloneableLazyTask<Pixmap>> = Vec::with_capacity(frames.len());
                 for frame in frames {
@@ -61,16 +61,16 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
                     frame_futures.push(frame_future);
                     dependencies.push(frame_index);
                 }
-                Box::new(move || {
+                (dependencies, Box::new(move || {
                     let background: Arc<Box<Pixmap>> = background_future.into_result()?;
                     animate(&background, frame_futures)
-                })
+                }))
             },
             ToPixmapTaskSpec::FromSvg { source } => {
                 let source = source.to_owned();
-                Box::new(move || {
+                (vec![], Box::new(move || {
                     Ok(Box::new(from_svg(&source, *TILE_SIZE)?))
-                })
+                }))
             },
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
                 if *background == ComparableColor::TRANSPARENT {
@@ -78,24 +78,22 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
                 }
                 let background = background.to_owned();
                 let (fg_index, fg_future) = foreground.add_to(ctx);
-                dependencies.push(fg_index);
+                (vec![fg_index],
                 Box::new(move || {
                     let fg_image: Arc<Box<Pixmap>> = fg_future.into_result()?;
                     Ok(Box::new(stack_layer_on_background(&background, &fg_image)?))
-                })
+                }))
             },
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
                 let (bg_index, bg_future) = background.add_to(ctx);
-                dependencies.push(bg_index);
                 let (fg_index, fg_future) = foreground.add_to(ctx);
-                dependencies.push(fg_index);
-                Box::new(move || {
+                (vec![bg_index, fg_index], Box::new(move || {
                     let bg_image: Arc<Box<Pixmap>> = bg_future.into_result()?;
                     let mut out_image = Arc::unwrap_or_clone(bg_image);
                     let fg_image: Arc<Box<Pixmap>> = fg_future.into_result()?;
                     stack_layer_on_layer(&mut out_image, fg_image.deref());
                     Ok(out_image)
-                })
+                }))
             },
             ToPixmapTaskSpec::PaintAlphaChannel { base, color } => {
                 if *color == ComparableColor::BLACK
@@ -105,11 +103,11 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
                 }
                 let color = color.to_owned();
                 let (base_index, base_future) = base.add_to(ctx);
-                dependencies.push(base_index);
+                (vec![base_index],
                 Box::new(move || {
                     let base_image: Arc<Box<AlphaChannel>> = base_future.into_result()?;
                     Ok(Box::new(paint(&*base_image, &color)))
-                })
+                }))
             },
         };
         for dependency in dependencies {
@@ -133,41 +131,40 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
             return (*existing_index, existing_future.to_owned());
         }
         let self_id = ctx.graph.add_node(TaskSpec::from(self));
-        let mut dependencies: Vec<NodeIndex<Ix>> = Vec::with_capacity(16);
-        let function: LazyTaskFunction<AlphaChannel> = match self {
-                ToAlphaChannelTaskSpec::MakeSemitransparent { base, alpha } => {
+        let (dependencies, function): (Vec<NodeIndex<Ix>>, LazyTaskFunction<AlphaChannel>)
+                = match self {
+            ToAlphaChannelTaskSpec::MakeSemitransparent { base, alpha } => {
                 if *alpha == 1.0 {
                     return base.add_to(ctx);
                 }
                 let alpha: f32 = (*alpha).into();
                 let (base_index, base_future) = base.add_to(ctx);
-                dependencies.push(base_index);
+                (vec![base_index],
                 Box::new(move || {
                     let base_result: Arc<Box<AlphaChannel>> = base_future.into_result()?;
                     let mut channel = Arc::unwrap_or_clone(base_result);
                     make_semitransparent(&mut channel, alpha);
                     Ok(channel)
-                })
+                }))
             },
             ToAlphaChannelTaskSpec::FromPixmap { base } => {
                 let (base_index, base_future) = base.add_to(ctx);
-                dependencies.push(base_index);
+                (vec![base_index],
                 Box::new(move || {
                     let base_image: Arc<Box<Pixmap>> = base_future.into_result()?;
                     Ok(Box::new(to_alpha_channel(base_image.deref())?))
-                })
+                }))
             },
             ToAlphaChannelTaskSpec::StackAlphaOnAlpha { background, foreground } => {
                 let (bg_index, bg_future) = background.add_to(ctx);
                 let (fg_index, fg_future) = foreground.add_to(ctx);
-                dependencies.push(bg_index);
-                dependencies.push(fg_index);
+                (vec![bg_index,fg_index],
                 Box::new(move || {
                     let bg_arc: Arc<Box<AlphaChannel>> = bg_future.into_result()?;
                     let mut bg_image = Arc::unwrap_or_clone(bg_arc);
                     stack_alpha_on_alpha(&mut bg_image, &*(fg_future.into_result()?));
                     Ok(bg_image)
-                })
+                }))
             }
         };
         for dependency in dependencies {
@@ -191,15 +188,13 @@ impl TaskSpecTraits<()> for SinkTaskSpec {
             return (*existing_index, existing_future.to_owned());
         }
         let self_id = ctx.graph.add_node(TaskSpec::from(self));
-        let mut dependencies: Vec<NodeIndex<Ix>> = Vec::with_capacity(16);
-        let function: LazyTaskFunction<()> = match self {
+        let (dependencies, function): (Vec<NodeIndex<Ix>>, LazyTaskFunction<()>) = match self {
             SinkTaskSpec::PngOutput {base, destinations} => {
                 let destinations = destinations.to_owned();
                 let (base_index, base_future) = base.add_to(ctx);
-                dependencies.push(base_index);
-                Box::new(move || {
+                (vec![base_index], Box::new(move || {
                     Ok(Box::new(png_output(&*base_future.into_result()?, &destinations)?))
-                })
+                }))
             }
         };
         for dependency in dependencies {
