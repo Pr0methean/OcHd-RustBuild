@@ -6,7 +6,7 @@ use crate::texture_base::material::SingleTextureMaterial;
 single_texture_block!(STONE = ComparableColor::STONE,
     paint_svg_task("checksQuarterCircles", ComparableColor::STONE_HIGHLIGHT),
     paint_svg_task("checksQuarterCircles2", ComparableColor::STONE_SHADOW),
-    paint_svg_task("sunflowerPistil", ComparableColor::STONE)
+    paint_svg_task("bigCircle", ComparableColor::STONE)
 );
 
 single_texture_block!(DEEPSLATE = ComparableColor::DEEPSLATE,

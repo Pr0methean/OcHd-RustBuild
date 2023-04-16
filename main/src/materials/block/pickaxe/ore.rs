@@ -74,6 +74,13 @@ impl Ore {
         )
     }
 
+    fn raw_item_based_ore_block_for_substrate(&self, substrate: Box<ToPixmapTaskSpec>) -> Box<ToPixmapTaskSpec> {
+        stack!(
+            substrate.to_owned(),
+            (self.raw_item)(&self).to_owned()
+        )
+    }
+
     pub fn new(
         name: &'static str,
         color: ComparableColor,
@@ -129,7 +136,7 @@ impl Material for Ore {
                 &*format!("block/raw_{}_block", self.name), (self.raw_block)(self)
             ));
             output.push(out_task(
-                &*format!("item/raw_{}", self.name), (self.raw_item)(self)
+                &*format!("item/raw_{}", self.item_name), (self.raw_item)(self)
             ));
             output.push(out_task(
                 &*format!("item/{}_ingot", self.name), (self.refined_item)(self)
@@ -207,6 +214,41 @@ lazy_static! {
         });
         redstone
     };
+    pub static ref LAPIS: Ore = {
+        let mut lapis = Ore::new("lapis", c(0x0055bd), c(0x0000aa), c(0x6995ff));
+        lapis.item_name = "lapis_lazuli";
+        lapis.raw_item = Box::new(|_| stack!(
+            paint_svg_task("lapis", LAPIS.colors.color),
+            paint_svg_task("lapisHighlight", LAPIS.colors.highlight),
+            paint_svg_task("lapisShadow", LAPIS.colors.shadow)
+        ));
+        lapis.refined_block = Box::new(|_| stack_on!(
+            LAPIS.colors.highlight,
+            paint_svg_task("checksLarge", LAPIS.colors.shadow),
+            paint_svg_task("checksSmall", LAPIS.colors.color),
+            paint_svg_task("borderSolid", LAPIS.colors.shadow),
+            paint_svg_task("borderSolidTopLeft", LAPIS.colors.highlight)
+        ));
+        lapis.ore_block_for_substrate = Box::new(Ore::raw_item_based_ore_block_for_substrate);
+        lapis
+    };
+    pub static ref DIAMOND: Ore = {
+        let mut diamond = Ore::new("diamond", c(0x20d3d3), c(0x209797), c(0x77e7d1));
+        let extreme_highlight = c(0xd5ffff);
+        diamond.raw_item = Box::new(move |_| stack!(
+            paint_svg_task("diamond1", extreme_highlight),
+            paint_svg_task("diamond2", DIAMOND.colors.shadow)
+        ));
+        diamond.refined_block = Box::new(move |deferred_self| stack_on!(
+            DIAMOND.colors.color,
+            paint_svg_task("streaks", DIAMOND.colors.highlight),
+            (DIAMOND.raw_item)(deferred_self),
+            paint_svg_task("borderSolid", DIAMOND.colors.shadow),
+            paint_svg_task("borderSolidTopLeft", extreme_highlight)
+        ));
+        diamond.ore_block_for_substrate = Box::new(Ore::raw_item_based_ore_block_for_substrate);
+        diamond
+    };
     pub static ref GOLD: Ore = {
         let mut gold = Ore::new("gold",
                                     ComparableColor::YELLOW,
@@ -229,7 +271,22 @@ lazy_static! {
         quartz.substrates = vec![&*NETHERRACK_BASE];
         quartz
     };
+    pub static ref EMERALD: Ore = {
+        let mut emerald = Ore::new("emerald", c(0x009829), c(0x007b18), c(0x00dd62));
+        let extreme_highlight = c(0xd9ffeb);
+        emerald.raw_item = Box::new(|_| stack!(
+            paint_svg_task("emeraldTopLeft", EMERALD.colors.highlight),
+            paint_svg_task("emeraldBottomRight", EMERALD.colors.shadow)
+        ));
+        emerald.refined_block = Box::new(move |_| stack_on!(
+            EMERALD.colors.highlight,
+            paint_svg_task("emeraldBottomRight", EMERALD.colors.shadow),
+            paint_svg_task("borderSolid", EMERALD.colors.color),
+            paint_stack!(extreme_highlight, "emeraldTopLeft", "borderSolidTopLeft")
+        ));
+        emerald.ore_block_for_substrate = Box::new(Ore::raw_item_based_ore_block_for_substrate);
+        emerald
+    };
 }
 
-// TODO: emerald, lapis, diamond
-group!(ORES = COPPER, COAL, IRON, REDSTONE, GOLD, QUARTZ);
+group!(ORES = COPPER, COAL, IRON, REDSTONE, LAPIS, GOLD, QUARTZ, DIAMOND, EMERALD);
