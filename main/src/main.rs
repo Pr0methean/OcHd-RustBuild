@@ -40,6 +40,7 @@ mod texture_base;
 mod materials;
 #[cfg(not(any(test,clippy)))]
 use std::env;
+use std::io::ErrorKind::NotFound;
 
 #[cfg(not(any(test,clippy)))]
 lazy_static! {
@@ -68,7 +69,10 @@ fn main() {
     let start_time = Instant::now();
 
     let (_, components) = rayon::join(|| {
-        remove_dir_all(&*OUT_DIR).expect("Failed to delete old output directory");
+        let result = remove_dir_all(&*OUT_DIR);
+        if result.is_err_and(|err| err.kind() != NotFound) {
+            panic!("Failed to delete old output directory");
+        }
         create_dir(&*OUT_DIR).expect("Failed to create output directory");
     }, || {
         let output_tasks = materials::ALL_MATERIALS.get_output_tasks();
