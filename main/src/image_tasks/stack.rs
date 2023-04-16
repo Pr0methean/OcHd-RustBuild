@@ -4,32 +4,32 @@ use tiny_skia::{Pixmap, PixmapPaint};
 use tiny_skia_path::Transform;
 use tracing::instrument;
 
-use crate::anyhoo;
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::repaint::AlphaChannel;
+use crate::image_tasks::{allocate_pixmap, MaybeFromPool};
 use crate::image_tasks::task_spec::CloneableError;
 
 #[instrument]
-pub fn stack_layer_on_layer(background: &mut Pixmap, foreground: &Pixmap) {
+pub fn stack_layer_on_layer(background: &mut MaybeFromPool<Pixmap>, foreground: &MaybeFromPool<Pixmap>) {
     info!("Starting task: stack_layer_on_layer");
-    background.draw_pixmap(0, 0, foreground.as_ref(), &PixmapPaint::default(),
+    let mut output = background.as_mut();
+    output.draw_pixmap(0, 0, foreground.as_ref(), &PixmapPaint::default(),
                        Transform::default(), None);
     info!("Finishing task: stack_layer_on_layer");
 }
 
 #[instrument]
-pub fn stack_layer_on_background(background: &ComparableColor, foreground: &Pixmap)
-        -> Result<Pixmap,CloneableError> {
+pub fn stack_layer_on_background(background: &ComparableColor, foreground: &MaybeFromPool<Pixmap>)
+        -> Result<MaybeFromPool<Pixmap>,CloneableError> {
     info!("Starting task: stack_layer_on_background (background: {})", background);
-    let mut output = Pixmap::new(foreground.width(), foreground.height())
-        .ok_or(anyhoo!("Failed to create background for stacking"))?;
+    let mut output = allocate_pixmap(foreground.width(), foreground.height());
     output.fill((*background).into());
     stack_layer_on_layer(&mut output, foreground);
     info!("Finishing task: stack_layer_on_background (background: {})", background);
     Ok(output)
 }
 
-pub fn stack_alpha_on_alpha(background: &mut AlphaChannel, foreground: &AlphaChannel)
+pub fn stack_alpha_on_alpha(background: &mut MaybeFromPool<AlphaChannel>, foreground: &MaybeFromPool<AlphaChannel>)
         {
     let output_pixels = background.pixels_mut();
     for (index, &pixel) in foreground.pixels().iter().enumerate() {

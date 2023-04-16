@@ -7,10 +7,11 @@ use tiny_skia::Pixmap;
 use tracing::instrument;
 
 use crate::anyhoo;
+use crate::image_tasks::MaybeFromPool;
 use crate::image_tasks::task_spec::CloneableError;
 
 #[instrument]
-pub fn png_output(image: &Pixmap, files: &Vec<PathBuf>) -> Result<(),CloneableError> {
+pub fn png_output(image: &MaybeFromPool<Pixmap>, files: &Vec<PathBuf>) -> Result<(),CloneableError> {
     let file_strings: Vec<String> = files.iter().map(|path| path.to_string_lossy().to_string()).collect();
     let files_string = file_strings.join(", ");
     drop(file_strings);
