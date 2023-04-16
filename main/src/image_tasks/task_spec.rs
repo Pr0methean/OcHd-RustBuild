@@ -1,6 +1,6 @@
 use std::collections::{HashMap};
 
-use std::fmt::{Debug, Display, Formatter, Pointer};
+use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 
 use std::ops::{Deref, DerefMut, Mul};
