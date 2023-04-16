@@ -409,12 +409,16 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
             }))
         }
     }
+
+    /// Consumes this particular copy of the task and returns the result. Trades off readability and
+    /// maintainability to maximize the chance of avoiding unnecessary copies.
     pub fn into_result(self) -> CloneableResult<T> {
         let state = self.state;
         let result = Arc::try_unwrap(state);
         match result {
             Ok(mutex) => match mutex.into_inner() {
                 Ok(state) => {
+                    // We're the last referent to this Lazy, so we don't need to clone anything.
                     match state {
                         CloneableLazyTaskState::Upcoming { future } => {
                             Lazy::force(&future);
@@ -435,6 +439,9 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
                 }
             },
             Err(arc) => {
+                // We're not the last referent to this Lazy, so we need to make at least a shallow
+                // copy, which will become deep (via Arc::clone_or_unwrap) if it needs to be
+                // mutable.
                 let lock_result = arc.lock();
                 match lock_result {
                     Ok(mut guard) => replace_with_and_return(
