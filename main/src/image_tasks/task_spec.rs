@@ -1,6 +1,6 @@
 use std::collections::{HashMap};
 
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Debug, Display, Formatter, Pointer};
 use std::hash::Hash;
 
 use std::ops::{Deref, DerefMut, Mul};
@@ -256,7 +256,7 @@ impl Display for TaskSpec {
             TaskSpec::ToAlphaChannelTaskSpec(inner) => inner,
             TaskSpec::SinkTaskSpec(inner) => inner
         });
-        inner.fmt(f)
+        <Box<&dyn Display> as Display>::fmt(&inner, f)
     }
 }
 
@@ -372,10 +372,7 @@ pub enum CloneableLazyTaskState<T> where T: ?Sized {
         function: LazyTaskFunction<T>,
     },
     Finished {
-        result: Arc<Box<T>>
-    },
-    Err {
-        error: CloneableError
+        result: CloneableResult<T>
     }
 }
 
@@ -390,11 +387,12 @@ impl <T> Debug for CloneableLazyTaskState<T> where T: ?Sized {
             CloneableLazyTaskState::Upcoming { .. } => {
                 f.write_str("Upcoming")
             },
-            CloneableLazyTaskState::Finished { .. } => {
-                f.write_str("Finished")
-            },
-            CloneableLazyTaskState::Err { error } => {
-                f.debug_struct("Err").field("error", error).finish()
+            CloneableLazyTaskState::Finished { result } => {
+                match result {
+                    Ok(..) => f.write_str("Finished(Ok)"),
+                    Err(error) => f.write_fmt(
+                        format_args!("Finished(Error({}))", error.message))
+                }
             }
         }
     }
@@ -423,11 +421,8 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
                             function().map(Arc::new)
                         },
                         CloneableLazyTaskState::Finished { result } => {
-                            Ok(result)
+                            result
                         },
-                        CloneableLazyTaskState::Err { error } => {
-                            Err(error)
-                        }
                     }
                 },
                 Err(e) => {
@@ -442,30 +437,16 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
                 match lock_result {
                     Ok(mut guard) => replace_with_and_return(
                         guard.deref_mut(),
-                        || CloneableLazyTaskState::Err { error: anyhoo!("replace_with failed") },
+                        || CloneableLazyTaskState::Finished {result: Err(anyhoo!("replace_with failed")) },
                         |state| -> (CloneableResult<T>, CloneableLazyTaskState<T>) {
                             match state {
                                 CloneableLazyTaskState::Upcoming { function } => {
-                                    match function() {
-                                        Ok(success) => {
-                                            let arc: Arc<Box<T>> = Arc::from(success);
-                                            (
-                                                Ok(arc.to_owned()),
-                                                CloneableLazyTaskState::Finished { result: arc }
-                                            )
-                                        },
-                                        Err(error) => {
-                                            (
-                                                Err(error.to_owned()),
-                                                CloneableLazyTaskState::Err { error }
-                                            )
-                                        }
-                                    }
+                                    let result = function().map(Arc::new);
+                                    (result.to_owned(), CloneableLazyTaskState::Finished { result })
                                 },
-                                CloneableLazyTaskState::Finished { result } =>
-                                    (Ok(result.to_owned()), CloneableLazyTaskState::Finished { result }),
-                                CloneableLazyTaskState::Err { error } =>
-                                    (Err(error.to_owned()), CloneableLazyTaskState::Err { error })
+                                CloneableLazyTaskState::Finished { result } => {
+                                    (result.to_owned(), CloneableLazyTaskState::Finished { result })
+                                }
                             }
                         }
                     ),
