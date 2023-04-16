@@ -10,7 +10,6 @@ use std::sync::{Arc, Mutex};
 use anyhow::{Error};
 
 use cached::lazy_static::lazy_static;
-use once_cell::sync::Lazy;
 use crate::anyhoo;
 use fn_graph::{DataAccessDyn, TypeIds};
 use fn_graph::daggy::Dag;
@@ -366,9 +365,11 @@ impl DataAccessDyn for &TaskSpec {
     }
 }
 
+pub type LazyTaskFunction<T> = Box<dyn FnOnce() -> Result<Box<T>, CloneableError> + Send>;
+
 pub enum CloneableLazyTaskState<T> where T: ?Sized {
     Upcoming {
-        future: Lazy<Result<Box<T>,CloneableError>, LazyTaskFunction<T>>,
+        function: LazyTaskFunction<T>,
     },
     Finished {
         result: Arc<Box<T>>
@@ -382,8 +383,6 @@ pub enum CloneableLazyTaskState<T> where T: ?Sized {
 pub struct CloneableLazyTask<T> where T: ?Sized {
     state: Arc<Mutex<CloneableLazyTaskState<T>>>
 }
-
-pub type LazyTaskFunction<T> = Box<dyn FnOnce() -> Result<Box<T>, CloneableError> + Send>;
 
 impl <T> Debug for CloneableLazyTaskState<T> where T: ?Sized {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -405,7 +404,7 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
     pub fn new(base: LazyTaskFunction<T>) -> CloneableLazyTask<T> {
         CloneableLazyTask {
             state: Arc::new(Mutex::new(CloneableLazyTaskState::Upcoming {
-                future: Lazy::new(base)
+                function: base
             }))
         }
     }
@@ -420,11 +419,8 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
                 Ok(state) => {
                     // We're the last referent to this Lazy, so we don't need to clone anything.
                     match state {
-                        CloneableLazyTaskState::Upcoming { future } => {
-                            Lazy::force(&future);
-                            Lazy::into_value(future)
-                                .map_err(|_| anyhoo!("Failed to initialize lazy"))?
-                                .map(Arc::new)
+                        CloneableLazyTaskState::Upcoming { function } => {
+                            function().map(Arc::new)
                         },
                         CloneableLazyTaskState::Finished { result } => {
                             Ok(result)
@@ -449,26 +445,19 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
                         || CloneableLazyTaskState::Err { error: anyhoo!("replace_with failed") },
                         |state| -> (CloneableResult<T>, CloneableLazyTaskState<T>) {
                             match state {
-                                CloneableLazyTaskState::Upcoming { future } => {
-                                    Lazy::force(&future); // ensures initialized
-                                    match Lazy::into_value(future) {
-                                        Ok(Ok(success)) => {
+                                CloneableLazyTaskState::Upcoming { function } => {
+                                    match function() {
+                                        Ok(success) => {
                                             let arc: Arc<Box<T>> = Arc::from(success);
                                             (
                                                 Ok(arc.to_owned()),
                                                 CloneableLazyTaskState::Finished { result: arc }
                                             )
                                         },
-                                        Ok(Err(error)) => {
+                                        Err(error) => {
                                             (
                                                 Err(error.to_owned()),
                                                 CloneableLazyTaskState::Err { error }
-                                            )
-                                        },
-                                        Err(..) => {
-                                            (
-                                                Err(anyhoo!("Lazy not initialized!")),
-                                                CloneableLazyTaskState::Err { error: anyhoo!("Lazy not initialized!") }
                                             )
                                         }
                                     }
