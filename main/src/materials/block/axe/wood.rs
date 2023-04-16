@@ -580,7 +580,7 @@ impl Material for Wood {
             out_task(&format!("block/{}_{}", self.name, self.leaves_synonym), (self.leaves)(self)),
             out_task(&format!("block/{}_{}", self.name, self.sapling_synonym), (self.sapling)(self)),
             out_task(&format!("block/{}_planks", self.name), self.planks())
-        ].into_iter().map(|boxed| *boxed).collect()
+        ]
     }
 }
 

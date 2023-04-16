@@ -540,8 +540,8 @@ pub fn path(name: &str) -> Vec<PathBuf> {
     vec![name_to_out_path(name)]
 }
 
-pub fn out_task(name: &str, base: Box<ToPixmapTaskSpec>) -> Box<SinkTaskSpec> {
-    Box::new(SinkTaskSpec::PngOutput {base, destinations: path(name)})
+pub fn out_task(name: &str, base: Box<ToPixmapTaskSpec>) -> SinkTaskSpec {
+    SinkTaskSpec::PngOutput {base, destinations: path(name)}
 }
 
 #[macro_export]

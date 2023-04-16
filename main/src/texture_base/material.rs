@@ -36,6 +36,7 @@ macro_rules! group {
             let mut tasks: Vec<crate::image_tasks::task_spec::SinkTaskSpec>
                 = Vec::with_capacity($crate::texture_base::material::DEFAULT_GROUP_SIZE);
             $({
+                #![allow(unused)]
                 use crate::texture_base::material::Material;
                 tasks.extend($members.get_output_tasks());
             })*
@@ -62,7 +63,7 @@ impl From<SingleTextureMaterial> for Box<ToPixmapTaskSpec> {
 impl Material for SingleTextureMaterial {
     fn get_output_tasks(&self) -> Vec<SinkTaskSpec> {
         if !self.has_output { vec![] } else {
-            vec![*out_task(&format!("{}/{}", self.directory, self.name),
+            vec![out_task(&format!("{}/{}", self.directory, self.name),
                           self.texture.to_owned())]
         }
     }
@@ -83,7 +84,7 @@ macro_rules! single_texture_material {
 
 pub fn item(name: &'static str, texture: Box<ToPixmapTaskSpec>) -> SingleTextureMaterial {
     SingleTextureMaterial {
-        name, directory: "items", has_output: true, texture
+        name, directory: "item", has_output: true, texture
     }
 }
 
@@ -96,7 +97,7 @@ macro_rules! single_texture_item {
 
 pub fn block(name: &'static str, texture: Box<ToPixmapTaskSpec>) -> SingleTextureMaterial {
     SingleTextureMaterial {
-        name, directory: "blocks", has_output: true, texture
+        name, directory: "block", has_output: true, texture
     }
 }
 
@@ -109,7 +110,7 @@ macro_rules! single_texture_block {
 
 pub fn particle(name: &'static str, texture: Box<ToPixmapTaskSpec>) -> SingleTextureMaterial {
     SingleTextureMaterial {
-        name, directory: "particles", has_output: true, texture
+        name, directory: "particle", has_output: true, texture
     }
 }
 
@@ -173,7 +174,7 @@ pub struct SingleLayerMaterial {
 
 impl Material for SingleLayerMaterial {
     fn get_output_tasks(&self) -> Vec<SinkTaskSpec> {
-        vec![*out_task(self.name,
+        vec![out_task(self.name,
              paint_svg_task(self.layer_name, self.color))]
     }
 }
@@ -190,4 +191,15 @@ pub fn redstone_off_and_on(name: &str, generator: Box<dyn Fn(ComparableColor) ->
         base: Box::new(generator(REDSTONE_ON)),
         destinations: vec![PathBuf::from(format!("{}_on", name))]
     }]
+}
+
+pub type AbstractTextureSupplier<T> = Box<dyn Fn(&T) -> Box<ToPixmapTaskSpec> + Send + Sync>;
+pub type AbstractTextureUnaryFunc<T> = Box<dyn Fn(&T, Box<ToPixmapTaskSpec>) -> Box<ToPixmapTaskSpec> + Send + Sync>;
+pub type AbstractTextureBinaryFunc<T> = Box<dyn Fn(&T, Box<ToPixmapTaskSpec>,Box<ToPixmapTaskSpec>) -> Box<ToPixmapTaskSpec> + Send + Sync>;
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct ColorTriad {
+    pub(crate) color: ComparableColor,
+    pub(crate) shadow: ComparableColor,
+    pub(crate) highlight: ComparableColor,
 }

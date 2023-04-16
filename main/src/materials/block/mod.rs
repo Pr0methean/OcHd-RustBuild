@@ -9,4 +9,4 @@ mod pickaxe;
 mod shears;
 mod shovel;
 
-group!(ALL_BLOCKS = axe::AXE_BLOCKS);
+group!(ALL_BLOCKS = axe::AXE_BLOCKS, pickaxe::PICKAXE_BLOCKS);
