@@ -67,7 +67,7 @@ fn main() {
     info!("Using {:?} pixels per tile", tile_size);
     let start_time = Instant::now();
 
-    let (clean_out_dir, components) = rayon::join(|| {
+    let (_, components) = rayon::join(|| {
         remove_dir_all(&*OUT_DIR).expect("Failed to delete old output directory");
         create_dir(&*OUT_DIR).expect("Failed to create output directory");
     }, || {

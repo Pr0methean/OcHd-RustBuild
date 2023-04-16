@@ -6,7 +6,7 @@ use std::hash::Hash;
 use std::ops::{Deref, DerefMut, Mul};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::sync::{Arc, LockResult, Mutex};
+use std::sync::{Arc, Mutex};
 use anyhow::{Error};
 
 use cached::lazy_static::lazy_static;
@@ -14,7 +14,7 @@ use once_cell::sync::Lazy;
 use crate::anyhoo;
 use fn_graph::{DataAccessDyn, TypeIds};
 use fn_graph::daggy::Dag;
-use itertools::{any, Itertools};
+use itertools::{Itertools};
 
 
 use log::{info};
