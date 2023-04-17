@@ -4,8 +4,8 @@ use crate::materials::block::pickaxe::ore_base::ORE_BASES;
 use crate::materials::block::pickaxe::simple_pickaxe_block::SIMPLE_PICKAXE_BLOCKS;
 
 
-mod ore_base;
+pub mod ore_base;
 mod simple_pickaxe_block;
-mod ore;
+pub mod ore;
 
 group!(PICKAXE_BLOCKS = ORE_BASES, SIMPLE_PICKAXE_BLOCKS, ORES);

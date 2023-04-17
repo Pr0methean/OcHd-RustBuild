@@ -8,14 +8,14 @@ use crate::texture_base::material::SingleTextureMaterial;
 use crate::texture_base::material::block;
 
 single_texture_block!(DEEPSLATE_BRICKS = ComparableColor::TRANSPARENT,
-    DEEPSLATE.texture.to_owned(),
+    DEEPSLATE.material.texture.to_owned(),
     paint_svg_task("bricksSmall", ComparableColor::DEEPSLATE_SHADOW),
     paint_svg_task("borderDotted", ComparableColor::DEEPSLATE_HIGHLIGHT),
     paint_svg_task("borderDottedBottomRight", ComparableColor::DEEPSLATE_SHADOW)
 );
 
 single_texture_block!(DEEPSLATE_TOP = ComparableColor::TRANSPARENT,
-        DEEPSLATE.texture.to_owned(),
+        DEEPSLATE.material.texture.to_owned(),
         paint_svg_task("cross", ComparableColor::DEEPSLATE_SHADOW),
         paint_svg_task("borderSolid", ComparableColor::DEEPSLATE_HIGHLIGHT)
 );
