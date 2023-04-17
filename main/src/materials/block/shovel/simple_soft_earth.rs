@@ -70,7 +70,7 @@ block_with_colors!(FARMLAND_MOIST = c(0x552e00),c(0x341900),c(0x6e3c15),
     highlight!(),
     paint_svg_task("bambooThick", color!()),
     paint_svg_task("bambooThinMinusBorder", shadow!()),
-    paint_svg_task("dots1", ComparableColor::STONE_SHADOW)
+    paint_svg_task("dots0", ComparableColor::STONE_SHADOW)
 );
 block_with_colors!(DIRT = c(0x966c4a), c(0x593d29), c(0xb9855c),
     color!(),
