@@ -12,8 +12,6 @@ jobs:
       - image: cimg/rust:1.68.2
     steps:
       - checkout
-      - rust/install:
-          version: nightly
       - restore_cache:
           keys:
             - cargo-deps-{{ checksum "main/Cargo.toml" }}
@@ -22,6 +20,8 @@ jobs:
             - /home/circleci/.cargo
             - main/target/debug/deps
             - main/target/release/deps
+      - rust/install:
+          version: nightly
       - run: |
           cd main
           cargo clippy || true
