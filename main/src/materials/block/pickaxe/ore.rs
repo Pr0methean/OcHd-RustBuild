@@ -283,6 +283,11 @@ lazy_static! {
                                   c(0xb6a48e),
                                   ComparableColor::WHITE);
         quartz.substrates = vec![&*NETHERRACK_BASE];
+        quartz.raw_item = Box::new(|_| stack!(
+            paint_svg_task("bigDiamondSolid", QUARTZ.colors.color),
+            paint_svg_task("bigDiamondSolidTopLeftBottomRight", QUARTZ.colors.highlight),
+            paint_svg_task("quartz", QUARTZ.colors.shadow)
+        ))
         quartz
     };
     pub static ref EMERALD: Ore = {
