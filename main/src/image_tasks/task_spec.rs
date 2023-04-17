@@ -288,7 +288,7 @@ impl From<Error> for CloneableError {
 #[macro_export]
 macro_rules! anyhoo {
     ($($args:expr),+) => {
-        $crate::image_tasks::task_spec::CloneableError::from(anyhow::anyhow!($($args),+))
+        crate::image_tasks::task_spec::CloneableError::from(anyhow::anyhow!($($args),+))
     }
 }
 
@@ -550,13 +550,13 @@ pub fn out_task(name: &str, base: ToPixmapTaskSpec) -> SinkTaskSpec {
 #[macro_export]
 macro_rules! stack {
     ( $first_layer:expr, $second_layer:expr ) => {
-        $crate::image_tasks::task_spec::ToPixmapTaskSpec::StackLayerOnLayer {
+        crate::image_tasks::task_spec::ToPixmapTaskSpec::StackLayerOnLayer {
             background: Box::new($first_layer.into()),
             foreground: Box::new($second_layer.into())
         }
     };
     ( $first_layer:expr, $second_layer:expr, $( $more_layers:expr ),+ ) => {{
-        let mut layers_so_far = $crate::stack!($first_layer, $second_layer);
+        let mut layers_so_far = crate::stack!($first_layer, $second_layer);
         $( layers_so_far = crate::stack!(layers_so_far, $more_layers); )+
         layers_so_far
     }};
@@ -565,13 +565,13 @@ macro_rules! stack {
 #[macro_export]
 macro_rules! stack_alpha {
     ( $first_layer:expr, $second_layer:expr ) => {
-        $crate::image_tasks::task_spec::ToAlphaChannelTaskSpec::StackAlphaOnAlpha {
+        crate::image_tasks::task_spec::ToAlphaChannelTaskSpec::StackAlphaOnAlpha {
             background: Box::new($first_layer.into()),
             foreground: Box::new($second_layer.into())
         }
     };
     ( $first_layer:expr, $second_layer:expr, $( $more_layers:expr ),+ ) => {{
-        let mut layers_so_far = $crate::stack_alpha!($first_layer, $second_layer);
+        let mut layers_so_far = crate::stack_alpha!($first_layer, $second_layer);
         $( layers_so_far = crate::stack_alpha!(layers_so_far, $more_layers); )+
         layers_so_far
     }};
@@ -580,23 +580,31 @@ macro_rules! stack_alpha {
 #[macro_export]
 macro_rules! stack_on {
     ( $background:expr, $foreground:expr ) => {
-        $crate::image_tasks::task_spec::ToPixmapTaskSpec::StackLayerOnColor {
-            background: $background,
-            foreground: Box::new($foreground.into())
+        if $background == crate::image_tasks::color::ComparableColor::TRANSPARENT {
+            $foreground
+        } else {
+            crate::image_tasks::task_spec::ToPixmapTaskSpec::StackLayerOnColor {
+                background: $background,
+                foreground: Box::new($foreground.into())
+            }
         }
     };
     ( $background:expr, $first_layer:expr, $( $more_layers:expr ),+ ) => {{
-        let mut layers_so_far = $crate::stack_on!($background, $first_layer);
-        $( layers_so_far = crate::stack!(layers_so_far, $more_layers); )+
-        layers_so_far
+        if $background == crate::image_tasks::color::ComparableColor::TRANSPARENT {
+            crate::stack!($first_layer, $($more_layers),+)
+        } else {
+            let mut layers_so_far = crate::stack_on!($background, $first_layer);
+            $( layers_so_far = crate::stack!(layers_so_far, $more_layers); )+
+            layers_so_far
+        }
     }};
 }
 
 #[macro_export]
 macro_rules! paint_stack {
     ( $color:expr, $( $layers:expr ),* ) => {
-        $crate::image_tasks::task_spec::paint_task(
-            $crate::stack_alpha!(
+        crate::image_tasks::task_spec::paint_task(
+            crate::stack_alpha!(
                 $(
                     crate::image_tasks::task_spec::svg_alpha_task($layers)
                 ),*).into(),

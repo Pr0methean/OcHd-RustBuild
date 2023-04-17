@@ -36,10 +36,10 @@ pub const DEFAULT_GROUP_SIZE: usize = 1024;
 #[macro_export]
 macro_rules! group {
     ($name:ident = $( $members:expr ),* ) => {
-        lazy_static::lazy_static! {pub static ref $name: $crate::texture_base::material::MaterialGroup
+        lazy_static::lazy_static! {pub static ref $name: crate::texture_base::material::MaterialGroup
         = {
             let mut tasks: Vec<crate::image_tasks::task_spec::SinkTaskSpec>
-                = Vec::with_capacity($crate::texture_base::material::DEFAULT_GROUP_SIZE);
+                = Vec::with_capacity(crate::texture_base::material::DEFAULT_GROUP_SIZE);
             $({
                 #![allow(unused)]
                 use crate::texture_base::material::Material;
@@ -103,8 +103,8 @@ impl Material for SingleTextureMaterial {
 #[macro_export]
 macro_rules! single_texture_material {
     ($name:ident = $directory:expr, $background:expr, $( $layers:expr ),* ) => {
-        lazy_static::lazy_static! {pub static ref $name: $crate::texture_base::material::SingleTextureMaterial =
-        $crate::texture_base::material::SingleTextureMaterial {
+        lazy_static::lazy_static! {pub static ref $name: crate::texture_base::material::SingleTextureMaterial =
+        crate::texture_base::material::SingleTextureMaterial {
             name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
             directory: $directory,
             has_output: true,
@@ -122,7 +122,7 @@ pub fn item(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMater
 #[macro_export]
 macro_rules! single_texture_item {
     ($name:ident = $background:expr, $( $layers:expr ),* ) => {
-        $crate::single_texture_material!($name = "item", $background, $($layers),*);
+        crate::single_texture_material!($name = "item", $background, $($layers),*);
     }
 }
 
@@ -135,15 +135,15 @@ pub fn block(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMate
 #[macro_export]
 macro_rules! single_texture_block {
     ($name:ident = $background:expr, $( $layers:expr ),* ) => {
-        $crate::single_texture_material!($name = "block", $background, $($layers),*);
+        crate::single_texture_material!($name = "block", $background, $($layers),*);
     }
 }
 
 #[macro_export]
 macro_rules! copy_block {
     ($name:ident = $base:expr) => {
-        lazy_static::lazy_static! {pub static ref $name: $crate::texture_base::material::SingleTextureMaterial =
-        $crate::texture_base::material::SingleTextureMaterial {
+        lazy_static::lazy_static! {pub static ref $name: crate::texture_base::material::SingleTextureMaterial =
+        crate::texture_base::material::SingleTextureMaterial {
             name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
             directory: "block",
             has_output: true,
@@ -192,7 +192,7 @@ pub fn particle(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureM
 #[macro_export]
 macro_rules! single_texture_particle {
     ($name:ident = $background:expr, $( $layers:expr ),* ) => {
-        $crate::single_texture_material!($name = "particle", $background, $($layers),*);
+        crate::single_texture_material!($name = "particle", $background, $($layers),*);
     }
 }
 
@@ -261,10 +261,10 @@ macro_rules! ground_cover_block {
         macro_rules! highlight {
             () => { $highlight }
         }
-        lazy_static::lazy_static! {pub static ref $name: $crate::texture_base::material::GroundCoverBlock =
-        $crate::texture_base::material::GroundCoverBlock {
+        lazy_static::lazy_static! {pub static ref $name: crate::texture_base::material::GroundCoverBlock =
+        crate::texture_base::material::GroundCoverBlock {
             name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
-            colors: $crate::texture_base::material::ColorTriad {
+            colors: crate::texture_base::material::ColorTriad {
                 color: color!(),
                 shadow: shadow!(),
                 highlight: highlight!()
@@ -292,17 +292,40 @@ impl Material for SingleLayerMaterial {
 
 pub const REDSTONE_ON: ComparableColor = rgb(0xff, 0x5e, 0x5e);
 
-pub fn redstone_off_and_on(name: &str, generator: Box<dyn Fn(ComparableColor) -> ToPixmapTaskSpec>)
--> Vec<SinkTaskSpec> {
-    vec![SinkTaskSpec::PngOutput {
-        base: generator(ComparableColor::BLACK),
-        destinations: vec![PathBuf::from(name)]
-    },
-    SinkTaskSpec::PngOutput {
-        base: generator(REDSTONE_ON),
-        destinations: vec![PathBuf::from(format!("{}_on", name))]
-    }]
+pub struct RedstoneOffOnBlockPair {
+    pub name: &'static str,
+    pub create_texture: Box<dyn Fn(ComparableColor) -> ToPixmapTaskSpec + Send + Sync>
 }
+
+impl Material for RedstoneOffOnBlockPair {
+    fn get_output_tasks(&self) -> Vec<SinkTaskSpec> {
+        vec![SinkTaskSpec::PngOutput {
+            base: (self.create_texture)(ComparableColor::BLACK),
+            destinations: vec![PathBuf::from(format!("block/{}", self.name))]
+        },
+             SinkTaskSpec::PngOutput {
+                 base: (self.create_texture)(REDSTONE_ON),
+                 destinations: vec![PathBuf::from(format!("block/{}_on", self.name))]
+             }]
+    }
+}
+
+#[macro_export]
+macro_rules! redstone_off_on_block {
+    ($name:ident = $create_texture:expr ) => {
+        lazy_static::lazy_static! {pub static ref $name: crate::texture_base::material::RedstoneOffOnBlockPair =
+        crate::texture_base::material::RedstoneOffOnBlockPair {
+            name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
+            create_texture: Box::new(|state_color| {
+                macro_rules! state_color {
+                    () => {state_color}
+                }
+                $create_texture
+            })
+        };}
+    }
+}
+
 
 pub type AbstractTextureSupplier<T> = Box<dyn Fn(&T) -> ToPixmapTaskSpec + Send + Sync>;
 pub type AbstractTextureUnaryFunc<T> = Box<dyn Fn(&T, ToPixmapTaskSpec) -> ToPixmapTaskSpec + Send + Sync>;
