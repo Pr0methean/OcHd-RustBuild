@@ -56,7 +56,7 @@ pub struct SingleTextureMaterial {
     pub name: &'static str,
     pub directory: &'static str,
     pub has_output: bool,
-    pub texture: Box<ToPixmapTaskSpec>
+    pub texture: ToPixmapTaskSpec
 }
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
@@ -85,7 +85,7 @@ impl TricolorMaterial for SingleTextureTricolorMaterial {
     }
 }
 
-impl From<SingleTextureMaterial> for Box<ToPixmapTaskSpec> {
+impl From<SingleTextureMaterial> for ToPixmapTaskSpec {
     fn from(val: SingleTextureMaterial) -> Self {
         val.texture
     }
@@ -113,7 +113,7 @@ macro_rules! single_texture_material {
     }
 }
 
-pub fn item(name: &'static str, texture: Box<ToPixmapTaskSpec>) -> SingleTextureMaterial {
+pub fn item(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMaterial {
     SingleTextureMaterial {
         name, directory: "item", has_output: true, texture
     }
@@ -126,7 +126,7 @@ macro_rules! single_texture_item {
     }
 }
 
-pub fn block(name: &'static str, texture: Box<ToPixmapTaskSpec>) -> SingleTextureMaterial {
+pub fn block(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMaterial {
     SingleTextureMaterial {
         name, directory: "block", has_output: true, texture
     }
@@ -183,7 +183,7 @@ macro_rules! block_with_colors {
     }
 }
 
-pub fn particle(name: &'static str, texture: Box<ToPixmapTaskSpec>) -> SingleTextureMaterial {
+pub fn particle(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMaterial {
     SingleTextureMaterial {
         name, directory: "particle", has_output: true, texture
     }
@@ -199,8 +199,8 @@ macro_rules! single_texture_particle {
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct DoubleTallBlock {
     name: &'static str,
-    bottom: Box<ToPixmapTaskSpec>,
-    top: Box<ToPixmapTaskSpec>
+    bottom: ToPixmapTaskSpec,
+    top: ToPixmapTaskSpec
 }
 
 impl Material for DoubleTallBlock {
@@ -215,9 +215,9 @@ impl Material for DoubleTallBlock {
 pub struct GroundCoverBlock {
     pub name: &'static str,
     pub colors: ColorTriad,
-    pub base: Box<ToPixmapTaskSpec>,
-    pub cover_side: Box<ToPixmapTaskSpec>,
-    pub top: Box<ToPixmapTaskSpec>,
+    pub base: ToPixmapTaskSpec,
+    pub cover_side: ToPixmapTaskSpec,
+    pub top: ToPixmapTaskSpec,
 }
 
 impl Material for GroundCoverBlock {
@@ -226,10 +226,10 @@ impl Material for GroundCoverBlock {
             base: self.top.to_owned(),
             destinations: vec![PathBuf::from(format!("block/{}_top", self.name))]},
         SinkTaskSpec::PngOutput {
-            base: Box::new(ToPixmapTaskSpec::StackLayerOnLayer {
-                background: self.base.to_owned(),
-                foreground: self.cover_side.to_owned()
-            }),
+            base: ToPixmapTaskSpec::StackLayerOnLayer {
+                background: Box::new(self.base.to_owned()),
+                foreground: Box::new(self.cover_side.to_owned())
+            },
             destinations: vec![PathBuf::from(format!("block/{}_side", self.name))],
         }]
     }
@@ -295,18 +295,18 @@ pub const REDSTONE_ON: ComparableColor = rgb(0xff, 0x5e, 0x5e);
 pub fn redstone_off_and_on(name: &str, generator: Box<dyn Fn(ComparableColor) -> ToPixmapTaskSpec>)
 -> Vec<SinkTaskSpec> {
     vec![SinkTaskSpec::PngOutput {
-        base: Box::new(generator(ComparableColor::BLACK)),
+        base: generator(ComparableColor::BLACK),
         destinations: vec![PathBuf::from(name)]
     },
     SinkTaskSpec::PngOutput {
-        base: Box::new(generator(REDSTONE_ON)),
+        base: generator(REDSTONE_ON),
         destinations: vec![PathBuf::from(format!("{}_on", name))]
     }]
 }
 
-pub type AbstractTextureSupplier<T> = Box<dyn Fn(&T) -> Box<ToPixmapTaskSpec> + Send + Sync>;
-pub type AbstractTextureUnaryFunc<T> = Box<dyn Fn(&T, Box<ToPixmapTaskSpec>) -> Box<ToPixmapTaskSpec> + Send + Sync>;
-pub type AbstractTextureBinaryFunc<T> = Box<dyn Fn(&T, Box<ToPixmapTaskSpec>,Box<ToPixmapTaskSpec>) -> Box<ToPixmapTaskSpec> + Send + Sync>;
+pub type AbstractTextureSupplier<T> = Box<dyn Fn(&T) -> ToPixmapTaskSpec + Send + Sync>;
+pub type AbstractTextureUnaryFunc<T> = Box<dyn Fn(&T, ToPixmapTaskSpec) -> ToPixmapTaskSpec + Send + Sync>;
+pub type AbstractTextureBinaryFunc<T> = Box<dyn Fn(&T, ToPixmapTaskSpec, ToPixmapTaskSpec) -> ToPixmapTaskSpec + Send + Sync>;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ColorTriad {

@@ -32,11 +32,11 @@ pub struct Ore {
 }
 
 impl Ore {
-    fn default_single_layer_item(&self) -> Box<ToPixmapTaskSpec> {
+    fn default_single_layer_item(&self) -> ToPixmapTaskSpec {
         paint_svg_task(self.svg_name, self.colors.color)
     }
 
-    fn basic_refined_block(&self) -> Box<ToPixmapTaskSpec> {
+    fn basic_refined_block(&self) -> ToPixmapTaskSpec {
         stack_on!(self.refined_colors.color,
             paint_svg_task("streaks", self.refined_colors.highlight),
             paint_stack!(self.refined_colors.shadow, self.svg_name, "borderSolid"),
@@ -44,7 +44,7 @@ impl Ore {
         )
     }
 
-    fn basic_ingot(&self) -> Box<ToPixmapTaskSpec> {
+    fn basic_ingot(&self) -> ToPixmapTaskSpec {
         stack!(
             paint_svg_task("ingotMask", self.refined_colors.color),
             paint_stack!(self.refined_colors.shadow, "ingotBorder", self.svg_name),
@@ -52,7 +52,7 @@ impl Ore {
         )
     }
 
-    fn basic_raw_ore(&self) -> Box<ToPixmapTaskSpec> {
+    fn basic_raw_ore(&self) -> ToPixmapTaskSpec {
         stack!(
             paint_svg_task("bigCircle", self.colors.shadow),
             paint_svg_task("bigCircleTwoQuarters", self.colors.color),
@@ -60,21 +60,21 @@ impl Ore {
         )
     }
 
-    fn basic_raw_block(&self) -> Box<ToPixmapTaskSpec> {
+    fn basic_raw_block(&self) -> ToPixmapTaskSpec {
         stack_on!(self.colors.color,
             paint_svg_task("checksSmall", self.colors.highlight),
             paint_svg_task(self.svg_name, self.colors.shadow)
         )
     }
 
-    fn basic_ore_block_for_substrate(&self, substrate: Box<ToPixmapTaskSpec>) -> Box<ToPixmapTaskSpec> {
+    fn basic_ore_block_for_substrate(&self, substrate: ToPixmapTaskSpec) -> ToPixmapTaskSpec {
         stack!(
             substrate.to_owned(),
             self.default_single_layer_item().to_owned()
         )
     }
 
-    fn raw_item_based_ore_block_for_substrate(&self, substrate: Box<ToPixmapTaskSpec>) -> Box<ToPixmapTaskSpec> {
+    fn raw_item_based_ore_block_for_substrate(&self, substrate: ToPixmapTaskSpec) -> ToPixmapTaskSpec {
         stack!(
             substrate.to_owned(),
             (self.raw_item)(&self).to_owned()

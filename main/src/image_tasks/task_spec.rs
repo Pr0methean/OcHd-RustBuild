@@ -193,7 +193,7 @@ impl TaskSpecTraits<()> for SinkTaskSpec {
                 let destinations = destinations.to_owned();
                 let (base_index, base_future) = base.add_to(ctx);
                 (vec![base_index], Box::new(move || {
-                    Ok(Box::new(png_output(Arc::unwrap_or_clone(base_future.into_result()?),
+                    Ok(Box::new(png_output(*Arc::unwrap_or_clone(base_future.into_result()?),
                                            &destinations)?))
                 }))
             }
@@ -232,7 +232,7 @@ pub enum ToAlphaChannelTaskSpec {
 /// [TaskSpec] for a task that doesn't produce a heap object as output.
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum SinkTaskSpec {
-    PngOutput {base: Box<ToPixmapTaskSpec>, destinations: Vec<PathBuf>},
+    PngOutput {base: ToPixmapTaskSpec, destinations: Vec<PathBuf>},
 }
 
 /// Specification of a task that produces one of several output types. Created so that
@@ -513,45 +513,47 @@ pub fn name_to_svg_path(name: &str) -> PathBuf {
     svg_file_path
 }
 
-pub fn from_svg_task(name: &str) -> Box<ToPixmapTaskSpec> {
-    Box::new(ToPixmapTaskSpec::FromSvg {source: name_to_svg_path(name)})
+pub fn from_svg_task(name: &str) -> ToPixmapTaskSpec {
+    ToPixmapTaskSpec::FromSvg {source: name_to_svg_path(name)}
 }
 
-pub fn svg_alpha_task(name: &str) -> Box<ToAlphaChannelTaskSpec> {
-    Box::new(ToAlphaChannelTaskSpec::from(*from_svg_task(name)))
+pub fn svg_alpha_task(name: &str) -> ToAlphaChannelTaskSpec {
+    ToAlphaChannelTaskSpec::from(from_svg_task(name))
 }
 
 
-pub fn paint_task(base: Box<ToAlphaChannelTaskSpec>, color: ComparableColor) -> Box<ToPixmapTaskSpec> {
-    Box::new(
-        ToPixmapTaskSpec::PaintAlphaChannel {base, color})
+pub fn paint_task(base: ToAlphaChannelTaskSpec, color: ComparableColor) -> ToPixmapTaskSpec {
+        ToPixmapTaskSpec::PaintAlphaChannel {base: Box::new(base), color}
 }
 
-pub fn paint_svg_task(name: &str, color: ComparableColor) -> Box<ToPixmapTaskSpec> {
-    paint_task(Box::new(ToAlphaChannelTaskSpec::FromPixmap { base: from_svg_task(name) }),
+pub fn paint_svg_task(name: &str, color: ComparableColor) -> ToPixmapTaskSpec {
+    paint_task(ToAlphaChannelTaskSpec::FromPixmap { base: Box::new(from_svg_task(name)) },
                color)
 }
 
-pub fn semitrans_svg_task(name: &str, alpha: f32) -> Box<ToAlphaChannelTaskSpec> {
-    Box::new(ToAlphaChannelTaskSpec::MakeSemitransparent {base: Box::from(ToAlphaChannelTaskSpec::FromPixmap { base: from_svg_task(name) }),
-        alpha: alpha.into()})
+pub fn semitrans_svg_task(name: &str, alpha: f32) -> ToAlphaChannelTaskSpec {
+    ToAlphaChannelTaskSpec::MakeSemitransparent {
+        base: Box::new(ToAlphaChannelTaskSpec::FromPixmap {
+            base: Box::new(from_svg_task(name))
+        }),
+        alpha: alpha.into()}
 }
 
 pub fn path(name: &str) -> Vec<PathBuf> {
     vec![name_to_out_path(name)]
 }
 
-pub fn out_task(name: &str, base: Box<ToPixmapTaskSpec>) -> SinkTaskSpec {
+pub fn out_task(name: &str, base: ToPixmapTaskSpec) -> SinkTaskSpec {
     SinkTaskSpec::PngOutput {base, destinations: path(name)}
 }
 
 #[macro_export]
 macro_rules! stack {
     ( $first_layer:expr, $second_layer:expr ) => {
-        Box::new($crate::image_tasks::task_spec::ToPixmapTaskSpec::StackLayerOnLayer {
-            background: $first_layer.into(),
-            foreground: $second_layer.into()
-        })
+        $crate::image_tasks::task_spec::ToPixmapTaskSpec::StackLayerOnLayer {
+            background: Box::new($first_layer.into()),
+            foreground: Box::new($second_layer.into())
+        }
     };
     ( $first_layer:expr, $second_layer:expr, $( $more_layers:expr ),+ ) => {{
         let mut layers_so_far = $crate::stack!($first_layer, $second_layer);
@@ -563,10 +565,10 @@ macro_rules! stack {
 #[macro_export]
 macro_rules! stack_alpha {
     ( $first_layer:expr, $second_layer:expr ) => {
-        Box::new($crate::image_tasks::task_spec::ToAlphaChannelTaskSpec::StackAlphaOnAlpha {
-            background: $first_layer.into(),
-            foreground: $second_layer.into()
-        })
+        $crate::image_tasks::task_spec::ToAlphaChannelTaskSpec::StackAlphaOnAlpha {
+            background: Box::new($first_layer.into()),
+            foreground: Box::new($second_layer.into())
+        }
     };
     ( $first_layer:expr, $second_layer:expr, $( $more_layers:expr ),+ ) => {{
         let mut layers_so_far = $crate::stack_alpha!($first_layer, $second_layer);
@@ -578,10 +580,10 @@ macro_rules! stack_alpha {
 #[macro_export]
 macro_rules! stack_on {
     ( $background:expr, $foreground:expr ) => {
-        Box::new($crate::image_tasks::task_spec::ToPixmapTaskSpec::StackLayerOnColor {
+        $crate::image_tasks::task_spec::ToPixmapTaskSpec::StackLayerOnColor {
             background: $background,
-            foreground: $foreground.into()
-        })
+            foreground: Box::new($foreground.into())
+        }
     };
     ( $background:expr, $first_layer:expr, $( $more_layers:expr ),+ ) => {{
         let mut layers_so_far = $crate::stack_on!($background, $first_layer);
@@ -627,7 +629,7 @@ impl Mul<ComparableColor> for ToAlphaChannelTaskSpec {
     type Output = ToPixmapTaskSpec;
 
     fn mul(self, rhs: ComparableColor) -> Self::Output {
-        *paint_task(Box::new(self), rhs)
+        paint_task(self, rhs)
     }
 }
 
