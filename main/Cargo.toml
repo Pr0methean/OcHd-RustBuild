@@ -8,14 +8,14 @@ edition = "2021"
 [dependencies]
 tiny-skia = "0.8.3"
 tiny-skia-path = "0.8.3"
-resvg = "0.30.0"
-fn_graph = { version = "0.8.1", features = ["fn_meta", "resman"] }
-resman = { version = "0.16.0", features = ["fn_res", "fn_meta"] }
+resvg = "0.31.0"
+fn_graph = { version = "0.8.2", features = ["fn_meta", "resman"] }
+resman = { version = "0.16.1", features = ["fn_res", "fn_meta"] }
 fn_meta = "0.7.3"
 smallvec = "1.10.0"
-usvg = "0.30.0"
+usvg = "0.31.0"
 anyhow = "1.0"
-cached = "0.42.0"
+cached = "0.43.0"
 ordered-float = "3.6.0"
 lazy_static = "1.4.0"
 const_format = {version = "0.2.30", features = ["fmt", "rust_1_64"]}
