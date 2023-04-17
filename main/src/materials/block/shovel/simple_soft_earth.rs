@@ -15,8 +15,7 @@ block_with_colors!(GRAVEL = c(0x737373), c(0x515151), c(0xaaaaaa),
 );
 block_with_colors!(RED_SAND = c(0xbf6721), c(0xac5700), c(0xd97b30),
     color!(),
-    paint_svg_task("borderSolid", highlight!()),
-    paint_svg_task("checksSmall", highlight!()),
+    paint_stack!(highlight!(), "borderSolid", "checksSmall"),
     paint_svg_task("checksSmallOutline", shadow!())
 );
 block_with_colors!(CLAY = c(0x9aa3b3), c(0x9494a4), c(0xA8BEC5),
@@ -50,8 +49,7 @@ block_with_colors!(SOUL_SAND = c(0x624033), c(0x3F2D23), c(0x915431),
 block_with_colors!(SOUL_SOIL = c(0x3F2D23), c(0x352922), c(0x915431),
     shadow!(),
     paint_svg_task("borderSolid", color!()),
-    paint_svg_task("strokeBottomLeftTopRight4", highlight!()),
-    paint_svg_task("bigDotsTopLeftBottomRight", highlight!()),
+    paint_stack!(highlight!(), "strokeBottomLeftTopRight4", "bigDotsTopLeftBottomRight"),
     paint_svg_task("soulFaces", shadow!())
 );
 block_with_colors!(PACKED_MUD = c(0x8c674f),c(0x5e4841),c(0xab8661),
@@ -75,8 +73,7 @@ block_with_colors!(FARMLAND_MOIST = c(0x552e00),c(0x341900),c(0x6e3c15),
 block_with_colors!(DIRT = c(0x966c4a), c(0x593d29), c(0xb9855c),
     color!(),
     paint_svg_task("dots3", shadow!()),
-    paint_svg_task("dots2", highlight!()),
-    paint_svg_task("borderDotted", highlight!())
+    paint_stack!(highlight!(), "dots2", "borderDotted")
 );
 block_with_colors!(POWDER_SNOW = ComparableColor::WHITE,  c(0xcfcfdf), ComparableColor::WHITE,
     color!(),
