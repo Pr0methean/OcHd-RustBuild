@@ -1,5 +1,5 @@
 use crate::{dyed_block, stack_on};
-use crate::image_tasks::color::{c, ComparableColor};
+use crate::image_tasks::color::{ComparableColor};
 use crate::image_tasks::task_spec::paint_svg_task;
 
 dyed_block!(CONCRETE_POWDER = stack_on!(color!(),

@@ -4,7 +4,7 @@ use std::os::unix::fs::symlink;
 use std::path::{PathBuf};
 use log::info;
 
-use tiny_skia::{Pixmap, PremultipliedColorU8};
+use tiny_skia::{Pixmap};
 use tracing::instrument;
 
 use crate::anyhoo;

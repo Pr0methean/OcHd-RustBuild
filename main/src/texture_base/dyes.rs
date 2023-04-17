@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use crate::image_tasks::color::{gray, rgb};
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::task_spec::{out_task, SinkTaskSpec, ToPixmapTaskSpec};
@@ -26,7 +24,7 @@ pub static DYES: &[(&str, ComparableColor)] = &[
 
 pub struct DyedBlock {
     pub name: &'static str,
-    pub create_dyed_texture: Box<dyn Fn(ComparableColor) -> Box<ToPixmapTaskSpec> + Send + Sync>
+    pub create_dyed_texture: Box<dyn Fn(ComparableColor) -> ToPixmapTaskSpec + Send + Sync>
 }
 
 impl Material for DyedBlock {
