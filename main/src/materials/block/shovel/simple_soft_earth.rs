@@ -63,7 +63,7 @@ block_with_colors!(PACKED_MUD = c(0x8c674f),c(0x5e4841),c(0xab8661),
 block_with_colors!(FARMLAND = c(0x966c4a),c(0x593d29),c(0xb9855c),
     highlight!(),
     paint_svg_task("bambooThick", color!()),
-    paint_svg_task("bambooThinMinusBorder", shadow!())
+    paint_svg_task("bambooThinMinusBorder", shadow!()),
     paint_svg_task("dots0", ComparableColor::BLACK)
 );
 block_with_colors!(FARMLAND_MOIST = c(0x552e00),c(0x341900),c(0x6e3c15),
