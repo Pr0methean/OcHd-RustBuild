@@ -34,6 +34,7 @@ pub fn png_output(image: Box<Pixmap>, files: &Vec<PathBuf>) -> Result<(),Cloneab
 pub fn encode_png(mut image: Pixmap) -> Result<Vec<u8>, png::EncodingError> {
     for pixel in image.pixels_mut() {
         unsafe {
+            // Treat this PremultipliedColorU8 slice as a ColorU8 slice
             *pixel = mem::transmute(pixel.demultiply());
         }
     }
