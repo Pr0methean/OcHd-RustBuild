@@ -2,7 +2,8 @@ use std::path::PathBuf;
 
 use crate::image_tasks::color::{gray, rgb};
 use crate::image_tasks::color::ComparableColor;
-use crate::image_tasks::task_spec::{SinkTaskSpec, ToPixmapTaskSpec};
+use crate::image_tasks::task_spec::{out_task, SinkTaskSpec, ToPixmapTaskSpec};
+use crate::texture_base::material::Material;
 
 pub static DYES: &[(&str, ComparableColor)] = &[
     ("black",       ComparableColor::BLACK),
@@ -23,15 +24,37 @@ pub static DYES: &[(&str, ComparableColor)] = &[
     ("white",       ComparableColor::WHITE)
 ];
 
-pub fn dyed_block(name: &str,
-                  create_dyed_texture: Box<dyn Fn(&str, ComparableColor) -> ToPixmapTaskSpec>)
-        -> Box<dyn Iterator<Item=SinkTaskSpec>>{
-    let mut out  = Vec::with_capacity(DYES.len());
-    for (dye_name, dye_color) in DYES {
-        out.push(SinkTaskSpec::PngOutput {
-            base: Box::new(create_dyed_texture(dye_name, *dye_color)),
-            destinations: vec![PathBuf::from(format!("blocks/{}_{}", dye_name, name))]
-        });
+pub struct DyedBlock {
+    pub name: &'static str,
+    pub create_dyed_texture: Box<dyn Fn(ComparableColor) -> Box<ToPixmapTaskSpec> + Send + Sync>
+}
+
+impl Material for DyedBlock {
+    fn get_output_tasks(&self) -> Vec<SinkTaskSpec> {
+        let mut out  = Vec::with_capacity(DYES.len());
+        for (dye_name, dye_color) in DYES {
+            out.push(out_task(&*format!("block/{}_{}", dye_name, self.name),
+                (self.create_dyed_texture)(*dye_color),
+            ));
+        }
+        out
     }
-    Box::new(out.into_iter())
+}
+
+#[macro_export]
+macro_rules! dyed_block {
+    ($name:ident = $create_dyed_texture:expr) => {
+        lazy_static::lazy_static! {
+            pub static ref $name: crate::texture_base::dyes::DyedBlock =
+            crate::texture_base::dyes::DyedBlock {
+                name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
+                create_dyed_texture: Box::new(|color| {
+                    macro_rules! color {
+                        () => { color }
+                    }
+                    $create_dyed_texture
+                })
+            };
+        }
+    }
 }
