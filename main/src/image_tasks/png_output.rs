@@ -1,4 +1,5 @@
 use std::fs::{create_dir_all, write};
+use std::mem;
 use std::os::unix::fs::symlink;
 use std::path::{PathBuf};
 use log::info;
@@ -32,9 +33,9 @@ pub fn png_output(image: Box<Pixmap>, files: &Vec<PathBuf>) -> Result<(),Cloneab
 /// copy and pre-allocate the byte vector.
 pub fn encode_png(mut image: Pixmap) -> Result<Vec<u8>, png::EncodingError> {
     for pixel in image.pixels_mut() {
-        let c = pixel.demultiply();
-        *pixel =
-            PremultipliedColorU8::from_rgba(c.red(), c.green(), c.blue(), c.alpha()).unwrap();
+        unsafe {
+            *pixel = mem::transmute(pixel.demultiply());
+        }
     }
 
     let mut data = Vec::with_capacity(1024 * 1024);
