@@ -23,8 +23,8 @@ block_with_colors!(CLAY = c(0x9aa3b3), c(0x9494a4), c(0xA8BEC5),
     color!(),
     paint_svg_task("diagonalChecksTopLeftBottomRight", highlight!()),
     paint_stack!(shadow!(), "diagonalChecksBottomLeftTopRight",
-        "diagonalChecksFillTopLeftBottomRight"),
-    paint_svg_task("diagonalChecksFillBottomLeftTopRight", highlight!())
+        "diagonalChecksFillerSquaresTopLeftBottomRight"),
+    paint_svg_task("diagonalChecksFillerSquaresBottomLeftTopRight", highlight!())
 );
 block_with_colors!(MUD = c(0x3a3a3a), c(0x333333), c(0x515151),
     color!(),
