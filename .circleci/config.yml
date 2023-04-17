@@ -37,7 +37,7 @@ jobs:
           paths:
             - "OcHd-RustBuild"
       - store_artifacts:
-          path: main/target/release
+          path: main/target/release/OcHd-RustBuild
           destination: "OcHd"
       - save_cache:
           key: cargo-deps-{{ checksum "main/Cargo.toml" }}

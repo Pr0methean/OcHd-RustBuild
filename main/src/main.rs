@@ -16,6 +16,7 @@
 #![feature(poll_ready)]
 #![feature(arc_unwrap_or_clone)]
 #![feature(lazy_cell)]
+#![feature(concat_idents)]
 
 use std::alloc::System;
 use std::collections::{HashMap};
