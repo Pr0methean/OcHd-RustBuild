@@ -123,7 +123,8 @@ impl Material for Ore {
         for substrate in &self.substrates {
             output.push(out_task(
                 &*format!("block/{}{}_ore", substrate.block_name_prefix, self.name),
-                (self.ore_block_for_substrate)(self, substrate.material.texture.to_owned())));
+                (self.ore_block_for_substrate)(self,
+                                               substrate.material.material.texture.to_owned())));
         }
         if self.name != "quartz" {
             // quartz textures are defined separately in simple_pickaxe_block.rs
@@ -171,9 +172,9 @@ lazy_static! {
                                 ComparableColor::BLACK,
                                 ComparableColor::STONE_EXTREME_SHADOW);
         coal.ore_block_for_substrate = Box::new(|deferred_self, ore_base| {
-            if ore_base == DEEPSLATE.texture {
+            if ore_base == DEEPSLATE.material.texture {
                 stack!(
-                    DEEPSLATE.texture.to_owned(),
+                    DEEPSLATE.material.texture.to_owned(),
                     paint_svg_task("coalBorder", deferred_self.colors.highlight),
                     deferred_self.default_single_layer_item()
                 )
@@ -217,9 +218,9 @@ lazy_static! {
                             c(0xff5e5e));
         redstone.raw_item = Box::new(Ore::basic_raw_ore);
         redstone.ore_block_for_substrate = Box::new(|_, substrate| {
-            if substrate == STONE.texture {
+            if substrate == STONE.material.texture {
                 stack!(
-                    STONE.texture.to_owned(),
+                    STONE.material.texture.to_owned(),
                     paint_svg_task("redstone", REDSTONE.colors.shadow)
                 )
             } else {

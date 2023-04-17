@@ -153,7 +153,7 @@ macro_rules! block_with_colors {
             () => { $highlight }
         }
         lazy_static::lazy_static! {
-            static ref $name: crate::texture_base::material::SingleTextureTricolorMaterial =
+            pub static ref $name: crate::texture_base::material::SingleTextureTricolorMaterial =
             crate::texture_base::material::SingleTextureTricolorMaterial {
                 colors: crate::texture_base::material::ColorTriad {
                     color: color!(),
