@@ -18,12 +18,8 @@ anyhow = "1.0"
 cached = "0.42.0"
 ordered-float = "3.6.0"
 lazy_static = "1.4.0"
-strum = "0.24.1"
 const_format = {version = "0.2.30", features = ["fmt", "rust_1_64"]}
-weak-table = "0.3.2"
-async-std = {version = "1.12.0", features = ["unstable"]}
 rayon = "1.7.0"
-chashmap-next = "2.2.3"
 petgraph = "0.6.3"
 logging-allocator = "0.1.1"
 simple-logging = "2.0.2"
