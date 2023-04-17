@@ -4,7 +4,7 @@ use crate::image_tasks::color::{ComparableColor, gray, c};
 use crate::image_tasks::task_spec::{out_task, paint_svg_task, SinkTaskSpec, ToPixmapTaskSpec};
 use crate::{group, paint_stack, stack, stack_on};
 use crate::materials::block::pickaxe::ore_base::{DEEPSLATE, DEEPSLATE_BASE, NETHERRACK_BASE, OreBase, STONE, STONE_BASE};
-use crate::texture_base::material::{AbstractTextureSupplier, AbstractTextureUnaryFunc, ColorTriad, Material};
+use crate::texture_base::material::{AbstractTextureSupplier, AbstractTextureUnaryFunc, ColorTriad, Material, TricolorMaterial};
 
 lazy_static! {
     static ref OVERWORLD_SUBSTRATES: Vec<&'static OreBase> = vec![
@@ -150,6 +150,20 @@ impl Material for Ore {
     }
 }
 
+impl TricolorMaterial for Ore {
+    fn color(&self) -> ComparableColor {
+        self.colors.color
+    }
+
+    fn shadow(&self) -> ComparableColor {
+        self.colors.shadow
+    }
+
+    fn highlight(&self) -> ComparableColor {
+        self.colors.highlight
+    }
+}
+
 lazy_static! {
     pub static ref COAL: Ore = {
         let mut coal = Ore::new("coal",
@@ -269,6 +283,11 @@ lazy_static! {
                                   c(0xb6a48e),
                                   ComparableColor::WHITE);
         quartz.substrates = vec![&*NETHERRACK_BASE];
+        quartz.raw_item = Box::new(|_| stack!(
+            paint_svg_task("bigDiamondSolid", QUARTZ.colors.color),
+            paint_svg_task("bigDiamondSolidTopLeftBottomRight", QUARTZ.colors.highlight),
+            paint_svg_task("quartz", QUARTZ.colors.shadow)
+        ))
         quartz
     };
     pub static ref EMERALD: Ore = {
