@@ -1,5 +1,5 @@
 use crate::{block_with_colors, group, paint_stack};
-use crate::image_tasks::color::{c, ComparableColor};
+use crate::image_tasks::color::{c};
 use crate::image_tasks::task_spec::paint_svg_task;
 
 block_with_colors!(SAND = c(0xdfd5aa), c(0xd1ba8a), c(0xEaEaD0),

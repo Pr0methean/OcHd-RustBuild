@@ -287,7 +287,7 @@ lazy_static! {
             paint_svg_task("bigDiamondSolid", QUARTZ.colors.color),
             paint_svg_task("bigDiamondSolidTopLeftBottomRight", QUARTZ.colors.highlight),
             paint_svg_task("quartz", QUARTZ.colors.shadow)
-        ))
+        ));
         quartz
     };
     pub static ref EMERALD: Ore = {
