@@ -6,7 +6,6 @@
 #![feature(async_closure)]
 #![feature(try_trait_v2_residual)]
 #![feature(try_trait_v2)]
-#![feature(is_some_and)]
 #![feature(absolute_path)]
 #![feature(result_option_inspect)]
 #![feature(let_chains)]
