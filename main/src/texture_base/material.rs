@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -24,6 +23,13 @@ impl Material for MaterialGroup {
     fn get_output_tasks(&self) -> Vec<SinkTaskSpec> {
         self.tasks.to_owned()
     }
+}
+
+/// Material with 3 associated colors.
+pub trait TricolorMaterial: Material {
+    fn color(&self) -> ComparableColor;
+    fn shadow(&self) -> ComparableColor;
+    fn highlight(&self) -> ComparableColor;
 }
 
 pub const DEFAULT_GROUP_SIZE: usize = 1024;
@@ -52,6 +58,32 @@ pub struct SingleTextureMaterial {
     pub directory: &'static str,
     pub has_output: bool,
     pub texture: Box<ToPixmapTaskSpec>
+}
+
+#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
+pub struct SingleTextureTricolorMaterial {
+    pub material: SingleTextureMaterial,
+    pub colors: ColorTriad
+}
+
+impl Material for SingleTextureTricolorMaterial {
+    fn get_output_tasks(&self) -> Vec<SinkTaskSpec> {
+        self.material.get_output_tasks()
+    }
+}
+
+impl TricolorMaterial for SingleTextureTricolorMaterial {
+    fn color(&self) -> ComparableColor {
+        self.colors.color
+    }
+
+    fn shadow(&self) -> ComparableColor {
+        self.colors.shadow
+    }
+
+    fn highlight(&self) -> ComparableColor {
+        self.colors.highlight
+    }
 }
 
 impl From<SingleTextureMaterial> for Box<ToPixmapTaskSpec> {
@@ -105,6 +137,37 @@ pub fn block(name: &'static str, texture: Box<ToPixmapTaskSpec>) -> SingleTextur
 macro_rules! single_texture_block {
     ($name:ident = $background:expr, $( $layers:expr ),* ) => {
         $crate::single_texture_material!($name = "block", $background, $($layers),*);
+    }
+}
+
+#[macro_export]
+macro_rules! block_with_colors {
+    ($name:ident = $color:expr, $shadow:expr, $highlight:expr, $background:expr, $( $layers:expr ),* ) => {
+        macro_rules! color {
+            () => { $color }
+        }
+        macro_rules! shadow {
+            () => { $shadow }
+        }
+        macro_rules! highlight {
+            () => { $highlight }
+        }
+        lazy_static::lazy_static! {
+            static ref $name: crate::texture_base::material::SingleTextureTricolorMaterial =
+            crate::texture_base::material::SingleTextureTricolorMaterial {
+                colors: crate::texture_base::material::ColorTriad {
+                    color: color!(),
+                    shadow: shadow!(),
+                    highlight: highlight!()
+                },
+                material: crate::texture_base::material::SingleTextureMaterial {
+                    name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
+                    directory: "block",
+                    has_output: true,
+                    texture: crate::stack_on!($background, $($layers),*).into()
+                }
+            };
+        }
     }
 }
 
