@@ -5,7 +5,7 @@ use crate::{group, paint_stack, stack, stack_on};
 use crate::image_tasks::color::{c, ComparableColor};
 use crate::image_tasks::task_spec::{from_svg_task, out_task, paint_svg_task, SinkTaskSpec, ToPixmapTaskSpec};
 
-use crate::texture_base::material::Material;
+use crate::texture_base::material::{Material, TricolorMaterial};
 
 pub struct Wood {
     pub color: ComparableColor,
@@ -116,6 +116,20 @@ impl Wood {
             door_bottom,
             from_svg_task("doorKnob")
         )
+    }
+}
+
+impl TricolorMaterial for Wood {
+    fn color(&self) -> ComparableColor {
+        self.color
+    }
+
+    fn shadow(&self) -> ComparableColor {
+        self.shadow
+    }
+
+    fn highlight(&self) -> ComparableColor {
+        self.highlight
     }
 }
 
