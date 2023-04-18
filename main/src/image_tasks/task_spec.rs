@@ -175,15 +175,24 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
                     Ok(Box::new(to_alpha_channel(base_image.deref())?))
                 }))
             },
-            ToAlphaChannelTaskSpec::StackAlphaOnAlpha { background, foreground } => {
-                let (bg_index, bg_future) = background.add_to(ctx);
-                let (fg_index, fg_future) = foreground.add_to(ctx);
-                (vec![bg_index,fg_index],
+            ToAlphaChannelTaskSpec::StackAlphaOnAlpha { layers } => {
+                let mut layer_indices = Vec::with_capacity(layers.len());
+                let mut layer_tasks: Vec<CloneableLazyTask<MaybeFromPool<AlphaChannel>>> = Vec::with_capacity(layers.len());
+                for layer in layers {
+                    let (layer_index, layer_task) = layer.add_to(ctx);
+                    layer_indices.push(layer_index);
+                    layer_tasks.push(layer_task);
+                }
+                (layer_indices,
                 Box::new(move || {
-                    let bg_arc: Arc<Box<AlphaChannel>> = bg_future.into_result()?;
-                    let mut bg_image = Arc::unwrap_or_clone(bg_arc);
-                    stack_alpha_on_alpha(&mut bg_image, &*(fg_future.into_result()?));
-                    Ok(bg_image)
+                    let mut iter = layer_tasks.into_iter();
+                    let bg = iter.next().unwrap();
+                    let bg_arc: Arc<Box<AlphaChannel>> = bg.into_result()?;
+                    let mut out_image = Arc::unwrap_or_clone(bg_arc);
+                    for layer in iter {
+                        stack_alpha_on_alpha(&mut out_image, &*(layer.into_result()?));
+                    }
+                    Ok(out_image)
                 }))
             },
             ToAlphaChannelTaskSpec::StackAlphaOnBackground { background, foreground } => {
@@ -269,7 +278,7 @@ pub enum ToPixmapTaskSpec {
 pub enum ToAlphaChannelTaskSpec {
     MakeSemitransparent {base: Box<ToAlphaChannelTaskSpec>, alpha: OrderedFloat<f32>},
     FromPixmap {base: Box<ToPixmapTaskSpec>},
-    StackAlphaOnAlpha {background: Box<ToAlphaChannelTaskSpec>, foreground: Box<ToAlphaChannelTaskSpec>},
+    StackAlphaOnAlpha {layers: Vec<ToAlphaChannelTaskSpec>},
     StackAlphaOnBackground {background: OrderedFloat<f32>, foreground: Box<ToAlphaChannelTaskSpec>}
 }
 
@@ -393,8 +402,8 @@ impl Display for ToAlphaChannelTaskSpec {
             ToAlphaChannelTaskSpec::FromPixmap {base} => {
                 write!(f, "Alpha({:?})", base)
             }
-            ToAlphaChannelTaskSpec::StackAlphaOnAlpha {background, foreground} => {
-                write!(f, "{},{}", background, foreground)
+            ToAlphaChannelTaskSpec::StackAlphaOnAlpha {layers} => {
+                f.write_str(&layers.iter().join(","))
             }
             ToAlphaChannelTaskSpec::StackAlphaOnBackground {background, foreground} => {
                 write!(f, "{},{}", background, foreground)
@@ -600,24 +609,23 @@ pub fn out_task(name: &str, base: ToPixmapTaskSpec) -> FileOutputTaskSpec {
 
 #[macro_export]
 macro_rules! stack_alpha {
-    ( $first_layer:expr, $second_layer:expr ) => {
-        if ($second_layer < $first_layer) {
-            crate::image_tasks::task_spec::ToAlphaChannelTaskSpec::StackAlphaOnAlpha {
-                background: Box::new($second_layer.into()),
-                foreground: Box::new($first_layer.into())
-            }
-        } else {
-            crate::image_tasks::task_spec::ToAlphaChannelTaskSpec::StackAlphaOnAlpha {
-                background: Box::new($first_layer.into()),
-                foreground: Box::new($second_layer.into())
-            }
+    ( $( $layers:expr ),+ ) => {
+        {
+            let layers: Vec<crate::image_tasks::task_spec::ToAlphaChannelTaskSpec> = vec![$($layers.into()),+];
+            let mut layers: Vec<crate::image_tasks::task_spec::ToAlphaChannelTaskSpec> = layers
+                    .into_iter()
+                    .flat_map(|layer|
+                        if let crate::image_tasks::task_spec::ToAlphaChannelTaskSpec::StackAlphaOnAlpha {layers: sub_layers } = layer {
+                            sub_layers.to_owned()
+                        } else {
+                            vec![layer]
+                        }
+                    )
+                    .collect();
+            layers.sort();
+            crate::image_tasks::task_spec::ToAlphaChannelTaskSpec::StackAlphaOnAlpha {layers: layers}
         }
-    };
-    ( $first_layer:expr, $second_layer:expr, $( $more_layers:expr ),+ ) => {{
-        let mut layers_so_far = crate::stack_alpha!($first_layer, $second_layer);
-        $( layers_so_far = crate::stack_alpha!(layers_so_far, $more_layers); )+
-        layers_so_far
-    }};
+    }
 }
 
 pub fn stack(background: ToPixmapTaskSpec, foreground: ToPixmapTaskSpec) -> ToPixmapTaskSpec {
