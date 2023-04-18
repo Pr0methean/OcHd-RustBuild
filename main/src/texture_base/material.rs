@@ -111,15 +111,22 @@ impl Material for SingleTextureMaterial {
 }
 
 #[macro_export]
-macro_rules! single_texture_material {
-    ($name:ident = $directory:expr, $background:expr, $( $layers:expr ),* ) => {
+macro_rules! material {
+    ($name:ident = $directory:expr, $texture:expr) => {
         lazy_static::lazy_static! {pub static ref $name: crate::texture_base::material::SingleTextureMaterial =
         crate::texture_base::material::SingleTextureMaterial {
             name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
             directory: $directory,
             has_output: true,
-            texture: crate::stack_on!($background, $($layers),*).into()
+            texture: $texture.into()
         };}
+    }
+}
+
+#[macro_export]
+macro_rules! single_texture_material {
+    ($name:ident = $directory:expr, $background:expr, $( $layers:expr ),* ) => {
+        crate::material!($name = $directory, crate::stack_on!($background, $($layers),*));
     }
 }
 
