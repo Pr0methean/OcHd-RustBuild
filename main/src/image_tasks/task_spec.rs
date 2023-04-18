@@ -121,12 +121,6 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                         && base_of_base.is_all_black() {
                     return base_of_base.add_to(ctx);
                 }
-                let base = if let ToAlphaChannelTaskSpec::FromPixmap { base: base_of_base} = base.deref()
-                        && let ToPixmapTaskSpec::PaintAlphaChannel { base: base_of_base_of_base, .. } = &**base_of_base {
-                    base_of_base_of_base
-                } else {
-                    base
-                };
                 let color = color.to_owned();
                 let (base_index, base_future) = base.add_to(ctx);
                 (vec![base_index],
@@ -174,6 +168,9 @@ impl TaskSpecTraits<MaybeFromPool<AlphaChannel>> for ToAlphaChannelTaskSpec {
                 }))
             },
             ToAlphaChannelTaskSpec::FromPixmap { base } => {
+                if let ToPixmapTaskSpec::PaintAlphaChannel {base: base_of_base, ..} = base.deref() {
+                    return base_of_base.add_to(ctx);
+                }
                 let (base_index, base_future) = base.add_to(ctx);
                 (vec![base_index],
                 Box::new(move || {
