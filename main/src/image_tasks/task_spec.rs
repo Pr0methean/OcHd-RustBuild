@@ -2,6 +2,7 @@ use std::collections::{HashMap};
 
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
+use std::mem;
 
 use std::ops::{Deref, DerefMut, Mul};
 use std::path::{Path, PathBuf};
@@ -16,7 +17,7 @@ use fn_graph::daggy::Dag;
 use itertools::{Itertools};
 
 
-use log::{info};
+use log::{error, info};
 use ordered_float::OrderedFloat;
 use petgraph::graph::{IndexType, NodeIndex};
 use replace_with::replace_with_and_return;
@@ -35,15 +36,15 @@ use crate::image_tasks::stack::{stack_alpha_on_alpha, stack_layer_on_background,
 use crate::TILE_SIZE;
 
 pub trait TaskSpecTraits <T>: Clone + Debug + Display + Ord + Eq + Hash {
-    fn add_to<'a, E, Ix>(&'a self, ctx: &mut TaskGraphBuildingContext<'a, E, Ix>)
+    fn add_to<'a, 'b, E, Ix>(&'b self, ctx: &mut TaskGraphBuildingContext<'a, E, Ix>)
                          -> (NodeIndex<Ix>, CloneableLazyTask<T>)
-        where Ix : IndexType, E: Default;
+        where Ix : IndexType, E: Default, 'b: 'a;
 }
 
 impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
-    fn add_to<'a, E, Ix>(&'a self, ctx: &mut TaskGraphBuildingContext<'a, E, Ix>)
+    fn add_to<'a, 'b, E, Ix>(&'b self, ctx: &mut TaskGraphBuildingContext<'a, E, Ix>)
                          -> (NodeIndex<Ix>, CloneableLazyTask<MaybeFromPool<Pixmap>>)
-                         where Ix : IndexType, E: Default {
+                         where Ix : IndexType, E: Default, 'b: 'a {
         let name: String = self.to_string();
         if let Some((existing_index, existing_future)) = ctx.pixmap_task_to_future_map.get(&self) {
             info!("Matched an existing node: {}", name);
@@ -87,6 +88,23 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                 }))
             },
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
+                if let ToPixmapTaskSpec::PaintAlphaChannel {base: base_of_bg, color: color_of_bg} = background.deref()
+                        && let ToPixmapTaskSpec::PaintAlphaChannel {base: base_of_fg, color: color_of_fg} = foreground.deref()
+                        && color_of_bg == color_of_fg {
+                    error!("Wanted to rebuild {} by merging {} and {}, but the borrow checker \
+                    doesn't allow this!", self, base_of_bg, base_of_fg);
+                    /*
+                    FIXME: Fails borrow checker:
+                    let simplified = ToPixmapTaskSpec::PaintAlphaChannel {
+                        base: Box::new(ToAlphaChannelTaskSpec::StackAlphaOnAlpha {
+                            background: base_of_bg.to_owned(),
+                            foreground: base_of_fg.to_owned()
+                        }),
+                        color: color_of_fg.to_owned()
+                    };
+                    return simplified.add_to(ctx);
+                     */
+                }
                 let (bg_index, bg_future) = background.add_to(ctx);
                 let (fg_index, fg_future) = foreground.add_to(ctx);
                 (vec![bg_index, fg_index], Box::new(move || {
@@ -103,6 +121,12 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                         && base_of_base.is_all_black() {
                     return base_of_base.add_to(ctx);
                 }
+                let base = if let ToAlphaChannelTaskSpec::FromPixmap { base: base_of_base} = base.deref()
+                        && let ToPixmapTaskSpec::PaintAlphaChannel { base: base_of_base_of_base, .. } = &**base_of_base {
+                    base_of_base_of_base
+                } else {
+                    base
+                };
                 let color = color.to_owned();
                 let (base_index, base_future) = base.add_to(ctx);
                 (vec![base_index],
@@ -123,9 +147,9 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
 }
 
 impl TaskSpecTraits<MaybeFromPool<AlphaChannel>> for ToAlphaChannelTaskSpec {
-    fn add_to<'a, E, Ix>(&'a self, ctx: &mut TaskGraphBuildingContext<'a, E, Ix>)
+    fn add_to<'a, 'b, E, Ix>(&'b self, ctx: &mut TaskGraphBuildingContext<'a, E, Ix>)
                          -> (NodeIndex<Ix>, CloneableLazyTask<MaybeFromPool<AlphaChannel>>)
-                         where Ix : IndexType, E: Default {
+                         where Ix : IndexType, E: Default, 'b: 'a {
         let name: String = self.to_string();
         if let Some((existing_index, existing_future))
                 = ctx.alpha_task_to_future_map.get(&self) {
@@ -180,9 +204,9 @@ impl TaskSpecTraits<MaybeFromPool<AlphaChannel>> for ToAlphaChannelTaskSpec {
 }
 
 impl TaskSpecTraits<()> for FileOutputTaskSpec {
-    fn add_to<'a, E, Ix>(&'a self, ctx: &mut TaskGraphBuildingContext<'a, E, Ix>)
+    fn add_to<'a, 'b, E, Ix>(&'b self, ctx: &mut TaskGraphBuildingContext<'a, E, Ix>)
                          -> (NodeIndex<Ix>, CloneableLazyTask<()>)
-                         where Ix : IndexType, E: Default {
+                         where Ix : IndexType, E: Default, 'b: 'a {
         let name: String = self.to_string();
         if let Some((existing_index, existing_future))
                 = ctx.output_task_to_future_map.get(&self) {
