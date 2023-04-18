@@ -1,4 +1,5 @@
 use crate::group;
+use crate::materials::block::pickaxe::copper_oxide::COPPER_OXIDES;
 use crate::materials::block::pickaxe::glass::GLASS_VARIANTS;
 use crate::materials::block::pickaxe::ore::ORES;
 use crate::materials::block::pickaxe::ore_base::ORE_BASES;
@@ -12,6 +13,7 @@ pub mod ore;
 mod rail;
 mod polishable;
 mod glass;
+mod copper_oxide;
 
 group!(PICKAXE_BLOCKS = ORE_BASES, SIMPLE_PICKAXE_BLOCKS, ORES, RAILS, POLISHABLE,
-    GLASS_VARIANTS);
+    GLASS_VARIANTS, COPPER_OXIDES);
