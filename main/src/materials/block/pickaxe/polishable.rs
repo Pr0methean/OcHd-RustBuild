@@ -2,7 +2,7 @@ use crate::image_tasks::color::{ComparableColor, c};
 use crate::image_tasks::task_spec::{out_task, paint_svg_task, FileOutputTaskSpec, ToPixmapTaskSpec};
 use crate::{block_with_colors, group, paint_stack, single_texture_block, stack};
 use crate::materials::block::pickaxe::ore::GOLD;
-use crate::texture_base::material::{ColorTriad, Material, SingleTextureMaterial, TricolorMaterial};
+use crate::texture_base::material::{ColorTriad, Material, TricolorMaterial};
 
 pub struct PolishableBlock {
     pub name: &'static str,

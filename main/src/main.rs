@@ -16,7 +16,7 @@
 #![feature(arc_unwrap_or_clone)]
 #![feature(lazy_cell)]
 #![feature(concat_idents)]
-
+#![feature(macro_metavar_expr)]
 use std::alloc::System;
 use std::collections::{HashMap};
 use std::path::absolute;
