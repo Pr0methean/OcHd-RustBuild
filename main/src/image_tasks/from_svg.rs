@@ -16,8 +16,8 @@ use crate::image_tasks::task_spec::{CloneableError};
 
 pub const COLOR_SVGS: &[&str] = &[
     "./svg/bed.svg",
-    "./svg/blastFurnaceHoles.svg",
-    "./svg/blastFurnaceHoles1.svg",
+    "./svg/blastFurnaceHolesLit.svg",
+    "./svg/blastFurnaceHolesLit1.svg",
     "./svg/bonemeal.svg",
     "./svg/bonemealSmall.svg",
     "./svg/bonemealSmallNoBorder.svg",
