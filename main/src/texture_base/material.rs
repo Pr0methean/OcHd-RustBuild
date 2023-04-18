@@ -168,7 +168,7 @@ macro_rules! copy_block {
     ($name:ident = $base:expr , $base_name:expr) => {
         lazy_static::lazy_static! {pub static ref $name: crate::texture_base::material::CopiedMaterial =
         crate::texture_base::material::CopiedMaterial {
-            name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
+            name: const_format::formatcp!("block/{}", const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name))),
             source: {
                 use crate::texture_base::material::Material;
                 $base.get_output_task_by_name($base_name).unwrap()
