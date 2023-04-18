@@ -36,7 +36,7 @@ ground_cover_block!(PODZOL = DIRT, c(0x6a4418), c(0x4a3018), c(0x8b5920),
     )
 );
 
-copy_block!(COMPOSTER_COMPOST = PODZOL.top);
+copy_block!(COMPOSTER_COMPOST = PODZOL, "top");
 
 single_texture_block!(COMPOSTER_READY = ComparableColor::TRANSPARENT,
     PODZOL.top.to_owned(),

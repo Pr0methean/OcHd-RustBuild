@@ -27,7 +27,7 @@ use crate::image_tasks::animate::animate;
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::from_svg::{COLOR_SVGS, from_svg};
 use crate::image_tasks::make_semitransparent::make_semitransparent;
-use crate::image_tasks::png_output::png_output;
+use crate::image_tasks::png_output::{png_output, symlink_with_logging};
 use crate::image_tasks::repaint::{AlphaChannel, to_alpha_channel};
 use crate::image_tasks::repaint::paint;
 use crate::image_tasks::stack::{stack_alpha_on_alpha, stack_layer_on_background, stack_layer_on_layer};
@@ -177,7 +177,7 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
     }
 }
 
-impl TaskSpecTraits<()> for SinkTaskSpec {
+impl TaskSpecTraits<()> for FileOutputTaskSpec {
     fn add_to<'a, E, Ix>(&'a self, ctx: &mut TaskGraphBuildingContext<'a, E, Ix>)
                          -> (NodeIndex<Ix>, CloneableLazyTask<()>)
                          where Ix : IndexType, E: Default {
@@ -189,12 +189,21 @@ impl TaskSpecTraits<()> for SinkTaskSpec {
         }
         let self_id = ctx.graph.add_node(TaskSpec::from(self));
         let (dependencies, function): (Vec<NodeIndex<Ix>>, LazyTaskFunction<()>) = match self {
-            SinkTaskSpec::PngOutput {base, destinations} => {
-                let destinations = destinations.to_owned();
+            FileOutputTaskSpec::PngOutput {base, destination } => {
+                let destination = destination.to_owned();
                 let (base_index, base_future) = base.add_to(ctx);
                 (vec![base_index], Box::new(move || {
                     Ok(Box::new(png_output(*Arc::unwrap_or_clone(base_future.into_result()?),
-                                           &destinations)?))
+                                           destination)?))
+                }))
+            }
+            FileOutputTaskSpec::Symlink {original, link} => {
+                let link = link.to_owned();
+                let original_path = original.get_path();
+                let (base_index, base_future) = original.add_to(ctx);
+                (vec![base_index], Box::new(move || {
+                    base_future.into_result()?;
+                    Ok(Box::new(symlink_with_logging(original_path, link)?))
                 }))
             }
         };
@@ -231,8 +240,18 @@ pub enum ToAlphaChannelTaskSpec {
 
 /// [TaskSpec] for a task that doesn't produce a heap object as output.
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
-pub enum SinkTaskSpec {
-    PngOutput {base: ToPixmapTaskSpec, destinations: Vec<PathBuf>},
+pub enum FileOutputTaskSpec {
+    PngOutput {base: ToPixmapTaskSpec, destination: PathBuf},
+    Symlink {original: Box<FileOutputTaskSpec>, link: PathBuf}
+}
+
+impl FileOutputTaskSpec {
+    pub(crate) fn get_path(&self) -> PathBuf {
+        match self {
+            FileOutputTaskSpec::PngOutput { destination, .. } => destination.to_owned(),
+            FileOutputTaskSpec::Symlink { link, .. } => link.to_owned()
+        }
+    }
 }
 
 /// Specification of a task that produces one of several output types. Created so that
@@ -242,7 +261,7 @@ pub enum SinkTaskSpec {
 pub enum TaskSpec {
     ToPixmapTaskSpec(ToPixmapTaskSpec),
     ToAlphaChannelTaskSpec(ToAlphaChannelTaskSpec),
-    SinkTaskSpec(SinkTaskSpec)
+    FileOutputTaskSpec(FileOutputTaskSpec)
 }
 
 impl Display for TaskSpec {
@@ -250,7 +269,7 @@ impl Display for TaskSpec {
         let inner: Box<&dyn Display> = Box::new(match self {
             TaskSpec::ToPixmapTaskSpec(inner) => inner,
             TaskSpec::ToAlphaChannelTaskSpec(inner) => inner,
-            TaskSpec::SinkTaskSpec(inner) => inner
+            TaskSpec::FileOutputTaskSpec(inner) => inner
         });
         <Box<&dyn Display> as Display>::fmt(&inner, f)
     }
@@ -268,9 +287,9 @@ impl From<&ToAlphaChannelTaskSpec> for TaskSpec {
     }
 }
 
-impl From<&SinkTaskSpec> for TaskSpec {
-    fn from(value: &SinkTaskSpec) -> Self {
-        TaskSpec::SinkTaskSpec(value.to_owned())
+impl From<&FileOutputTaskSpec> for TaskSpec {
+    fn from(value: &FileOutputTaskSpec) -> Self {
+        TaskSpec::FileOutputTaskSpec(value.to_owned())
     }
 }
 
@@ -317,16 +336,14 @@ impl Display for ToPixmapTaskSpec {
     }
 }
 
-impl Display for SinkTaskSpec {
+impl Display for FileOutputTaskSpec {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(&*match self {
-            SinkTaskSpec::PngOutput { base: _base, destinations } => {
-                destinations.iter().map(|dest|
-                    match dest.file_name() {
-                        None => "Unknown PNG file",
-                        Some(name) => name.to_str().unwrap()
-                    }
-                ).join(",")
+            FileOutputTaskSpec::PngOutput { destination, .. } => {
+                destination.to_string_lossy().to_string()
+            },
+            FileOutputTaskSpec::Symlink { original, link } => {
+                format!("Symlink {} -> {}", link.to_string_lossy(), original.to_string())
             }
         })
     }
@@ -482,7 +499,7 @@ pub struct TaskGraphBuildingContext<'a, E, Ix> where Ix: IndexType {
     pub graph: TaskGraph<E, Ix>,
     pixmap_task_to_future_map: HashMap<&'a ToPixmapTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<Pixmap>)>,
     alpha_task_to_future_map: HashMap<&'a ToAlphaChannelTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<AlphaChannel>)>,
-    pub output_task_to_future_map: HashMap<&'a SinkTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<()>)>
+    pub output_task_to_future_map: HashMap<&'a FileOutputTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<()>)>
 }
 
 impl <'a,E,Ix> TaskGraphBuildingContext<'a,E,Ix> where Ix: IndexType {
@@ -539,12 +556,8 @@ pub fn semitrans_svg_task(name: &str, alpha: f32) -> ToAlphaChannelTaskSpec {
         alpha: alpha.into()}
 }
 
-pub fn path(name: &str) -> Vec<PathBuf> {
-    vec![name_to_out_path(name)]
-}
-
-pub fn out_task(name: &str, base: ToPixmapTaskSpec) -> SinkTaskSpec {
-    SinkTaskSpec::PngOutput {base, destinations: path(name)}
+pub fn out_task(name: &str, base: ToPixmapTaskSpec) -> FileOutputTaskSpec {
+    FileOutputTaskSpec::PngOutput {base, destination: name_to_out_path(name)}
 }
 
 #[macro_export]

@@ -4,7 +4,7 @@ use crate::image_tasks::task_spec::{paint_svg_task, ToPixmapTaskSpec};
 use crate::materials::block::pickaxe::ore_base::DEEPSLATE;
 use crate::{block_with_colors, group, paint_stack, single_texture_block, stack_on};
 use crate::materials::block::pickaxe::ore::QUARTZ;
-use crate::materials::block::shovel::simple_soft_earth::{MOSS_BLOCK, RED_SAND, SAND, MUD, PACKED_MUD};
+use crate::materials::block::shovel::simple_soft_earth::{MOSS_BLOCK, RED_SAND, MUD, PACKED_MUD};
 use crate::texture_base::material::{SingleTextureMaterial, TricolorMaterial};
 use crate::texture_base::material::block;
 
@@ -48,11 +48,13 @@ lazy_static! {
 
 macro_rules! stone {
     ($name:ident = $background:expr, $($layers:expr),*) => {
+        #[allow(unused_macros)]
         macro_rules! extreme_highlight {
             () => {
                 crate::image_tasks::color::ComparableColor::STONE_EXTREME_HIGHLIGHT
             }
         }
+        #[allow(unused_macros)]
         macro_rules! extreme_shadow {
             () => {
                 crate::image_tasks::color::ComparableColor::STONE_EXTREME_SHADOW

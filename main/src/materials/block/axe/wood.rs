@@ -3,7 +3,7 @@ use lazy_static::lazy_static;
 
 use crate::{group, paint_stack, stack, stack_on};
 use crate::image_tasks::color::{c, ComparableColor};
-use crate::image_tasks::task_spec::{from_svg_task, out_task, paint_svg_task, SinkTaskSpec, ToPixmapTaskSpec};
+use crate::image_tasks::task_spec::{from_svg_task, out_task, paint_svg_task, FileOutputTaskSpec, ToPixmapTaskSpec};
 
 use crate::texture_base::material::{Material, TricolorMaterial};
 
@@ -578,7 +578,7 @@ lazy_static!{pub static ref WARPED: Wood = nether_fungus(
 );}
 
 impl Material for Wood {
-    fn get_output_tasks(&self) -> Vec<SinkTaskSpec> {
+    fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         let door_common_layers: ToPixmapTaskSpec = (self.door_common_layers)(self);
         let door_bottom: ToPixmapTaskSpec = (self.door_bottom)(self, door_common_layers.to_owned());
         let stripped_log_side: ToPixmapTaskSpec = (self.stripped_log_side)(self);

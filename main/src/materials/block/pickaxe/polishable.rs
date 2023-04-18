@@ -1,5 +1,5 @@
 use crate::image_tasks::color::{ComparableColor, c};
-use crate::image_tasks::task_spec::{out_task, paint_svg_task, SinkTaskSpec, ToPixmapTaskSpec};
+use crate::image_tasks::task_spec::{out_task, paint_svg_task, FileOutputTaskSpec, ToPixmapTaskSpec};
 use crate::{block_with_colors, group, paint_stack, single_texture_block, stack};
 use crate::materials::block::pickaxe::ore::GOLD;
 use crate::texture_base::material::{ColorTriad, Material, SingleTextureMaterial, TricolorMaterial};
@@ -21,7 +21,7 @@ impl PolishableBlock {
 }
 
 impl Material for PolishableBlock {
-    fn get_output_tasks(&self) -> Vec<SinkTaskSpec> {
+    fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         vec![
             out_task(&*format!("block/{}", self.name), self.texture.to_owned()),
             out_task(&*format!("block/polished_{}", self.name), self.polished_texture()),

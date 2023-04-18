@@ -1,7 +1,7 @@
 use std::borrow::ToOwned;
 use lazy_static::lazy_static;
 use crate::image_tasks::color::{ComparableColor, gray, c};
-use crate::image_tasks::task_spec::{out_task, paint_svg_task, SinkTaskSpec, ToPixmapTaskSpec};
+use crate::image_tasks::task_spec::{out_task, paint_svg_task, FileOutputTaskSpec, ToPixmapTaskSpec};
 use crate::{group, paint_stack, stack, stack_on};
 use crate::materials::block::pickaxe::ore_base::{DEEPSLATE, DEEPSLATE_BASE, NETHERRACK_BASE, OreBase, STONE, STONE_BASE};
 use crate::texture_base::material::{AbstractTextureSupplier, AbstractTextureUnaryFunc, ColorTriad, Material, TricolorMaterial};
@@ -105,7 +105,7 @@ impl Ore {
 }
 
 impl Material for Ore {
-    fn get_output_tasks(&self) -> Vec<SinkTaskSpec> {
+    fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         /*
                 substrates.forEach { oreBase ->
             out("block/${oreBase.orePrefix}${this@Ore.name}_ore", oreBlock(this@outputTasks, oreBase))
