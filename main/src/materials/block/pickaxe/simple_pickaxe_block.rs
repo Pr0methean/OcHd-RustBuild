@@ -1,6 +1,6 @@
 use lazy_static::lazy_static;
 use crate::image_tasks::color::{ComparableColor, c};
-use crate::image_tasks::task_spec::{paint_svg_task, ToPixmapTaskSpec};
+use crate::image_tasks::task_spec::{from_svg_task, paint_svg_task, ToPixmapTaskSpec};
 use crate::materials::block::pickaxe::ore_base::DEEPSLATE;
 use crate::{block_with_colors, group, paint_stack, single_texture_block, stack_on};
 use crate::materials::block::pickaxe::ore::QUARTZ;
@@ -399,7 +399,7 @@ block_with_colors!(BLUE_GLAZED_TERRACOTTA = c(0x4040aa), c(0x2d2d8f), c(0x4577d3
     paint_svg_task("checksQuarterCircles", color!()),
     from_svg_task("bigDotsTopLeftBottomRight"),
     paint_svg_task("bigRingsTopLeftBottomRight", color!()),
-    paint_stack!(highlight(), "checksLargeOutline", "cornerRingTopLeft")
+    paint_stack!(highlight!(), "checksLargeOutline", "cornerRingTopLeft")
 );
 
 block_with_colors!(BROWN_GLAZED_TERRACOTTA = c(0x8c5a35), c(0x007788), c(0xcd917c),
