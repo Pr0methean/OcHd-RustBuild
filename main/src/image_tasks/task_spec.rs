@@ -177,7 +177,7 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
             },
             ToAlphaChannelTaskSpec::StackAlphaOnAlpha { layers } => {
                 let mut layer_indices = Vec::with_capacity(layers.len());
-                let mut layer_tasks: Vec<CloneableLazyTask<MaybeFromPool<AlphaChannel>>> = Vec::with_capacity(layers.len());
+                let mut layer_tasks: Vec<CloneableLazyTask<AlphaChannel>> = Vec::with_capacity(layers.len());
                 for layer in layers {
                     let (layer_index, layer_task) = layer.add_to(ctx);
                     layer_indices.push(layer_index);
