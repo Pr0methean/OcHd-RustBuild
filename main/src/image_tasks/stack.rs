@@ -38,7 +38,7 @@ pub fn stack_alpha_on_alpha(background: &mut MaybeFromPool<AlphaChannel>, foregr
     }
 }
 
-pub fn stack_alpha_on_background(background_alpha: f32, foreground: &mut AlphaChannel)
+pub fn stack_alpha_on_background(background_alpha: f32, foreground: &mut MaybeFromPool<AlphaChannel>)
 {
     let background_alpha = (u8::MAX as f32 * background_alpha + 0.5) as u8;
     let output_pixels = foreground.pixels_mut();

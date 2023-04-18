@@ -196,7 +196,7 @@ impl TaskSpecTraits<MaybeFromPool<AlphaChannel>> for ToAlphaChannelTaskSpec {
                 let (fg_index, fg_future) = foreground.add_to(ctx);
                 (vec![fg_index],
                  Box::new(move || {
-                     let fg_arc: Arc<Box<AlphaChannel>> = fg_future.into_result()?;
+                     let fg_arc: Arc<Box<MaybeFromPool<AlphaChannel>>> = fg_future.into_result()?;
                      let mut fg_image = Arc::unwrap_or_clone(fg_arc);
                      stack_alpha_on_background(background, &mut *fg_image);
                      Ok(fg_image)
