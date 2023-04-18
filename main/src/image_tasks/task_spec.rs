@@ -598,15 +598,34 @@ pub fn out_task(name: &str, base: ToPixmapTaskSpec) -> FileOutputTaskSpec {
     FileOutputTaskSpec::PngOutput {base, destination: name_to_out_path(name)}
 }
 
+#[macro_export]
+macro_rules! stack_alpha {
+    ( $first_layer:expr, $second_layer:expr ) => {
+        if ($second_layer < $first_layer) {
+            crate::image_tasks::task_spec::ToAlphaChannelTaskSpec::StackAlphaOnAlpha {
+                background: Box::new($second_layer.into()),
+                foreground: Box::new($first_layer.into())
+            }
+        } else {
+            crate::image_tasks::task_spec::ToAlphaChannelTaskSpec::StackAlphaOnAlpha {
+                background: Box::new($first_layer.into()),
+                foreground: Box::new($second_layer.into())
+            }
+        }
+    };
+    ( $first_layer:expr, $second_layer:expr, $( $more_layers:expr ),+ ) => {{
+        let mut layers_so_far = crate::stack_alpha!($first_layer, $second_layer);
+        $( layers_so_far = crate::stack_alpha!(layers_so_far, $more_layers); )+
+        layers_so_far
+    }};
+}
+
 pub fn stack(background: ToPixmapTaskSpec, foreground: ToPixmapTaskSpec) -> ToPixmapTaskSpec {
     if let ToPixmapTaskSpec::PaintAlphaChannel {base: fg_base, color: fg_color} = &foreground {
         if let ToPixmapTaskSpec::PaintAlphaChannel {base: bg_base, color: bg_color} = &background
                 && fg_color == bg_color {
             return ToPixmapTaskSpec::PaintAlphaChannel {
-                base: Box::new(ToAlphaChannelTaskSpec::StackAlphaOnAlpha {
-                    background: bg_base.to_owned(),
-                    foreground: fg_base.to_owned()
-                }),
+                base: Box::new(stack_alpha!(*bg_base.to_owned(), *fg_base.to_owned())),
                 color: fg_color.to_owned()
             };
         } else if let ToPixmapTaskSpec::StackLayerOnLayer {background: bg_bg, foreground: bg_fg} = &background
@@ -615,10 +634,7 @@ pub fn stack(background: ToPixmapTaskSpec, foreground: ToPixmapTaskSpec) -> ToPi
             return ToPixmapTaskSpec::StackLayerOnLayer {
                 background: bg_bg.to_owned(),
                 foreground: Box::new(ToPixmapTaskSpec::PaintAlphaChannel {
-                    base: Box::new(ToAlphaChannelTaskSpec::StackAlphaOnAlpha {
-                        background: bg_fg_base.to_owned(),
-                        foreground: fg_base.to_owned()
-                    }),
+                    base: Box::new(stack_alpha!(*bg_fg_base.to_owned(), *fg_base.to_owned())),
                     color: fg_color.to_owned()
                 })
             };
@@ -628,10 +644,7 @@ pub fn stack(background: ToPixmapTaskSpec, foreground: ToPixmapTaskSpec) -> ToPi
             return ToPixmapTaskSpec::StackLayerOnColor {
                 background: bg_bg.to_owned(),
                 foreground: Box::new(ToPixmapTaskSpec::PaintAlphaChannel {
-                    base: Box::new(ToAlphaChannelTaskSpec::StackAlphaOnAlpha {
-                        background: bg_fg_base.to_owned(),
-                        foreground: fg_base.to_owned()
-                    }),
+                    base: Box::new(stack_alpha!(*bg_fg_base.to_owned(), *fg_base.to_owned())),
                     color: fg_color.to_owned()
                 })
             };
@@ -650,21 +663,6 @@ macro_rules! stack {
     ( $first_layer:expr, $second_layer:expr, $( $more_layers:expr ),+ ) => {{
         let mut layers_so_far = crate::stack!($first_layer, $second_layer);
         $( layers_so_far = crate::stack!(layers_so_far, $more_layers); )+
-        layers_so_far
-    }};
-}
-
-#[macro_export]
-macro_rules! stack_alpha {
-    ( $first_layer:expr, $second_layer:expr ) => {
-        crate::image_tasks::task_spec::ToAlphaChannelTaskSpec::StackAlphaOnAlpha {
-            background: Box::new($first_layer.into()),
-            foreground: Box::new($second_layer.into())
-        }
-    };
-    ( $first_layer:expr, $second_layer:expr, $( $more_layers:expr ),+ ) => {{
-        let mut layers_so_far = crate::stack_alpha!($first_layer, $second_layer);
-        $( layers_so_far = crate::stack_alpha!(layers_so_far, $more_layers); )+
         layers_so_far
     }};
 }
