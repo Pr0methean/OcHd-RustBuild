@@ -2,7 +2,6 @@ use std::collections::{HashMap};
 
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
-use std::mem;
 
 use std::ops::{Deref, DerefMut, Mul};
 use std::path::{Path, PathBuf};
@@ -31,7 +30,7 @@ use crate::image_tasks::make_semitransparent::make_semitransparent;
 use crate::image_tasks::png_output::{png_output, symlink_with_logging};
 use crate::image_tasks::repaint::{AlphaChannel, to_alpha_channel};
 use crate::image_tasks::repaint::paint;
-use crate::image_tasks::stack::{stack_alpha_on_alpha, stack_layer_on_background, stack_layer_on_layer};
+use crate::image_tasks::stack::{stack_alpha_on_alpha, stack_alpha_on_background, stack_layer_on_background, stack_layer_on_layer};
 use crate::TILE_SIZE;
 
 pub trait TaskSpecTraits <T>: Clone + Debug + Display + Ord + Eq + Hash {
@@ -186,6 +185,20 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
                     stack_alpha_on_alpha(&mut bg_image, &*(fg_future.into_result()?));
                     Ok(bg_image)
                 }))
+            },
+            ToAlphaChannelTaskSpec::StackAlphaOnBackground { background, foreground } => {
+                if *background == 0.0 {
+                    return foreground.add_to(ctx);
+                }
+                let background = background.0;
+                let (fg_index, fg_future) = foreground.add_to(ctx);
+                (vec![fg_index],
+                 Box::new(move || {
+                     let fg_arc: Arc<Box<AlphaChannel>> = fg_future.into_result()?;
+                     let mut fg_image = Arc::unwrap_or_clone(fg_arc);
+                     stack_alpha_on_background(background, &mut *fg_image);
+                     Ok(fg_image)
+                 }))
             }
         };
         for dependency in dependencies {
@@ -257,6 +270,7 @@ pub enum ToAlphaChannelTaskSpec {
     MakeSemitransparent {base: Box<ToAlphaChannelTaskSpec>, alpha: OrderedFloat<f32>},
     FromPixmap {base: Box<ToPixmapTaskSpec>},
     StackAlphaOnAlpha {background: Box<ToAlphaChannelTaskSpec>, foreground: Box<ToAlphaChannelTaskSpec>},
+    StackAlphaOnBackground {background: OrderedFloat<f32>, foreground: Box<ToAlphaChannelTaskSpec>}
 }
 
 /// [TaskSpec] for a task that doesn't produce a heap object as output.
@@ -380,6 +394,9 @@ impl Display for ToAlphaChannelTaskSpec {
                 write!(f, "Alpha({:?})", base)
             }
             ToAlphaChannelTaskSpec::StackAlphaOnAlpha {background, foreground} => {
+                write!(f, "{},{}", background, foreground)
+            }
+            ToAlphaChannelTaskSpec::StackAlphaOnBackground {background, foreground} => {
                 write!(f, "{},{}", background, foreground)
             }
         }
@@ -581,13 +598,54 @@ pub fn out_task(name: &str, base: ToPixmapTaskSpec) -> FileOutputTaskSpec {
     FileOutputTaskSpec::PngOutput {base, destination: name_to_out_path(name)}
 }
 
+pub fn stack(background: ToPixmapTaskSpec, foreground: ToPixmapTaskSpec) -> ToPixmapTaskSpec {
+    if let ToPixmapTaskSpec::PaintAlphaChannel {base: fg_base, color: fg_color} = &foreground {
+        if let ToPixmapTaskSpec::PaintAlphaChannel {base: bg_base, color: bg_color} = &background
+                && fg_color == bg_color {
+            return ToPixmapTaskSpec::PaintAlphaChannel {
+                base: Box::new(ToAlphaChannelTaskSpec::StackAlphaOnAlpha {
+                    background: bg_base.to_owned(),
+                    foreground: fg_base.to_owned()
+                }),
+                color: fg_color.to_owned()
+            };
+        } else if let ToPixmapTaskSpec::StackLayerOnLayer {background: bg_bg, foreground: bg_fg} = &background
+                && let ToPixmapTaskSpec::PaintAlphaChannel {base: bg_fg_base, color: bg_fg_color} = &**bg_fg
+                && fg_color == bg_fg_color {
+            return ToPixmapTaskSpec::StackLayerOnLayer {
+                background: bg_bg.to_owned(),
+                foreground: Box::new(ToPixmapTaskSpec::PaintAlphaChannel {
+                    base: Box::new(ToAlphaChannelTaskSpec::StackAlphaOnAlpha {
+                        background: bg_fg_base.to_owned(),
+                        foreground: fg_base.to_owned()
+                    }),
+                    color: fg_color.to_owned()
+                })
+            };
+        } else if let ToPixmapTaskSpec::StackLayerOnColor {background: bg_bg, foreground: bg_fg} = &background
+                && let ToPixmapTaskSpec::PaintAlphaChannel {base: bg_fg_base, color: bg_fg_color} = &**bg_fg
+                && fg_color == bg_fg_color {
+            return ToPixmapTaskSpec::StackLayerOnColor {
+                background: bg_bg.to_owned(),
+                foreground: Box::new(ToPixmapTaskSpec::PaintAlphaChannel {
+                    base: Box::new(ToAlphaChannelTaskSpec::StackAlphaOnAlpha {
+                        background: bg_fg_base.to_owned(),
+                        foreground: fg_base.to_owned()
+                    }),
+                    color: fg_color.to_owned()
+                })
+            };
+        }
+    }
+    ToPixmapTaskSpec::StackLayerOnLayer {
+        background: Box::new(background), foreground: Box::new(foreground)
+    }
+}
+
 #[macro_export]
 macro_rules! stack {
     ( $first_layer:expr, $second_layer:expr ) => {
-        crate::image_tasks::task_spec::ToPixmapTaskSpec::StackLayerOnLayer {
-            background: Box::new($first_layer.into()),
-            foreground: Box::new($second_layer.into())
-        }
+        crate::image_tasks::task_spec::stack($first_layer.into(), $second_layer.into())
     };
     ( $first_layer:expr, $second_layer:expr, $( $more_layers:expr ),+ ) => {{
         let mut layers_so_far = crate::stack!($first_layer, $second_layer);

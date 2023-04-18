@@ -37,3 +37,13 @@ pub fn stack_alpha_on_alpha(background: &mut AlphaChannel, foreground: &AlphaCha
             ((output_pixels[index] as u16) * ((u8::MAX - pixel) as u16) / (u8::MAX as u16))) as u8;
     }
 }
+
+pub fn stack_alpha_on_background(background_alpha: f32, foreground: &mut AlphaChannel)
+{
+    let background_alpha = (u8::MAX as f32 * background_alpha + 0.5) as u8;
+    let output_pixels = foreground.pixels_mut();
+    for pixel in output_pixels {
+        *pixel = background_alpha + (
+            ((*pixel as u16) * (u8::MAX - background_alpha) as u16) / u8::MAX as u16) as u8;
+    }
+}
