@@ -3,7 +3,7 @@ use crate::image_tasks::color::{ComparableColor, c};
 use crate::image_tasks::task_spec::{from_svg_task, paint_svg_task, ToPixmapTaskSpec};
 use crate::materials::block::pickaxe::ore_base::DEEPSLATE;
 use crate::{block_with_colors, group, paint_stack, single_texture_block, stack_on};
-use crate::materials::block::pickaxe::ore::QUARTZ;
+use crate::materials::block::pickaxe::ore::{QUARTZ, COPPER};
 use crate::materials::block::pickaxe::polishable::BLACKSTONE;
 use crate::materials::block::shovel::simple_soft_earth::{MOSS_BLOCK, SAND, RED_SAND, MUD, PACKED_MUD};
 use crate::texture_base::material::{SingleTextureMaterial, TricolorMaterial};
@@ -387,6 +387,13 @@ amethyst!(SMALL_AMETHYST_BUD = ComparableColor::TRANSPARENT,
     paint_svg_task("smallAmethystBud2", shadow!())
 );
 
+block_with_colors!(CUT_COPPER = COPPER.color(), COPPER.shadow(), COPPER.highlight(),
+    color!(),
+    paint_svg_task("streaks", highlight!()),
+    paint_stack!(shadow!(), "borderSolid", "cross"),
+    paint_svg_task("2x2TopLeft", highlight!())
+);
+
 block_with_colors!(BLACK_GLAZED_TERRACOTTA = c(0x2f2f2f), ComparableColor::BLACK, c(0x992222),
     shadow!(),
     paint_svg_task("asymmetricalQuarterCircles", color!()),
@@ -486,4 +493,4 @@ group!(AMETHYST = AMETHYST_BLOCK, BUDDING_AMETHYST, AMETHYST_CLUSTER,
     LARGE_AMETHYST_BUD, MEDIUM_AMETHYST_BUD, SMALL_AMETHYST_BUD);
 group!(SIMPLE_PICKAXE_BLOCKS = DEEPSLATE_VARIANTS, QUARTZ_VARIANTS, STONE_VARIANTS,
         COBBLESTONE_VARIANTS, SANDSTONE_VARIANTS, RED_SANDSTONE_VARIANTS, BASALT_VARIANTS,
-        GLOWSTONE, END_STONE_VARIANTS, MISC_BRICKS, TERRACOTTA_VARIANTS, AMETHYST);
+        GLOWSTONE, END_STONE_VARIANTS, MISC_BRICKS, TERRACOTTA_VARIANTS, AMETHYST, CUT_COPPER);
