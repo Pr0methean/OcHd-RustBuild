@@ -1,6 +1,6 @@
 use crate::image_tasks::color::{gray, rgb};
 use crate::image_tasks::color::ComparableColor;
-use crate::image_tasks::task_spec::{out_task, SinkTaskSpec, ToPixmapTaskSpec};
+use crate::image_tasks::task_spec::{out_task, FileOutputTaskSpec, ToPixmapTaskSpec};
 use crate::texture_base::material::Material;
 
 pub static DYES: &[(&str, ComparableColor)] = &[
@@ -28,7 +28,7 @@ pub struct DyedBlock {
 }
 
 impl Material for DyedBlock {
-    fn get_output_tasks(&self) -> Vec<SinkTaskSpec> {
+    fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         let mut out  = Vec::with_capacity(DYES.len());
         for (dye_name, dye_color) in DYES {
             out.push(out_task(&*format!("block/{}_{}", dye_name, self.name),

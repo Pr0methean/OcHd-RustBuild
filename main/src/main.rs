@@ -16,7 +16,7 @@
 #![feature(arc_unwrap_or_clone)]
 #![feature(lazy_cell)]
 #![feature(concat_idents)]
-
+#![feature(macro_metavar_expr)]
 use std::alloc::System;
 use std::collections::{HashMap};
 use std::path::absolute;
@@ -97,7 +97,7 @@ fn main() {
         for (index, task) in ctx.graph.node_references() {
             let representative = vertex_sets.find(index);
             let (_, future) = match task {
-                TaskSpec::SinkTaskSpec(sink_task_spec) => {
+                TaskSpec::FileOutputTaskSpec(sink_task_spec) => {
                     ctx.output_task_to_future_map.get(&sink_task_spec).unwrap()
                 }
                 _ => continue

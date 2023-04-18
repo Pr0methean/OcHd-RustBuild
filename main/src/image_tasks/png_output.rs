@@ -12,21 +12,23 @@ use crate::image_tasks::MaybeFromPool;
 use crate::image_tasks::task_spec::CloneableError;
 
 #[instrument]
-pub fn png_output(image: MaybeFromPool<Pixmap>, files: &Vec<PathBuf>) -> Result<(),CloneableError> {
-    let file_strings: Vec<String> = files.iter().map(|path| path.to_string_lossy().to_string()).collect();
-    let files_string = file_strings.join(", ");
-    drop(file_strings);
-    info!("Starting task: write {}", files_string);
-    let (first_file, extra_files) = files.split_first()
-            .expect("Tried to write PNG to empty list of files");
-    create_dir_all(first_file.parent().unwrap()).map_err(|error| anyhoo!(error))?;
+pub fn png_output(image: MaybeFromPool<Pixmap>, file: PathBuf) -> Result<(),CloneableError> {
+    let file_string = file.to_string_lossy();
+    info!("Starting task: write {}", file_string);
+    create_dir_all(file.parent().unwrap()).map_err(|error| anyhoo!(error))?;
     let data = encode_png(image).map_err(|error| anyhoo!(error))?;
-    write(first_file, data).map_err(|error| anyhoo!(error))?;
-    for file in extra_files {
-        create_dir_all(first_file.parent().unwrap()).map_err(|error| anyhoo!(error))?;
-        symlink(first_file, file).map_err(|error| anyhoo!(error))?;
-    }
-    info!("Finishing task: write {}", files_string);
+    write(file.to_owned(), data).map_err(|error| anyhoo!(error))?;
+    info!("Finishing task: write {}", file_string);
+    Ok(())
+}
+
+pub fn symlink_with_logging(original: PathBuf, link: PathBuf) -> Result<(),CloneableError> {
+    let description =
+        format!("{} -> {}", link.to_string_lossy(), original.to_string_lossy());
+    info!("Starting task: symlink {}", description);
+    create_dir_all(link.parent().unwrap()).map_err(|error| anyhoo!(error))?;
+    symlink(original, link).map_err(|error| anyhoo!(error))?;
+    info!("Finishing task: symlink {}", description);
     Ok(())
 }
 

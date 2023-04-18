@@ -2,24 +2,34 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 use std::path::PathBuf;
+use crate::anyhoo;
 
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::color::rgb;
-use crate::image_tasks::task_spec::{out_task, paint_svg_task, SinkTaskSpec, ToPixmapTaskSpec};
+use crate::image_tasks::task_spec::{out_task, paint_svg_task, FileOutputTaskSpec, ToPixmapTaskSpec, name_to_out_path, CloneableError};
 
 /// Specification in DSL form of how one or more texture images are to be generated.
 pub trait Material: Send {
     /// Converts this specification to a number of [PngOutput] instances, each of which references
     /// another [TaskSpec] to generate the image it will output.
-    fn get_output_tasks(&self) -> Vec<SinkTaskSpec>;
+    fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec>;
+
+    fn get_output_task_by_name(&self, name: &str) -> Result<FileOutputTaskSpec, CloneableError> {
+        for output_task in self.get_output_tasks() {
+            if output_task.get_path().to_string_lossy().contains(name) {
+                return Ok(output_task);
+            }
+        }
+        Err(anyhoo!("No output task found with name {}", name))
+    }
 }
 
 pub struct MaterialGroup {
-    pub(crate) tasks: Vec<SinkTaskSpec>
+    pub(crate) tasks: Vec<FileOutputTaskSpec>
 }
 
 impl Material for MaterialGroup {
-    fn get_output_tasks(&self) -> Vec<SinkTaskSpec> {
+    fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         self.tasks.to_owned()
     }
 }
@@ -38,7 +48,7 @@ macro_rules! group {
     ($name:ident = $( $members:expr ),* ) => {
         lazy_static::lazy_static! {pub static ref $name: crate::texture_base::material::MaterialGroup
         = {
-            let mut tasks: Vec<crate::image_tasks::task_spec::SinkTaskSpec>
+            let mut tasks: Vec<crate::image_tasks::task_spec::FileOutputTaskSpec>
                 = Vec::with_capacity(crate::texture_base::material::DEFAULT_GROUP_SIZE);
             $({
                 #![allow(unused)]
@@ -66,7 +76,7 @@ pub struct SingleTextureTricolorMaterial {
 }
 
 impl Material for SingleTextureTricolorMaterial {
-    fn get_output_tasks(&self) -> Vec<SinkTaskSpec> {
+    fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         self.material.get_output_tasks()
     }
 }
@@ -92,7 +102,7 @@ impl From<SingleTextureMaterial> for ToPixmapTaskSpec {
 }
 
 impl Material for SingleTextureMaterial {
-    fn get_output_tasks(&self) -> Vec<SinkTaskSpec> {
+    fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         if !self.has_output { vec![] } else {
             vec![out_task(&format!("{}/{}", self.directory, self.name),
                           self.texture.to_owned())]
@@ -139,15 +149,30 @@ macro_rules! single_texture_block {
     }
 }
 
+pub struct CopiedMaterial {
+    pub name: &'static str,
+    pub source: FileOutputTaskSpec
+}
+
+impl Material for CopiedMaterial {
+    fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
+        vec![FileOutputTaskSpec::Symlink {
+            original: Box::new(self.source.to_owned()),
+            link: name_to_out_path(self.name)
+        }]
+    }
+}
+
 #[macro_export]
 macro_rules! copy_block {
-    ($name:ident = $base:expr) => {
-        lazy_static::lazy_static! {pub static ref $name: crate::texture_base::material::SingleTextureMaterial =
-        crate::texture_base::material::SingleTextureMaterial {
+    ($name:ident = $base:expr , $base_name:expr) => {
+        lazy_static::lazy_static! {pub static ref $name: crate::texture_base::material::CopiedMaterial =
+        crate::texture_base::material::CopiedMaterial {
             name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
-            directory: "block",
-            has_output: true,
-            texture: $base.to_owned()
+            source: {
+                use crate::texture_base::material::Material;
+                $base.get_output_task_by_name($base_name).unwrap()
+            }
         };}
     }
 }
@@ -204,7 +229,7 @@ pub struct DoubleTallBlock {
 }
 
 impl Material for DoubleTallBlock {
-    fn get_output_tasks(&self) -> Vec<SinkTaskSpec> {
+    fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         vec![out_task(&format!("block/{}_bottom", self.name), self.bottom.to_owned()),
             out_task(&format!("block/{}_top", self.name), self.top.to_owned())
         ]
@@ -221,17 +246,20 @@ pub struct GroundCoverBlock {
 }
 
 impl Material for GroundCoverBlock {
-    fn get_output_tasks(&self) -> Vec<SinkTaskSpec> {
-        vec![SinkTaskSpec::PngOutput {
-            base: self.top.to_owned(),
-            destinations: vec![PathBuf::from(format!("block/{}_top", self.name))]},
-        SinkTaskSpec::PngOutput {
-            base: ToPixmapTaskSpec::StackLayerOnLayer {
-                background: Box::new(self.base.to_owned()),
-                foreground: Box::new(self.cover_side.to_owned())
+    fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
+        vec![
+            FileOutputTaskSpec::PngOutput {
+                base: self.top.to_owned(),
+                destination: PathBuf::from(format!("block/{}_top", self.name))
             },
-            destinations: vec![PathBuf::from(format!("block/{}_side", self.name))],
-        }]
+            FileOutputTaskSpec::PngOutput {
+                base: ToPixmapTaskSpec::StackLayerOnLayer {
+                    background: Box::new(self.base.to_owned()),
+                    foreground: Box::new(self.cover_side.to_owned())
+                },
+                destination: PathBuf::from(format!("block/{}_side", self.name))
+            }
+        ]
     }
 }
 
@@ -284,7 +312,7 @@ pub struct SingleLayerMaterial {
 }
 
 impl Material for SingleLayerMaterial {
-    fn get_output_tasks(&self) -> Vec<SinkTaskSpec> {
+    fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         vec![out_task(self.name,
              paint_svg_task(self.layer_name, self.color))]
     }
@@ -298,14 +326,14 @@ pub struct RedstoneOffOnBlockPair {
 }
 
 impl Material for RedstoneOffOnBlockPair {
-    fn get_output_tasks(&self) -> Vec<SinkTaskSpec> {
-        vec![SinkTaskSpec::PngOutput {
+    fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
+        vec![FileOutputTaskSpec::PngOutput {
             base: (self.create_texture)(ComparableColor::BLACK),
-            destinations: vec![PathBuf::from(format!("block/{}", self.name))]
+            destination: PathBuf::from(format!("block/{}", self.name))
         },
-             SinkTaskSpec::PngOutput {
+             FileOutputTaskSpec::PngOutput {
                  base: (self.create_texture)(REDSTONE_ON),
-                 destinations: vec![PathBuf::from(format!("block/{}_on", self.name))]
+                 destination: PathBuf::from(format!("block/{}_on", self.name))
              }]
     }
 }
