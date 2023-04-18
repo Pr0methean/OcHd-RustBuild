@@ -74,7 +74,6 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
             },
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
                 if *background == ComparableColor::TRANSPARENT {
-                    info!("Simplifying {} to {}", self, foreground);
                     return foreground.add_to(ctx);
                 }
                 let background = background.to_owned();
@@ -86,6 +85,23 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
                 }))
             },
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
+                if let ToPixmapTaskSpec::PaintAlphaChannel {base: base_of_bg, color: color_of_bg} = background.deref()
+                        && let ToPixmapTaskSpec::PaintAlphaChannel {base: base_of_fg, color: color_of_fg} = foreground.deref()
+                        && color_of_bg == color_of_fg {
+                    error!("Wanted to rebuild {} by merging {} and {}, but the borrow checker \
+                    doesn't allow this!", self, base_of_bg, base_of_fg);
+                    /*
+                    FIXME: Fails borrow checker:
+                    let simplified = ToPixmapTaskSpec::PaintAlphaChannel {
+                        base: Box::new(ToAlphaChannelTaskSpec::StackAlphaOnAlpha {
+                            background: base_of_bg.to_owned(),
+                            foreground: base_of_fg.to_owned()
+                        }),
+                        color: color_of_fg.to_owned()
+                    };
+                    return simplified.add_to(ctx);
+                     */
+                }
                 let (bg_index, bg_future) = background.add_to(ctx);
                 let (fg_index, fg_future) = foreground.add_to(ctx);
                 (vec![bg_index, fg_index], Box::new(move || {
@@ -100,7 +116,6 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
                 if *color == ComparableColor::BLACK
                         && let ToAlphaChannelTaskSpec::FromPixmap {base: base_of_base} = base.deref()
                         && base_of_base.is_all_black() {
-                    info!("Simplifying {} to {}", self, base_of_base);
                     return base_of_base.add_to(ctx);
                 }
                 let color = color.to_owned();
@@ -137,7 +152,6 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
                 = match self {
             ToAlphaChannelTaskSpec::MakeSemitransparent { base, alpha } => {
                 if *alpha == 1.0 {
-                    info!("Simplifying {} to {}", self, base);
                     return base.add_to(ctx);
                 }
                 let alpha: f32 = (*alpha).into();
@@ -152,7 +166,6 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
             },
             ToAlphaChannelTaskSpec::FromPixmap { base } => {
                 if let ToPixmapTaskSpec::PaintAlphaChannel {base: base_of_base, ..} = base.deref() {
-                    info!("Simplifying {} to {}", self, base_of_base);
                     return base_of_base.add_to(ctx);
                 }
                 let (base_index, base_future) = base.add_to(ctx);
@@ -184,7 +197,6 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
             },
             ToAlphaChannelTaskSpec::StackAlphaOnBackground { background, foreground } => {
                 if *background == 0.0 {
-                    info!("Simplifying {} to {}", self, foreground);
                     return foreground.add_to(ctx);
                 }
                 let background = background.0;
@@ -620,36 +632,30 @@ pub fn stack(background: ToPixmapTaskSpec, foreground: ToPixmapTaskSpec) -> ToPi
     if let ToPixmapTaskSpec::PaintAlphaChannel {base: fg_base, color: fg_color} = &foreground {
         if let ToPixmapTaskSpec::PaintAlphaChannel {base: bg_base, color: bg_color} = &background
                 && fg_color == bg_color {
-            let simplified = ToPixmapTaskSpec::PaintAlphaChannel {
+            return ToPixmapTaskSpec::PaintAlphaChannel {
                 base: Box::new(stack_alpha!(*bg_base.to_owned(), *fg_base.to_owned())),
                 color: fg_color.to_owned()
             };
-            info!("Simplifying {},{} to {}", background, foreground, simplified);
-            return simplified;
         } else if let ToPixmapTaskSpec::StackLayerOnLayer {background: bg_bg, foreground: bg_fg} = &background
                 && let ToPixmapTaskSpec::PaintAlphaChannel {base: bg_fg_base, color: bg_fg_color} = &**bg_fg
                 && fg_color == bg_fg_color {
-            let simplified = ToPixmapTaskSpec::StackLayerOnLayer {
+            return ToPixmapTaskSpec::StackLayerOnLayer {
                 background: bg_bg.to_owned(),
                 foreground: Box::new(ToPixmapTaskSpec::PaintAlphaChannel {
                     base: Box::new(stack_alpha!(*bg_fg_base.to_owned(), *fg_base.to_owned())),
                     color: fg_color.to_owned()
                 })
             };
-            info!("Simplifying {},{} to {}", background, foreground, simplified);
-            return simplified;
         } else if let ToPixmapTaskSpec::StackLayerOnColor {background: bg_bg, foreground: bg_fg} = &background
                 && let ToPixmapTaskSpec::PaintAlphaChannel {base: bg_fg_base, color: bg_fg_color} = &**bg_fg
                 && fg_color == bg_fg_color {
-            let simplified = ToPixmapTaskSpec::StackLayerOnColor {
+            return ToPixmapTaskSpec::StackLayerOnColor {
                 background: bg_bg.to_owned(),
                 foreground: Box::new(ToPixmapTaskSpec::PaintAlphaChannel {
                     base: Box::new(stack_alpha!(*bg_fg_base.to_owned(), *fg_base.to_owned())),
                     color: fg_color.to_owned()
                 })
             };
-            info!("Simplifying {},{} to {}", background, foreground, simplified);
-            return simplified;
         }
     }
     ToPixmapTaskSpec::StackLayerOnLayer {
