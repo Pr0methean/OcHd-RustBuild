@@ -33,7 +33,7 @@ single_texture_block!(REDSTONE_LAMP =
 block_with_colors!(REDSTONE_LAMP_ON = c(0xe6994a), c(0x946931), c(0xFFCDB2),
     color!(),
     paint_svg_task("borderSolid", shadow!()),
-    paint_stack!("lampOn", "borderSolidTopLeft", highlight!())
+    paint_stack!(highlight!(), "lampOn", "borderSolidTopLeft")
 );
 
 group!(MISC_REDSTONE = REPEATER, COMPARATOR, REDSTONE_LAMP, REDSTONE_LAMP_ON);
