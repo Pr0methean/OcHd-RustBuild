@@ -65,7 +65,6 @@ macro_rules! group {
 pub struct SingleTextureMaterial {
     pub name: &'static str,
     pub directory: &'static str,
-    pub has_output: bool,
     pub texture: ToPixmapTaskSpec
 }
 
@@ -103,10 +102,8 @@ impl From<SingleTextureMaterial> for ToPixmapTaskSpec {
 
 impl Material for SingleTextureMaterial {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
-        if !self.has_output { vec![] } else {
-            vec![out_task(&format!("{}/{}", self.directory, self.name),
+        vec![out_task(&format!("{}/{}", self.directory, self.name),
                           self.texture.to_owned())]
-        }
     }
 }
 
@@ -118,7 +115,6 @@ macro_rules! material {
                     crate::texture_base::material::SingleTextureMaterial {
                 name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
                 directory: $directory,
-                has_output: true,
                 texture: $texture.into()
             };
         }
@@ -146,7 +142,7 @@ macro_rules! single_layer_material {
 
 pub fn item(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMaterial {
     SingleTextureMaterial {
-        name, directory: "item", has_output: true, texture
+        name, directory: "item", texture
     }
 }
 
@@ -166,7 +162,7 @@ macro_rules! single_layer_item {
 
 pub fn block(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMaterial {
     SingleTextureMaterial {
-        name, directory: "block", has_output: true, texture
+        name, directory: "block", texture
     }
 }
 
@@ -186,7 +182,7 @@ macro_rules! single_layer_block {
 
 pub fn particle(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMaterial {
     SingleTextureMaterial {
-        name, directory: "particle", has_output: true, texture
+        name, directory: "particle", texture
     }
 }
 
@@ -255,7 +251,6 @@ macro_rules! block_with_colors {
                 material: crate::texture_base::material::SingleTextureMaterial {
                     name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
                     directory: "block",
-                    has_output: true,
                     texture: crate::stack_on!($background, $($layers),*).into()
                 }
             };
