@@ -1,5 +1,6 @@
-
+use std::cmp::Ordering;
 use std::fmt::{Debug, Formatter};
+use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc};
@@ -53,6 +54,32 @@ impl <T> DerefMut for MaybeFromPool<T> where T: Clone {
             FromPool { reusable, .. } => reusable.deref_mut(),
             NotFromPool(value) => value
         }
+    }
+}
+
+impl <T> Hash for MaybeFromPool<T> where T: Hash {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.deref().hash(state)
+    }
+}
+
+impl <T> PartialEq for MaybeFromPool<T> where T: PartialEq {
+    fn eq(&self, other: &Self) -> bool {
+        self.deref().eq(other.deref())
+    }
+}
+
+impl <T> Eq for MaybeFromPool<T> where T: Eq {}
+
+impl <T> PartialOrd for MaybeFromPool<T> where T: PartialOrd {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.deref().partial_cmp(other.deref())
+    }
+}
+
+impl <T> Ord for MaybeFromPool<T> where T: Ord {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.deref().cmp(other.deref())
     }
 }
 
