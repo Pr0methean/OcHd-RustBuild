@@ -1,5 +1,4 @@
 use crate::group;
-use crate::materials::block::indestructible::INDESTRUCTIBLE_BLOCKS;
 
 mod axe;
 mod bare_hand;
@@ -10,5 +9,6 @@ mod pickaxe;
 mod shears;
 mod shovel;
 
-group!(ALL_BLOCKS = axe::AXE_BLOCKS, pickaxe::PICKAXE_BLOCKS, shovel::SHOVEL_BLOCKS,
-        shears::SHEAR_BLOCKS, hoe::HOE_BLOCKS, INDESTRUCTIBLE_BLOCKS);
+group!(ALL_BLOCKS = axe::AXE_BLOCKS, bare_hand::BARE_HAND_BLOCKS, hoe::HOE_BLOCKS,
+        indestructible::INDESTRUCTIBLE_BLOCKS, liquid::LIQUID_BLOCKS, pickaxe::PICKAXE_BLOCKS,
+        shears::SHEAR_BLOCKS, shovel::SHOVEL_BLOCKS);

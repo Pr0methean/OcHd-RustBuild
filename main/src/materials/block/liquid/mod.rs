@@ -1,3 +1,3 @@
 use crate::group;
 
-group!(ALL_LIQUIDS =);
+group!(LIQUID_BLOCKS =);
