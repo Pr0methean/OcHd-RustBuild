@@ -19,7 +19,7 @@
 #![feature(macro_metavar_expr)]
 use std::alloc::System;
 use std::collections::{HashMap};
-use std::path::absolute;
+use std::path::{absolute, PathBuf};
 use std::time::Instant;
 
 use std::fs::{create_dir, remove_dir_all};
@@ -33,14 +33,17 @@ use petgraph::graph::{DefaultIx, NodeIndex};
 use texture_base::material::Material;
 use rayon::prelude::*;
 
-use crate::image_tasks::task_spec::{OUT_DIR, SVG_DIR, CloneableLazyTask, TaskGraphBuildingContext, TaskSpec, TaskSpecTraits};
+use crate::image_tasks::task_spec::{OUT_DIR, SVG_DIR, CloneableLazyTask, TaskGraphBuildingContext, TaskSpec, TaskSpecTraits, METADATA_DIR};
 
 mod image_tasks;
 mod texture_base;
 mod materials;
 #[cfg(not(any(test,clippy)))]
 use std::env;
+use std::fs;
 use std::io::ErrorKind::NotFound;
+use pathdiff::diff_paths;
+use crate::image_tasks::png_output::symlink_with_logging;
 
 #[cfg(not(any(test,clippy)))]
 lazy_static! {
@@ -59,6 +62,24 @@ lazy_static! {
 #[global_allocator]
 static ALLOCATOR: LoggingAllocator = LoggingAllocator::with_allocator(System);
 
+fn copy_metadata(source_path: &PathBuf) {
+    fs::read_dir(source_path).expect("Failed to read metadata directory").for_each(
+        |entry| {
+            let entry = entry.expect("Failed to read a DirEntry");
+            let file_type = entry.file_type().expect("Failed to get a file type");
+            let path = entry.path();
+            if file_type.is_file() {
+                let mut destination = OUT_DIR.to_owned();
+                destination.push(diff_paths(&path, &*METADATA_DIR)
+                    .expect("Got a DirEntry that wasn't in METADATA_DIR"));
+                symlink_with_logging(path, destination).unwrap();
+            } else if file_type.is_dir() {
+                copy_metadata(&path);
+            }
+        }
+    );
+}
+
 fn main() {
     simple_logging::log_to_file("./log.txt", LevelFilter::Trace).expect("Failed to configure file logging");
     ALLOCATOR.enable_logging();
@@ -74,6 +95,7 @@ fn main() {
             panic!("Failed to delete old output directory");
         }
         create_dir(&*OUT_DIR).expect("Failed to create output directory");
+        copy_metadata(&(METADATA_DIR.to_path_buf()));
     }, || {
         let output_tasks = materials::ALL_MATERIALS.get_output_tasks();
         let mut output_task_ids = Vec::with_capacity(1024);
