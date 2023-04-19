@@ -1,4 +1,4 @@
-use std::fs::{create_dir_all, write};
+use std::fs::{create_dir_all, hard_link, write};
 use std::mem;
 use std::os::unix::fs::symlink;
 use std::path::{PathBuf};
@@ -22,12 +22,16 @@ pub fn png_output(image: Pixmap, file: PathBuf) -> Result<(),CloneableError> {
     Ok(())
 }
 
-pub fn symlink_with_logging(original: PathBuf, link: PathBuf) -> Result<(),CloneableError> {
+pub fn link_with_logging(original: PathBuf, link: PathBuf, hard: bool) -> Result<(),CloneableError> {
     let description =
         format!("{} -> {}", link.to_string_lossy(), original.to_string_lossy());
     info!("Starting task: symlink {}", description);
     create_dir_all(link.parent().unwrap()).map_err(|error| anyhoo!(error))?;
-    symlink(original, link).map_err(|error| anyhoo!(error))?;
+    if hard {
+        hard_link(original, link)
+    } else {
+        symlink(original, link)
+    }.map_err(|error| anyhoo!(error))?;
     info!("Finishing task: symlink {}", description);
     Ok(())
 }

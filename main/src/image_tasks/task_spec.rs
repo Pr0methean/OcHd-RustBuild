@@ -27,7 +27,7 @@ use crate::image_tasks::animate::animate;
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::from_svg::{COLOR_SVGS, from_svg};
 use crate::image_tasks::make_semitransparent::make_semitransparent;
-use crate::image_tasks::png_output::{png_output, symlink_with_logging};
+use crate::image_tasks::png_output::{png_output, link_with_logging};
 use crate::image_tasks::repaint::{AlphaChannel, to_alpha_channel};
 use crate::image_tasks::repaint::paint;
 use crate::image_tasks::stack::{stack_alpha_on_alpha, stack_alpha_on_background, stack_layer_on_background, stack_layer_on_layer};
@@ -244,7 +244,7 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
                 let link = link.to_owned();
                 let original_path = original.to_owned();
                 (vec![], Box::new(move || {
-                    Ok(Box::new(symlink_with_logging(original_path, link)?))
+                    Ok(Box::new(link_with_logging(original_path, link, false)?))
                 }))
             }
         };

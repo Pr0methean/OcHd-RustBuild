@@ -44,7 +44,7 @@ use std::fs;
 use std::io::ErrorKind::NotFound;
 use pathdiff::diff_paths;
 use futures::channel::oneshot::channel;
-use crate::image_tasks::png_output::symlink_with_logging;
+use crate::image_tasks::png_output::link_with_logging;
 
 #[cfg(not(any(test,clippy)))]
 lazy_static! {
@@ -73,7 +73,7 @@ fn copy_metadata(source_path: &PathBuf) {
                 let mut destination = OUT_DIR.to_owned();
                 destination.push(diff_paths(&path, &*METADATA_DIR)
                     .expect("Got a DirEntry that wasn't in METADATA_DIR"));
-                symlink_with_logging(path, destination).unwrap();
+                link_with_logging(path, destination, true).unwrap();
             } else if file_type.is_dir() {
                 copy_metadata(&path);
             }
