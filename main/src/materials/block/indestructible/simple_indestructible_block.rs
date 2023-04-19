@@ -1,4 +1,4 @@
-use crate::{block_with_colors, group, single_texture_block};
+use crate::{block_with_colors, group, paint_stack, single_texture_block};
 use crate::image_tasks::color::{ComparableColor, c};
 use crate::image_tasks::task_spec::{from_svg_task, paint_svg_task};
 use crate::materials::block::pickaxe::simple_pickaxe_block::END_STONE;

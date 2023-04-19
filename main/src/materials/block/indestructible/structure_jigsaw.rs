@@ -6,7 +6,7 @@ use crate::{group, make_tricolor_block_macro};
 make_tricolor_block_macro!(sj, c(0xb493b4), c(0x26002a), c(0xd7c2d7));
 
 sj!(JIGSAW_BOTTOM = shadow!(),
-        paint_svg_task("borderDotted", COLOR));
+        paint_svg_task("borderDotted", color!()));
 
 macro_rules! sjs {
     ($name:ident = $layer_name:expr) => {
