@@ -130,6 +130,18 @@ macro_rules! single_texture_material {
     }
 }
 
+#[macro_export]
+macro_rules! single_layer_material {
+    ($name:ident = $directory:expr, $layer_name:expr, $color:expr ) => {
+        crate::material!($name = $directory,
+            crate::image_tasks::task_spec::paint_svg_task($layer_name, $color));
+    };
+    ($name:ident = $directory:expr, $layer_name:expr) => {
+        crate::material!($name = $directory,
+            crate::image_tasks::task_spec::from_svg_task($layer_name));
+    };
+}
+
 pub fn item(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMaterial {
     SingleTextureMaterial {
         name, directory: "item", has_output: true, texture
@@ -143,6 +155,13 @@ macro_rules! single_texture_item {
     }
 }
 
+#[macro_export]
+macro_rules! single_layer_item {
+    ($name:ident = $($layer_name_and_maybe_color:expr),+ ) => {
+        crate::single_layer_material!($name = "item", $($layer_name_and_maybe_color),+);
+    }
+}
+
 pub fn block(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMaterial {
     SingleTextureMaterial {
         name, directory: "block", has_output: true, texture
@@ -153,6 +172,33 @@ pub fn block(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMate
 macro_rules! single_texture_block {
     ($name:ident = $background:expr, $( $layers:expr ),* ) => {
         crate::single_texture_material!($name = "block", $background, $($layers),*);
+    }
+}
+
+#[macro_export]
+macro_rules! single_layer_block {
+    ($name:ident = $($layer_name_and_maybe_color:expr),+ ) => {
+        crate::single_layer_material!($name = "block", $($layer_name_and_maybe_color),+);
+    }
+}
+
+pub fn particle(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMaterial {
+    SingleTextureMaterial {
+        name, directory: "particle", has_output: true, texture
+    }
+}
+
+#[macro_export]
+macro_rules! single_texture_particle {
+    ($name:ident = $background:expr, $( $layers:expr ),* ) => {
+        crate::single_texture_material!($name = "particle", $background, $($layers),*);
+    }
+}
+
+#[macro_export]
+macro_rules! single_layer_particle {
+    ($name:ident = $($layer_name_and_maybe_color:expr),+ ) => {
+        crate::single_layer_material!($name = "particle", $($layer_name_and_maybe_color),+);
     }
 }
 
@@ -231,19 +277,6 @@ macro_rules! make_tricolor_block_macro {
                 );
             }
         }
-    }
-}
-
-pub fn particle(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMaterial {
-    SingleTextureMaterial {
-        name, directory: "particle", has_output: true, texture
-    }
-}
-
-#[macro_export]
-macro_rules! single_texture_particle {
-    ($name:ident = $background:expr, $( $layers:expr ),* ) => {
-        crate::single_texture_material!($name = "particle", $background, $($layers),*);
     }
 }
 
