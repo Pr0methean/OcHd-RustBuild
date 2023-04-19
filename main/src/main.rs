@@ -43,6 +43,7 @@ use std::env;
 use std::fs;
 use std::io::ErrorKind::NotFound;
 use pathdiff::diff_paths;
+use futures::channel::oneshot::channel;
 use crate::image_tasks::png_output::symlink_with_logging;
 
 #[cfg(not(any(test,clippy)))]
@@ -80,7 +81,8 @@ fn copy_metadata(source_path: &PathBuf) {
     );
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     simple_logging::log_to_file("./log.txt", LevelFilter::Trace).expect("Failed to configure file logging");
     ALLOCATOR.enable_logging();
     info!("Looking for SVGs in {}", absolute(SVG_DIR.to_path_buf()).unwrap().to_string_lossy());
@@ -89,69 +91,71 @@ fn main() {
     info!("Using {:?} pixels per tile", tile_size);
     let start_time = Instant::now();
 
-    let (_, components) = rayon::join(|| {
+    let (send_mkdir_done, await_mkdir_done) = channel();
+    let copy_metadata = tokio::spawn(async {
         let result = remove_dir_all(&*OUT_DIR);
         if result.is_err_and(|err| err.kind() != NotFound) {
             panic!("Failed to delete old output directory");
         }
         create_dir(&*OUT_DIR).expect("Failed to create output directory");
+        send_mkdir_done.send(()).expect("send_mkdir_done already sent");
         copy_metadata(&(METADATA_DIR.to_path_buf()));
-    }, || {
-        let output_tasks = materials::ALL_MATERIALS.get_output_tasks();
-        let mut output_task_ids = Vec::with_capacity(1024);
-        let mut ctx: TaskGraphBuildingContext<(), DefaultIx>
-            = TaskGraphBuildingContext::new();
-        for task in output_tasks.iter() {
-            let (output_task_id, _) = task.add_to(&mut ctx);
-            output_task_ids.push(output_task_id);
-        }
-        // Split the graph into weakly-connected components (WCCs, groups that don't share any subtasks).
-        // Used to save memory by minimizing the number of WCCs caching their subtasks at once.
-        // Adapted from https://docs.rs/petgraph/latest/src/petgraph/algo/mod.rs.html#87-102.
-        let mut vertex_sets = UnionFind::new(ctx.graph.node_bound());
-        for edge in ctx.graph.edge_references() {
-            let (a, b) = (edge.source(), edge.target());
-
-            // union the two vertices of the edge
-            vertex_sets.union(a, b);
-        }
-        let mut component_map: HashMap<NodeIndex<DefaultIx>, Vec<CloneableLazyTask<()>>> = HashMap::new();
-        for (index, task) in ctx.graph.node_references() {
-            let representative = vertex_sets.find(index);
-            let (_, future) = match task {
-                TaskSpec::FileOutputTaskSpec(sink_task_spec) => {
-                    ctx.output_task_to_future_map.get(&sink_task_spec).unwrap()
-                }
-                _ => continue
-            };
-            match component_map.get_mut(&representative) {
-                Some(existing) => {
-                    existing.push(future.to_owned());
-                },
-                None => {
-                    let mut vec = Vec::with_capacity(1024);
-                    vec.push(future.to_owned());
-                    component_map.insert(representative, vec);
-                }
-            };
-        }
-        info!("Done with task graph");
-        drop(output_task_ids);
-        drop(ctx);
-        drop(output_tasks);
-
-        // Run small WCCs first so that their data can leave the heap before the big WCCs run
-        let mut components: Vec<Vec<CloneableLazyTask<()>>> = component_map.into_values().collect();
-        components.sort_by_key(Vec::len);
-        let components: Vec<CloneableLazyTask<()>> = components.into_iter().flatten().collect();
-        components
     });
+    let output_tasks = materials::ALL_MATERIALS.get_output_tasks();
+    let mut output_task_ids = Vec::with_capacity(1024);
+    let mut ctx: TaskGraphBuildingContext<(), DefaultIx>
+        = TaskGraphBuildingContext::new();
+    for task in output_tasks.iter() {
+        let (output_task_id, _) = task.add_to(&mut ctx);
+        output_task_ids.push(output_task_id);
+    }
+    // Split the graph into weakly-connected components (WCCs, groups that don't share any subtasks).
+    // Used to save memory by minimizing the number of WCCs caching their subtasks at once.
+    // Adapted from https://docs.rs/petgraph/latest/src/petgraph/algo/mod.rs.html#87-102.
+    let mut vertex_sets = UnionFind::new(ctx.graph.node_bound());
+    for edge in ctx.graph.edge_references() {
+        let (a, b) = (edge.source(), edge.target());
+
+        // union the two vertices of the edge
+        vertex_sets.union(a, b);
+    }
+    let mut component_map: HashMap<NodeIndex<DefaultIx>, Vec<CloneableLazyTask<()>>> = HashMap::new();
+    for (index, task) in ctx.graph.node_references() {
+        let representative = vertex_sets.find(index);
+        let (_, future) = match task {
+            TaskSpec::FileOutputTaskSpec(sink_task_spec) => {
+                ctx.output_task_to_future_map.get(&sink_task_spec).unwrap()
+            }
+            _ => continue
+        };
+        match component_map.get_mut(&representative) {
+            Some(existing) => {
+                existing.push(future.to_owned());
+            },
+            None => {
+                let mut vec = Vec::with_capacity(1024);
+                vec.push(future.to_owned());
+                component_map.insert(representative, vec);
+            }
+        };
+    }
+    info!("Done with task graph");
+    drop(output_task_ids);
+    drop(ctx);
+    drop(output_tasks);
+
+    // Run small WCCs first so that their data can leave the heap before the big WCCs run
+    let mut components: Vec<Vec<CloneableLazyTask<()>>> = component_map.into_values().collect();
+    components.sort_by_key(Vec::len);
+    let components: Vec<CloneableLazyTask<()>> = components.into_iter().flatten().collect();
+    await_mkdir_done.await.expect("Failed to create or delete output directory");
     info!("Starting tasks");
     components.into_par_iter()
         .map(|task| task.into_result())
         .for_each(|result| {
             **result.expect("Error running a task");
         });
+    copy_metadata.await.expect("Failed to copy metadata");
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     ALLOCATOR.disable_logging();
 }
