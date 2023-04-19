@@ -2,7 +2,7 @@ use lazy_static::lazy_static;
 use crate::image_tasks::color::{ComparableColor, c};
 use crate::image_tasks::task_spec::{from_svg_task, paint_svg_task, ToPixmapTaskSpec};
 use crate::materials::block::pickaxe::ore_base::DEEPSLATE;
-use crate::{block_with_colors, group, paint_stack, single_texture_block, stack_on};
+use crate::{block_with_colors, group, make_tricolor_block_macro, paint_stack, single_texture_block, stack_on};
 use crate::materials::block::pickaxe::ore::{QUARTZ, COPPER};
 use crate::materials::block::pickaxe::polishable::BLACKSTONE;
 use crate::materials::block::shovel::simple_soft_earth::{MOSS_BLOCK, SAND, RED_SAND, MUD, PACKED_MUD};
@@ -21,24 +21,6 @@ single_texture_block!(DEEPSLATE_TOP = ComparableColor::TRANSPARENT,
         paint_svg_task("cross", DEEPSLATE.shadow()),
         paint_svg_task("borderSolid", DEEPSLATE.highlight())
 );
-
-macro_rules! make_tricolor_block_macro {
-    ($macro_name:ident, $color:expr, $shadow:expr, $highlight:expr) => {
-        #[macro_export]
-        macro_rules! $macro_name {
-            ($$name:ident = $$background:expr, $$($$layers:expr),*) => {
-                crate::block_with_colors!($$name =
-                    $color,
-                    $shadow,
-                    $highlight,
-
-                    $$background,
-                    $$($$layers),*
-                );
-            }
-        }
-    }
-}
 
 make_tricolor_block_macro!(quartz, QUARTZ.color(), QUARTZ.shadow(), QUARTZ.highlight());
 

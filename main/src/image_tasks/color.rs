@@ -49,6 +49,10 @@ impl ComparableColor {
     pub const LIGHT_BIOME_COLORABLE: ComparableColor = ComparableColor::STONE_EXTREME_HIGHLIGHT;
     pub const EXTRA_LIGHT_BIOME_COLORABLE: ComparableColor = gray(0xc3);
 
+    /// If I'm gonna use a gray any darker than this, I may as well just use
+    /// [ComparableColor::BLACK] instead.
+    pub const DARKEST_GRAY: ComparableColor = gray(0x22);
+
     /// If I'm gonna use a gray any lighter than this, I may as well just use
     /// [ComparableColor::WHITE] instead.
     pub const LIGHTEST_GRAY: ComparableColor = gray(0xdc);

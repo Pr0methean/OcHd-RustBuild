@@ -14,7 +14,7 @@ use crate::materials::block::pickaxe::rail::RAILS;
 use crate::materials::block::pickaxe::simple_pickaxe_block::SIMPLE_PICKAXE_BLOCKS;
 
 pub mod ore_base;
-mod simple_pickaxe_block;
+pub mod simple_pickaxe_block;
 pub mod ore;
 mod rail;
 mod polishable;

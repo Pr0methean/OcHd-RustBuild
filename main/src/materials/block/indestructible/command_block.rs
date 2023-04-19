@@ -1,5 +1,5 @@
 use lazy_static::lazy_static;
-use crate::image_tasks::color::{ComparableColor, c};
+use crate::image_tasks::color::c;
 use crate::image_tasks::task_spec::{FileOutputTaskSpec, from_svg_task, out_task, paint_svg_task, ToPixmapTaskSpec};
 use crate::{group, stack, stack_on};
 use crate::texture_base::material::{ColorTriad, Material};

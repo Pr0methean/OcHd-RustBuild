@@ -215,6 +215,25 @@ macro_rules! block_with_colors {
     }
 }
 
+#[macro_export]
+macro_rules! make_tricolor_block_macro {
+    ($macro_name:ident, $color:expr, $shadow:expr, $highlight:expr) => {
+        #[macro_export]
+        macro_rules! $macro_name {
+            ($$name:ident = $$background:expr, $$($$layers:expr),*) => {
+                crate::block_with_colors!($$name =
+                    $color,
+                    $shadow,
+                    $highlight,
+
+                    $$background,
+                    $$($$layers),*
+                );
+            }
+        }
+    }
+}
+
 pub fn particle(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMaterial {
     SingleTextureMaterial {
         name, directory: "particle", has_output: true, texture
