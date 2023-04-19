@@ -242,10 +242,8 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
             }
             FileOutputTaskSpec::Symlink {original, link} => {
                 let link = link.to_owned();
-                let original_path = original.get_path();
-                let (base_index, base_future) = original.add_to(ctx);
-                (vec![base_index], Box::new(move || {
-                    base_future.into_result()?;
+                let original_path = original.to_owned();
+                (vec![], Box::new(move || {
                     Ok(Box::new(symlink_with_logging(original_path, link)?))
                 }))
             }
@@ -286,7 +284,7 @@ pub enum ToAlphaChannelTaskSpec {
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum FileOutputTaskSpec {
     PngOutput {base: ToPixmapTaskSpec, destination: PathBuf},
-    Symlink {original: Box<FileOutputTaskSpec>, link: PathBuf}
+    Symlink {original: PathBuf, link: PathBuf}
 }
 
 impl FileOutputTaskSpec {
@@ -387,7 +385,7 @@ impl Display for FileOutputTaskSpec {
                 destination.to_string_lossy().to_string()
             },
             FileOutputTaskSpec::Symlink { original, link } => {
-                format!("Symlink {} -> {}", link.to_string_lossy(), original.to_string())
+                format!("Symlink {} -> {}", link.to_string_lossy(), original.to_string_lossy())
             }
         })
     }
@@ -562,11 +560,13 @@ impl <'a,E,Ix> TaskGraphBuildingContext<'a,E,Ix> where Ix: IndexType {
 
 lazy_static! {
     pub static ref OUT_DIR: &'static Path = Path::new("./out/");
+    pub static ref ASSET_DIR: &'static Path = Path::new("./out/assets/minecraft/textures");
     pub static ref SVG_DIR: &'static Path = Path::new("./svg/");
+    pub static ref METADATA_DIR: &'static Path = Path::new("./metadata");
 }
 
 pub fn name_to_out_path(name: &str) -> PathBuf {
-    let mut out_file_path = OUT_DIR.to_path_buf();
+    let mut out_file_path = ASSET_DIR.to_path_buf();
     out_file_path.push(format!("{}.png", name));
     out_file_path
 }
