@@ -113,13 +113,15 @@ impl Material for SingleTextureMaterial {
 #[macro_export]
 macro_rules! material {
     ($name:ident = $directory:expr, $texture:expr) => {
-        lazy_static::lazy_static! {pub static ref $name: crate::texture_base::material::SingleTextureMaterial =
-        crate::texture_base::material::SingleTextureMaterial {
-            name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
-            directory: $directory,
-            has_output: true,
-            texture: $texture.into()
-        };}
+        lazy_static::lazy_static! {
+            pub static ref $name: crate::texture_base::material::SingleTextureMaterial =
+                    crate::texture_base::material::SingleTextureMaterial {
+                name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
+                directory: $directory,
+                has_output: true,
+                texture: $texture.into()
+            };
+        }
     }
 }
 
@@ -282,9 +284,9 @@ macro_rules! make_tricolor_block_macro {
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct DoubleTallBlock {
-    name: &'static str,
-    bottom: ToPixmapTaskSpec,
-    top: ToPixmapTaskSpec
+    pub name: &'static str,
+    pub bottom: ToPixmapTaskSpec,
+    pub top: ToPixmapTaskSpec
 }
 
 impl Material for DoubleTallBlock {
@@ -416,7 +418,6 @@ macro_rules! redstone_off_on_block {
 
 pub type AbstractTextureSupplier<T> = Box<dyn Fn(&T) -> ToPixmapTaskSpec + Send + Sync>;
 pub type AbstractTextureUnaryFunc<T> = Box<dyn Fn(&T, ToPixmapTaskSpec) -> ToPixmapTaskSpec + Send + Sync>;
-pub type AbstractTextureBinaryFunc<T> = Box<dyn Fn(&T, ToPixmapTaskSpec, ToPixmapTaskSpec) -> ToPixmapTaskSpec + Send + Sync>;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ColorTriad {

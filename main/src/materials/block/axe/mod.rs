@@ -1,6 +1,6 @@
 use crate::group;
 
-mod giant_mushroom;
+pub mod giant_mushroom;
 pub mod wood;
 mod simple_axe_block;
 
