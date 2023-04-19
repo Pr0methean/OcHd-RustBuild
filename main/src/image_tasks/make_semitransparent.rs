@@ -11,7 +11,7 @@ use crate::image_tasks::{MaybeFromPool};
 #[cached(sync_writes = true)]
 pub(crate) fn create_alpha_array(out_alpha: OrderedFloat<f32>) -> [u8; 256] {
     return (0u16..256u16)
-        .map (|alpha| (out_alpha.0 * f32::from(alpha)) as u8)
+        .map (|alpha| (out_alpha.0 * f32::from(alpha) + 0.5) as u8)
         .collect::<Vec<u8>>().try_into().unwrap();
 }
 
@@ -55,9 +55,10 @@ fn test_make_semitransparent() {
     for index in 0usize..((side_length * side_length) as usize) {
         let expected_alpha: u8 = (u16::from(alpha_multiplier
             * u16::from(pixmap_pixels[index].alpha()) / 0xff)) as u8;
-        assert_eq!(semitransparent_pixels[index].alpha(), expected_alpha);
+        assert!(semitransparent_pixels[index].alpha().abs_diff(expected_alpha) <= 1);
         if expected_alpha > 0 {
-            assert_eq!(semitransparent_pixels[index].red(), expected_alpha); // premultiplied
+            assert!(semitransparent_pixels[index].red().abs_diff(expected_alpha) <= 1);
+            // premultiplied
             assert_eq!(semitransparent_pixels[index].green(), 0);
             assert_eq!(semitransparent_pixels[index].blue(), 0);
         }

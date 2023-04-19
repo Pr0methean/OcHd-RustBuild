@@ -67,7 +67,7 @@ impl Mul<f32> for ComparableColor {
             red: self.red,
             green: self.green,
             blue: self.blue,
-            alpha: out_alpha as u8
+            alpha: (out_alpha + 0.5) as u8
         }
     }
 }
