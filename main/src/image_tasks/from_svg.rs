@@ -34,6 +34,8 @@ pub const COLOR_SVGS: &[&str] = &[
     "./svg/soulFlameTorchSmall.svg",
     "./svg/torchFlame.svg",
     "./svg/torchFlameSmall.svg",
+    "./svg/torchRedstoneHead.svg",
+    "./svg/vineBerries.svg",
 ];
 
 #[instrument]
