@@ -14,7 +14,8 @@ use crate::image_tasks::task_spec::CloneableError;
 pub fn png_output(image: Pixmap, file: PathBuf) -> Result<(),CloneableError> {
     let file_string = file.to_string_lossy();
     info!("Starting task: write {}", file_string);
-    create_dir_all(file.parent().unwrap()).map_err(|error| anyhoo!(error))?;
+    create_dir_all(file.parent().unwrap())
+        .map_err(|error| anyhoo!("Error writing {}: {}", file_string, error))?;
     let data = encode_png(image).map_err(|error| anyhoo!(error))?;
     write(file.to_owned(), data).map_err(|error| anyhoo!(error))?;
     info!("Finishing task: write {}", file_string);
