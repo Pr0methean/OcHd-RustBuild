@@ -1,6 +1,6 @@
+mod simple_particle;
+
 use crate::group;
+use crate::materials::particle::simple_particle::SIMPLE_PARTICLES;
 
-// val NOTE: SingleLayerParticle = SingleLayerParticle("note", "note", DirtGroundCover.GRASS_BLOCK.highlight)
-// val PARTICLES: MaterialGroup = MaterialGroup(NOTE)
-
-group!(ALL_PARTICLES =);
+group!(ALL_PARTICLES = SIMPLE_PARTICLES);
