@@ -55,9 +55,6 @@ impl Clone for MaybeFromPool<AlphaChannel> {
     }
 }
 
-lazy_static! {
-    static ref ALPHA_PHANTOM: PhantomData<AlphaChannel> = PhantomData::default();
-}
 #[instrument]
 pub fn to_alpha_channel(pixmap: &MaybeFromPool<Pixmap>) -> MaybeFromPool<AlphaChannel> {
     let width = pixmap.width();

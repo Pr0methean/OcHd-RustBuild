@@ -100,10 +100,6 @@ impl <T> Debug for MaybeFromPool<T> {
     }
 }
 
-lazy_static! {
-    static ref PIXMAP_PHANTOM: PhantomData<Pixmap> = PhantomData::default();
-}
-
 pub fn allocate_pixmap(width: u32, height: u32) -> MaybeFromPool<Pixmap> {
     if width == *TILE_SIZE && height == *TILE_SIZE {
         FromPool { reusable: PIXMAP_POOL.pull_owned() }
