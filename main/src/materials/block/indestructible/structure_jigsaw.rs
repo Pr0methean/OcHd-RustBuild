@@ -28,13 +28,13 @@ sj!(STRUCTURE_BLOCK_LOAD =
     ComparableColor::TRANSPARENT,
     JIGSAW_BOTTOM.material.texture.to_owned(),
     paint_svg_task("folder", color!()),
-    paint_svg_task("loadArrow", color!())
+    paint_svg_task("loadArrow", highlight!())
 );
 sj!(STRUCTURE_BLOCK_SAVE =
     ComparableColor::TRANSPARENT,
     JIGSAW_BOTTOM.material.texture.to_owned(),
     paint_svg_task("folder", color!()),
-    paint_svg_task("saveArrow", color!())
+    paint_svg_task("saveArrow", highlight!())
 );
 
 group!(JIGSAW_BLOCKS = JIGSAW_BOTTOM, JIGSAW_TOP, JIGSAW_SIDE, JIGSAW_LOCK);
