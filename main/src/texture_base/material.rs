@@ -294,6 +294,7 @@ impl Material for DoubleTallBlock {
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct GroundCoverBlock {
     pub name: &'static str,
+    pub side_name_suffix: &'static str,
     pub colors: ColorTriad,
     pub base: ToPixmapTaskSpec,
     pub cover_side: ToPixmapTaskSpec,
@@ -308,7 +309,7 @@ impl Material for GroundCoverBlock {
                 self.top.to_owned()
             ),
             out_task(
-                &*format!("block/{}_side", self.name),
+                &*format!("block/{}{}", self.name, self.side_name_suffix),
                 ToPixmapTaskSpec::StackLayerOnLayer {
                     background: Box::new(self.base.to_owned()),
                     foreground: Box::new(self.cover_side.to_owned())
@@ -333,30 +334,19 @@ impl TricolorMaterial for GroundCoverBlock {
     }
 }
 
-#[macro_export]
-macro_rules! ground_cover_block {
-    ($name:ident = $base:expr, $color:expr, $shadow:expr, $highlight:expr, $cover_side:expr, $top:expr ) => {
-        macro_rules! color {
-            () => { $color }
-        }
-        macro_rules! shadow {
-            () => { $shadow }
-        }
-        macro_rules! highlight {
-            () => { $highlight }
-        }
-        lazy_static::lazy_static! {pub static ref $name: crate::texture_base::material::GroundCoverBlock =
-        crate::texture_base::material::GroundCoverBlock {
-            name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
-            colors: crate::texture_base::material::ColorTriad {
-                color: color!(),
-                shadow: shadow!(),
-                highlight: highlight!()
-            },
-            base: $base.material.texture.to_owned(),
-            cover_side: {$cover_side},
-            top: {$top}
-        };}
+pub fn ground_cover_block(name: &'static str,
+                          side_name_suffix: &'static str,
+                          base: &SingleTextureMaterial,
+                          color: ComparableColor,
+                          shadow: ComparableColor,
+                          highlight: ComparableColor,
+                          cover_side: ToPixmapTaskSpec,
+                          top: ToPixmapTaskSpec
+)->GroundCoverBlock {
+    GroundCoverBlock {
+        name, side_name_suffix, base: base.texture.to_owned(),
+        colors: ColorTriad {color, shadow, highlight},
+        cover_side, top
     }
 }
 

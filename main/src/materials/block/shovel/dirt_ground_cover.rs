@@ -1,40 +1,55 @@
-use crate::{block_with_colors, copy_block, ground_cover_block, group, paint_stack, single_texture_block};
+use lazy_static::lazy_static;
+use crate::{block_with_colors, copy_block, group, paint_stack, single_texture_block};
 use crate::image_tasks::color::{c, ComparableColor};
 use crate::image_tasks::task_spec::{from_svg_task, paint_svg_task};
 use crate::materials::block::shovel::simple_soft_earth::DIRT;
 use crate::materials::block::shovel::simple_soft_earth::POWDER_SNOW;
 use crate::stack;
 use crate::stack_on;
-use crate::texture_base::material::TricolorMaterial;
+use crate::texture_base::material::{GroundCoverBlock, TricolorMaterial, ground_cover_block};
 
-ground_cover_block!(GRASS_BLOCK = DIRT, c(0x83b253), c(0x64a43a), c(0x9ccb6c),
-    stack!(
-        paint_svg_task("topPart", color!()),
-        paint_svg_task("veesTop", shadow!())
-    ),
-    stack_on!(
-        ComparableColor::LIGHT_BIOME_COLORABLE,
-        paint_svg_task("borderShortDashes", ComparableColor::MEDIUM_BIOME_COLORABLE),
-        paint_svg_task("borderDotted", ComparableColor::DARK_BIOME_COLORABLE)
-    )
-);
+pub const GRASS_COLOR: ComparableColor = c(0x83b253);
+pub const GRASS_SHADOW: ComparableColor = c(0x64a43a);
+pub const GRASS_HIGHLIGHT: ComparableColor = c(0x9ccb6c);
+
+lazy_static!{
+    pub static ref GRASS_BLOCK: GroundCoverBlock = ground_cover_block(
+        "grass_block", "_side", &DIRT.material, GRASS_COLOR, GRASS_SHADOW, GRASS_HIGHLIGHT,
+        stack!(
+            paint_svg_task("topPart", GRASS_COLOR),
+            paint_svg_task("veesTop", GRASS_SHADOW)
+        ),
+        stack_on!(
+            ComparableColor::LIGHT_BIOME_COLORABLE,
+            paint_svg_task("borderShortDashes", ComparableColor::MEDIUM_BIOME_COLORABLE),
+            paint_svg_task("borderDotted", ComparableColor::DARK_BIOME_COLORABLE)
+        )
+    );
+}
 
 single_texture_block!(GRASS_BLOCK_SIDE_OVERLAY = ComparableColor::TRANSPARENT,
     paint_svg_task("topPart", ComparableColor::MEDIUM_BIOME_COLORABLE),
     paint_svg_task("veesTop", ComparableColor::DARK_BIOME_COLORABLE)
 );
 
-ground_cover_block!(PODZOL = DIRT, c(0x6a4418), c(0x4a3018), c(0x8b5920),
-    stack!(
-        paint_svg_task("topPart", color!()),
-        paint_svg_task("zigzagBrokenTopPart", highlight!())
-    ),
-    stack_on!(
-        c(0x6a4418),
-        paint_svg_task("zigzagBroken", highlight!()),
-        paint_svg_task("borderDotted", shadow!())
-    )
-);
+pub const PODZOL_COLOR: ComparableColor = c(0x6a4418);
+pub const PODZOL_SHADOW: ComparableColor = c(0x4a3018);
+pub const PODZOL_HIGHLIGHT: ComparableColor = c(0x8b5920);
+
+lazy_static! {
+    pub static ref PODZOL: GroundCoverBlock = ground_cover_block(
+        "podzol", "_side", &DIRT.material, PODZOL_COLOR, PODZOL_SHADOW, PODZOL_HIGHLIGHT,
+        stack!(
+            paint_svg_task("topPart", PODZOL_COLOR),
+            paint_svg_task("zigzagBrokenTopPart", PODZOL_HIGHLIGHT)
+        ),
+        stack_on!(
+            PODZOL_COLOR,
+            paint_svg_task("zigzagBroken", PODZOL_HIGHLIGHT),
+            paint_svg_task("borderDotted", PODZOL_SHADOW)
+        )
+    );
+}
 
 copy_block!(COMPOSTER_COMPOST = PODZOL, "top");
 
@@ -43,22 +58,29 @@ single_texture_block!(COMPOSTER_READY = ComparableColor::TRANSPARENT,
     from_svg_task("bonemealSmallNoBorder")
 );
 
-ground_cover_block!(MYCELIUM = DIRT, c(0x6a656a),c(0x5a5a52),c(0x7b6d73),
-    stack!(
-        paint_svg_task("topPart", color!()),
-        paint_svg_task("diagonalChecksTopLeft", shadow!()),
-        paint_stack!(highlight!(), "diagonalChecksTopRight",
-            "diagonalChecksFillTopLeft"),
-        paint_svg_task("diagonalChecksFillTopRight", shadow!())
-    ),
-    stack_on!(
-        color!(),
-        paint_svg_task("diagonalChecksTopLeftBottomRight", shadow!()),
-        paint_stack!(highlight!(), "diagonalChecksBottomLeftTopRight",
-            "diagonalChecksFillTopLeftBottomRight"),
-        paint_svg_task("diagonalChecksFillBottomLeftTopRight", shadow!())
-    )
-);
+pub const MYCELIUM_COLOR: ComparableColor = c(0x6a656a);
+pub const MYCELIUM_SHADOW: ComparableColor = c(0x5a5a52);
+pub const MYCELIUM_HIGHLIGHT: ComparableColor = c(0x7b6d73);
+
+lazy_static! {
+    pub static ref MYCELIUM: GroundCoverBlock = ground_cover_block(
+        "mycelium", "_side", &DIRT.material, MYCELIUM_COLOR, MYCELIUM_SHADOW, MYCELIUM_HIGHLIGHT,
+        stack!(
+            paint_svg_task("topPart", MYCELIUM_COLOR),
+            paint_svg_task("diagonalChecksTopLeft", MYCELIUM_SHADOW),
+            paint_stack!(MYCELIUM_HIGHLIGHT, "diagonalChecksTopRight",
+                "diagonalChecksFillTopLeft"),
+            paint_svg_task("diagonalChecksFillTopRight", MYCELIUM_SHADOW)
+        ),
+        stack_on!(
+            MYCELIUM_COLOR,
+            paint_svg_task("diagonalChecksTopLeftBottomRight", MYCELIUM_SHADOW),
+            paint_stack!(MYCELIUM_HIGHLIGHT, "diagonalChecksBottomLeftTopRight",
+                "diagonalChecksFillTopLeftBottomRight"),
+            paint_svg_task("diagonalChecksFillBottomLeftTopRight", MYCELIUM_SHADOW)
+        )
+    );
+}
 
 block_with_colors!(GRASS_BLOCK_SNOW =
     POWDER_SNOW.color(),
