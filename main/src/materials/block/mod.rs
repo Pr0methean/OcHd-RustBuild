@@ -5,7 +5,7 @@ mod bare_hand;
 mod hoe;
 mod indestructible;
 mod liquid;
-mod pickaxe;
+pub(crate) mod pickaxe;
 mod shears;
 mod shovel;
 
