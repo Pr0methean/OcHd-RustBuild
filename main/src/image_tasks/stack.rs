@@ -1,13 +1,11 @@
 
 use log::info;
-use tiny_skia::{Pixmap, PixmapPaint};
-use tiny_skia_path::Transform;
+use tiny_skia::{BlendMode, Paint, Pixmap, PixmapPaint, Shader};
+use tiny_skia_path::{Rect, Transform};
 use tracing::instrument;
 
-use crate::anyhoo;
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::repaint::AlphaChannel;
-use crate::image_tasks::task_spec::CloneableError;
 
 #[instrument]
 pub fn stack_layer_on_layer(background: &mut Pixmap, foreground: &Pixmap) {
@@ -18,18 +16,19 @@ pub fn stack_layer_on_layer(background: &mut Pixmap, foreground: &Pixmap) {
 }
 
 #[instrument]
-pub fn stack_layer_on_background(background: &ComparableColor, foreground: &Pixmap)
-        -> Result<Pixmap,CloneableError> {
+pub fn stack_layer_on_background(background: &ComparableColor, foreground: &mut Pixmap) {
     info!("Starting task: stack_layer_on_background (background: {})", background);
-    let mut output = Pixmap::new(foreground.width(), foreground.height())
-        .ok_or(anyhoo!("Failed to create background for stacking"))?;
-    output.fill((*background).into());
-    stack_layer_on_layer(&mut output, foreground);
+    foreground.fill_rect(Rect::from_xywh(0.0, 0.0, foreground.width() as f32, foreground.height() as f32).unwrap(),
+                         &Paint {
+                             shader: Shader::SolidColor((*background).into()),
+                             blend_mode: BlendMode::DestinationOver,
+                             anti_alias: true,
+                             force_hq_pipeline: false
+                         }, Transform::default(), None);
     info!("Finishing task: stack_layer_on_background (background: {})", background);
-    Ok(output)
 }
 
-pub fn stack_alpha_on_alpha(background: &mut AlphaChannel, foreground: &AlphaChannel)
+pub(crate) fn stack_alpha_on_alpha(background: &mut AlphaChannel, foreground: &AlphaChannel)
         {
     let output_pixels = background.pixels_mut();
     for (index, &pixel) in foreground.pixels().iter().enumerate() {
