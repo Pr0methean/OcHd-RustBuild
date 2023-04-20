@@ -216,7 +216,7 @@ impl Material for CopiedMaterial {
 
 #[macro_export]
 macro_rules! copy_block {
-    ($name:ident = $base:expr , $base_name:expr) => {
+    ($name:ident = $base:expr, $base_name:expr) => {
         lazy_static::lazy_static! {pub static ref $name: crate::texture_base::material::CopiedMaterial =
         crate::texture_base::material::CopiedMaterial {
             name: const_format::formatcp!("block/{}", const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name))),
@@ -384,9 +384,9 @@ pub struct RedstoneOffOnBlockPair {
 impl Material for RedstoneOffOnBlockPair {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         vec![FileOutputTaskSpec::PngOutput {
-            base: (self.create_texture)(ComparableColor::BLACK),
-            destination: PathBuf::from(format!("block/{}", self.name))
-        },
+                base: (self.create_texture)(ComparableColor::BLACK),
+                destination: PathBuf::from(format!("block/{}", self.name))
+            },
              FileOutputTaskSpec::PngOutput {
                  base: (self.create_texture)(REDSTONE_ON),
                  destination: PathBuf::from(format!("block/{}_on", self.name))
@@ -400,12 +400,12 @@ macro_rules! redstone_off_on_block {
         lazy_static::lazy_static! {pub static ref $name: crate::texture_base::material::RedstoneOffOnBlockPair =
         crate::texture_base::material::RedstoneOffOnBlockPair {
             name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
-            create_texture: Box::new(|state_color| {
+            create_texture: Box::new(|state_color| { {
                 macro_rules! state_color {
                     () => {state_color}
                 }
                 $create_texture
-            })
+            } })
         };}
     }
 }
