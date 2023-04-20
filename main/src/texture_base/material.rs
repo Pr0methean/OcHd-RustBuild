@@ -303,11 +303,11 @@ pub struct GroundCoverBlock {
 impl Material for GroundCoverBlock {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         vec![
-            crate::image_tasks::task_spec::out_task(
+            out_task(
                 &*format!("block/{}_top", self.name),
                 self.top.to_owned()
             ),
-            crate::image_tasks::task_spec::out_task(
+            out_task(
                 &*format!("block/{}_side", self.name),
                 ToPixmapTaskSpec::StackLayerOnLayer {
                     background: Box::new(self.base.to_owned()),
@@ -383,11 +383,11 @@ pub struct RedstoneOffOnBlockPair {
 
 impl Material for RedstoneOffOnBlockPair {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
-        vec![crate::image_tasks::task_spec::out_task(
+        vec![out_task(
                 &*format!("block/{}", self.name),
                 (self.create_texture)(ComparableColor::BLACK)
         ),
-        crate::image_tasks::task_spec::out_task(
+        out_task(
             &*format!("block/{}_on", self.name),
             (self.create_texture)(REDSTONE_ON)
         )]
