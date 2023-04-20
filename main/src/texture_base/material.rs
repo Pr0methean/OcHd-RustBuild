@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use std::path::PathBuf;
 use crate::anyhoo;
 
 use crate::image_tasks::color::ComparableColor;
@@ -304,17 +303,18 @@ pub struct GroundCoverBlock {
 impl Material for GroundCoverBlock {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         vec![
-            FileOutputTaskSpec::PngOutput {
-                base: self.top.to_owned(),
-                destination: PathBuf::from(format!("block/{}_top", self.name))
-            },
-            FileOutputTaskSpec::PngOutput {
-                base: ToPixmapTaskSpec::StackLayerOnLayer {
+            crate::image_tasks::task_spec::out_task(
+                &*format!("block/{}_top", self.name),
+                self.top.to_owned()
+            ),
+            crate::image_tasks::task_spec::out_task(
+                &*format!("block/{}_side", self.name),
+                ToPixmapTaskSpec::StackLayerOnLayer {
                     background: Box::new(self.base.to_owned()),
                     foreground: Box::new(self.cover_side.to_owned())
-                },
-                destination: PathBuf::from(format!("block/{}_side", self.name))
-            }
+                }
+            )
+
         ]
     }
 }
@@ -383,14 +383,14 @@ pub struct RedstoneOffOnBlockPair {
 
 impl Material for RedstoneOffOnBlockPair {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
-        vec![FileOutputTaskSpec::PngOutput {
-                base: (self.create_texture)(ComparableColor::BLACK),
-                destination: PathBuf::from(format!("block/{}", self.name))
-            },
-             FileOutputTaskSpec::PngOutput {
-                 base: (self.create_texture)(REDSTONE_ON),
-                 destination: PathBuf::from(format!("block/{}_on", self.name))
-             }]
+        vec![crate::image_tasks::task_spec::out_task(
+                &*format!("block/{}", self.name),
+                (self.create_texture)(ComparableColor::BLACK)
+        ),
+        crate::image_tasks::task_spec::out_task(
+            &*format!("block/{}_on", self.name),
+            (self.create_texture)(REDSTONE_ON)
+        )]
     }
 }
 
