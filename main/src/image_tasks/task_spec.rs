@@ -83,7 +83,9 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                 (vec![fg_index],
                 Box::new(move || {
                     let fg_image: Arc<Box<MaybeFromPool<Pixmap>>> = fg_future.into_result()?;
-                    Ok(Box::new(stack_layer_on_background(&background, &fg_image)?))
+                    let mut fg_image = Arc::unwrap_or_clone(fg_image);
+                    stack_layer_on_background(&background, &mut fg_image);
+                    Ok(fg_image)
                 }))
             },
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
