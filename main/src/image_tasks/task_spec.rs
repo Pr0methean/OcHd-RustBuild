@@ -244,9 +244,11 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
             }
             FileOutputTaskSpec::Symlink {original, link} => {
                 let link = link.to_owned();
-                let original_path = original.to_owned();
-                (vec![], Box::new(move || {
-                    Ok(Box::new(link_with_logging(original_path, link, false)?))
+                let original_path = original.get_path();
+                let (base_index, base_future) = original.add_to(ctx);
+                (vec![base_index], Box::new(move || {
+                    base_future.into_result()?;
+                    Ok(Box::new(link_with_logging(original_path, link, true)?))
                 }))
             }
         };
@@ -286,7 +288,7 @@ pub enum ToAlphaChannelTaskSpec {
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum FileOutputTaskSpec {
     PngOutput {base: ToPixmapTaskSpec, destination: PathBuf},
-    Symlink {original: PathBuf, link: PathBuf}
+    Symlink {original: Box<FileOutputTaskSpec>, link: PathBuf}
 }
 
 impl FileOutputTaskSpec {
@@ -387,7 +389,7 @@ impl Display for FileOutputTaskSpec {
                 destination.to_string_lossy().to_string()
             },
             FileOutputTaskSpec::Symlink { original, link } => {
-                format!("Symlink {} -> {}", link.to_string_lossy(), original.to_string_lossy())
+                format!("Symlink {} -> {}", link.to_string_lossy(), original.to_string())
             }
         })
     }

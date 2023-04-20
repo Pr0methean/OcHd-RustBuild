@@ -21,9 +21,9 @@ lazy_static! {
     };
 }
 
-dyed_block!(STAINED_GLASS_FRONT = paint_task(STAINED_GLASS_BASE.to_owned(), color!()));
+dyed_block!(STAINED_GLASS = paint_task(STAINED_GLASS_BASE.to_owned(), color!()));
 
-dyed_block!(STAINED_GLASS_TOP = paint_task(from_svg_task("paneTop").into(), color!()));
+dyed_block!(STAINED_GLASS_PANE_TOP = paint_task(from_svg_task("paneTop").into(), color!()));
 
 single_texture_block!(GLASS =
     ComparableColor::TRANSPARENT,
@@ -36,4 +36,4 @@ single_texture_block!(TINTED_GLASS =
     paint_stack!(ComparableColor::WHITE * 0.25, "borderSolid", "streaks")
 );
 
-group!(GLASS_VARIANTS = GLASS_PANE_TOP, GLASS, TINTED_GLASS, STAINED_GLASS_FRONT, STAINED_GLASS_TOP);
+group!(GLASS_VARIANTS = GLASS_PANE_TOP, GLASS, TINTED_GLASS, STAINED_GLASS, STAINED_GLASS_PANE_TOP);

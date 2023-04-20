@@ -24,8 +24,8 @@ lazy_static!{
     };
 }
 
-material!(SUNFLOWER_BACK = "block/sunflower_back", from_svg_task("sunflowerPetals"));
-material!(SUNFLOWER_FRONT = "block/sunflower_front", stack!(
+material!(SUNFLOWER_BACK = "block", from_svg_task("sunflowerPetals"));
+material!(SUNFLOWER_FRONT = "block", stack!(
     paint_svg_task("sunflowerPetals", ComparableColor::YELLOW),
     from_svg_task("sunflowerPistil")
 ));

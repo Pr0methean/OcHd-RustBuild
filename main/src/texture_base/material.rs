@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use std::path::PathBuf;
 use crate::anyhoo;
 
 use crate::image_tasks::color::ComparableColor;
@@ -65,7 +64,6 @@ macro_rules! group {
 pub struct SingleTextureMaterial {
     pub name: &'static str,
     pub directory: &'static str,
-    pub has_output: bool,
     pub texture: ToPixmapTaskSpec
 }
 
@@ -103,10 +101,8 @@ impl From<SingleTextureMaterial> for ToPixmapTaskSpec {
 
 impl Material for SingleTextureMaterial {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
-        if !self.has_output { vec![] } else {
-            vec![out_task(&format!("{}/{}", self.directory, self.name),
+        vec![out_task(&format!("{}/{}", self.directory, self.name),
                           self.texture.to_owned())]
-        }
     }
 }
 
@@ -118,7 +114,6 @@ macro_rules! material {
                     crate::texture_base::material::SingleTextureMaterial {
                 name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
                 directory: $directory,
-                has_output: true,
                 texture: $texture.into()
             };
         }
@@ -146,7 +141,7 @@ macro_rules! single_layer_material {
 
 pub fn item(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMaterial {
     SingleTextureMaterial {
-        name, directory: "item", has_output: true, texture
+        name, directory: "item", texture
     }
 }
 
@@ -166,7 +161,7 @@ macro_rules! single_layer_item {
 
 pub fn block(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMaterial {
     SingleTextureMaterial {
-        name, directory: "block", has_output: true, texture
+        name, directory: "block", texture
     }
 }
 
@@ -186,7 +181,7 @@ macro_rules! single_layer_block {
 
 pub fn particle(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMaterial {
     SingleTextureMaterial {
-        name, directory: "particle", has_output: true, texture
+        name, directory: "particle", texture
     }
 }
 
@@ -212,7 +207,7 @@ pub struct CopiedMaterial {
 impl Material for CopiedMaterial {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         vec![FileOutputTaskSpec::Symlink {
-            original: self.source.get_path(),
+            original: Box::new(self.source.to_owned()),
             link: name_to_out_path(self.name)
         }]
     }
@@ -220,7 +215,7 @@ impl Material for CopiedMaterial {
 
 #[macro_export]
 macro_rules! copy_block {
-    ($name:ident = $base:expr , $base_name:expr) => {
+    ($name:ident = $base:expr, $base_name:expr) => {
         lazy_static::lazy_static! {pub static ref $name: crate::texture_base::material::CopiedMaterial =
         crate::texture_base::material::CopiedMaterial {
             name: const_format::formatcp!("block/{}", const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name))),
@@ -255,7 +250,6 @@ macro_rules! block_with_colors {
                 material: crate::texture_base::material::SingleTextureMaterial {
                     name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
                     directory: "block",
-                    has_output: true,
                     texture: crate::stack_on!($background, $($layers),*).into()
                 }
             };
@@ -300,6 +294,7 @@ impl Material for DoubleTallBlock {
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct GroundCoverBlock {
     pub name: &'static str,
+    pub top_name_suffix: &'static str,
     pub colors: ColorTriad,
     pub base: ToPixmapTaskSpec,
     pub cover_side: ToPixmapTaskSpec,
@@ -309,17 +304,18 @@ pub struct GroundCoverBlock {
 impl Material for GroundCoverBlock {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         vec![
-            FileOutputTaskSpec::PngOutput {
-                base: self.top.to_owned(),
-                destination: PathBuf::from(format!("block/{}_top", self.name))
-            },
-            FileOutputTaskSpec::PngOutput {
-                base: ToPixmapTaskSpec::StackLayerOnLayer {
+            out_task(
+                &*format!("block/{}{}", self.name, self.top_name_suffix),
+                self.top.to_owned()
+            ),
+            out_task(
+                &*format!("block/{}_side", self.name),
+                ToPixmapTaskSpec::StackLayerOnLayer {
                     background: Box::new(self.base.to_owned()),
                     foreground: Box::new(self.cover_side.to_owned())
-                },
-                destination: PathBuf::from(format!("block/{}_side", self.name))
-            }
+                }
+            )
+
         ]
     }
 }
@@ -338,30 +334,19 @@ impl TricolorMaterial for GroundCoverBlock {
     }
 }
 
-#[macro_export]
-macro_rules! ground_cover_block {
-    ($name:ident = $base:expr, $color:expr, $shadow:expr, $highlight:expr, $cover_side:expr, $top:expr ) => {
-        macro_rules! color {
-            () => { $color }
-        }
-        macro_rules! shadow {
-            () => { $shadow }
-        }
-        macro_rules! highlight {
-            () => { $highlight }
-        }
-        lazy_static::lazy_static! {pub static ref $name: crate::texture_base::material::GroundCoverBlock =
-        crate::texture_base::material::GroundCoverBlock {
-            name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
-            colors: crate::texture_base::material::ColorTriad {
-                color: color!(),
-                shadow: shadow!(),
-                highlight: highlight!()
-            },
-            base: $base.material.texture.to_owned(),
-            cover_side: {$cover_side},
-            top: {$top}
-        };}
+pub fn ground_cover_block(name: &'static str,
+                          top_name_suffix: &'static str,
+                          base: &SingleTextureMaterial,
+                          color: ComparableColor,
+                          shadow: ComparableColor,
+                          highlight: ComparableColor,
+                          cover_side: ToPixmapTaskSpec,
+                          top: ToPixmapTaskSpec
+)->GroundCoverBlock {
+    GroundCoverBlock {
+        name, top_name_suffix, base: base.texture.to_owned(),
+        colors: ColorTriad {color, shadow, highlight},
+        cover_side, top
     }
 }
 
@@ -388,14 +373,14 @@ pub struct RedstoneOffOnBlockPair {
 
 impl Material for RedstoneOffOnBlockPair {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
-        vec![FileOutputTaskSpec::PngOutput {
-            base: (self.create_texture)(ComparableColor::BLACK),
-            destination: PathBuf::from(format!("block/{}", self.name))
-        },
-             FileOutputTaskSpec::PngOutput {
-                 base: (self.create_texture)(REDSTONE_ON),
-                 destination: PathBuf::from(format!("block/{}_on", self.name))
-             }]
+        vec![out_task(
+                &*format!("block/{}", self.name),
+                (self.create_texture)(ComparableColor::BLACK)
+        ),
+        out_task(
+            &*format!("block/{}_on", self.name),
+            (self.create_texture)(REDSTONE_ON)
+        )]
     }
 }
 
@@ -405,12 +390,12 @@ macro_rules! redstone_off_on_block {
         lazy_static::lazy_static! {pub static ref $name: crate::texture_base::material::RedstoneOffOnBlockPair =
         crate::texture_base::material::RedstoneOffOnBlockPair {
             name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
-            create_texture: Box::new(|state_color| {
+            create_texture: Box::new(|state_color| { {
                 macro_rules! state_color {
                     () => {state_color}
                 }
                 $create_texture
-            })
+            } })
         };}
     }
 }

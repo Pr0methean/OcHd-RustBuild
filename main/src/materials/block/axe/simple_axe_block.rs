@@ -1,6 +1,6 @@
 use lazy_static::lazy_static;
 
-use crate::{group};
+use crate::{copy_block, group};
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::task_spec::{from_svg_task, paint_svg_task};
 use crate::materials::block::axe::wood::{DARK_OAK, OAK};
@@ -17,6 +17,7 @@ single_texture_block!(CRAFTING_TABLE_SIDE = ComparableColor::TRANSPARENT,
     paint_svg_task("borderSolid", OAK.highlight),
     paint_svg_task("craftingSide", DARK_OAK.color)
 );
+copy_block!(CRAFTING_TABLE_FRONT = CRAFTING_TABLE_SIDE, "");
 single_texture_block!(CRAFTING_TABLE_TOP = OAK.color,
     paint_svg_task("waves", OAK.highlight),
     paint_svg_task("waves2", OAK.shadow * 0.5),
@@ -62,5 +63,6 @@ single_texture_block!(COMPOSTER_SIDE = OAK.color,
     paint_svg_task("stripesThick", OAK.shadow),
     paint_svg_task("borderDotted", OAK.highlight)
 );
-group!(SIMPLE_AXE_BLOCK = CRAFTING_TABLE_SIDE, CRAFTING_TABLE_TOP, LADDER, BOOKSHELF, JUKEBOX_TOP,
-        JUKEBOX_SIDE, NOTE_BLOCK, COMPOSTER_BOTTOM, COMPOSTER_TOP, COMPOSTER_SIDE);
+group!(SIMPLE_AXE_BLOCK = CRAFTING_TABLE_SIDE, CRAFTING_TABLE_TOP, CRAFTING_TABLE_FRONT,
+    LADDER, BOOKSHELF, JUKEBOX_TOP, JUKEBOX_SIDE, NOTE_BLOCK,
+    COMPOSTER_BOTTOM, COMPOSTER_TOP, COMPOSTER_SIDE);
