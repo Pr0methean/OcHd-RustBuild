@@ -14,7 +14,7 @@ pub const GRASS_HIGHLIGHT: ComparableColor = c(0x9ccb6c);
 
 lazy_static!{
     pub static ref GRASS_BLOCK: GroundCoverBlock = ground_cover_block(
-        "grass_block", "_side", &DIRT.material, GRASS_COLOR, GRASS_SHADOW, GRASS_HIGHLIGHT,
+        "grass_block", "_top", &DIRT.material, GRASS_COLOR, GRASS_SHADOW, GRASS_HIGHLIGHT,
         stack!(
             paint_svg_task("topPart", GRASS_COLOR),
             paint_svg_task("veesTop", GRASS_SHADOW)
@@ -38,7 +38,7 @@ pub const PODZOL_HIGHLIGHT: ComparableColor = c(0x8b5920);
 
 lazy_static! {
     pub static ref PODZOL: GroundCoverBlock = ground_cover_block(
-        "podzol", "_side", &DIRT.material, PODZOL_COLOR, PODZOL_SHADOW, PODZOL_HIGHLIGHT,
+        "podzol", "_top", &DIRT.material, PODZOL_COLOR, PODZOL_SHADOW, PODZOL_HIGHLIGHT,
         stack!(
             paint_svg_task("topPart", PODZOL_COLOR),
             paint_svg_task("zigzagBrokenTopPart", PODZOL_HIGHLIGHT)
@@ -64,7 +64,7 @@ pub const MYCELIUM_HIGHLIGHT: ComparableColor = c(0x7b6d73);
 
 lazy_static! {
     pub static ref MYCELIUM: GroundCoverBlock = ground_cover_block(
-        "mycelium", "_side", &DIRT.material, MYCELIUM_COLOR, MYCELIUM_SHADOW, MYCELIUM_HIGHLIGHT,
+        "mycelium", "_top", &DIRT.material, MYCELIUM_COLOR, MYCELIUM_SHADOW, MYCELIUM_HIGHLIGHT,
         stack!(
             paint_svg_task("topPart", MYCELIUM_COLOR),
             paint_svg_task("diagonalChecksTopLeft", MYCELIUM_SHADOW),
@@ -105,5 +105,6 @@ block_with_colors!(SNOW =
     paint_svg_task("snow", shadow!())
 );
 
-group!(DIRT_GROUND_COVER = GRASS_BLOCK_SIDE_OVERLAY, PODZOL, COMPOSTER_COMPOST, COMPOSTER_READY,
+group!(DIRT_GROUND_COVER = GRASS_BLOCK,
+    GRASS_BLOCK_SIDE_OVERLAY, PODZOL, COMPOSTER_COMPOST, COMPOSTER_READY,
         MYCELIUM, GRASS_BLOCK_SNOW, SNOW);

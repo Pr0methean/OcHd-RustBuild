@@ -294,7 +294,7 @@ impl Material for DoubleTallBlock {
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct GroundCoverBlock {
     pub name: &'static str,
-    pub side_name_suffix: &'static str,
+    pub top_name_suffix: &'static str,
     pub colors: ColorTriad,
     pub base: ToPixmapTaskSpec,
     pub cover_side: ToPixmapTaskSpec,
@@ -305,11 +305,11 @@ impl Material for GroundCoverBlock {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         vec![
             out_task(
-                &*format!("block/{}_top", self.name),
+                &*format!("block/{}{}", self.name, self.top_name_suffix),
                 self.top.to_owned()
             ),
             out_task(
-                &*format!("block/{}{}", self.name, self.side_name_suffix),
+                &*format!("block/{}_side", self.name),
                 ToPixmapTaskSpec::StackLayerOnLayer {
                     background: Box::new(self.base.to_owned()),
                     foreground: Box::new(self.cover_side.to_owned())
@@ -335,7 +335,7 @@ impl TricolorMaterial for GroundCoverBlock {
 }
 
 pub fn ground_cover_block(name: &'static str,
-                          side_name_suffix: &'static str,
+                          top_name_suffix: &'static str,
                           base: &SingleTextureMaterial,
                           color: ComparableColor,
                           shadow: ComparableColor,
@@ -344,7 +344,7 @@ pub fn ground_cover_block(name: &'static str,
                           top: ToPixmapTaskSpec
 )->GroundCoverBlock {
     GroundCoverBlock {
-        name, side_name_suffix, base: base.texture.to_owned(),
+        name, top_name_suffix, base: base.texture.to_owned(),
         colors: ColorTriad {color, shadow, highlight},
         cover_side, top
     }
