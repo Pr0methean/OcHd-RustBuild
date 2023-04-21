@@ -45,6 +45,7 @@ use std::io::ErrorKind::NotFound;
 use std::sync::Arc;
 use pathdiff::diff_paths;
 use futures::channel::oneshot::channel;
+use futures::future::join_all;
 use tokio::task::JoinHandle;
 use crate::image_tasks::png_output::link_with_logging;
 
@@ -153,11 +154,13 @@ async fn main() {
     let components: Vec<CloneableLazyTask<Arc<JoinHandle<Result<(),CloneableError>>>>> = components.into_iter().flatten().collect();
     await_mkdir_done.await.expect("Failed to create or delete output directory");
     info!("Starting tasks");
-    components.into_par_iter()
-        .map(|task| task.into_result())
-        .for_each(|result| {
-            result.expect("Error running a task");
-        });
+    join_all(
+        components.into_par_iter()
+            .map(|task| task.into_result())
+            .for_each(|result| {
+                result.expect("Error running a task");
+            })
+    ).expect("Error running an I/O task");
     copy_metadata.await.expect("Failed to copy metadata");
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     ALLOCATOR.disable_logging();
