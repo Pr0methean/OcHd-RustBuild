@@ -2,21 +2,23 @@ use std::fs::{create_dir_all, hard_link, write};
 use std::mem;
 use std::os::unix::fs::symlink;
 use std::path::{PathBuf};
+use std::sync::Arc;
 use log::info;
 
 use tiny_skia::{Pixmap};
 use tracing::instrument;
 
 use crate::anyhoo;
-use crate::image_tasks::task_spec::CloneableError;
+use crate::image_tasks::task_spec::{CloneableError, CloneableLazyTask};
 
 #[instrument]
-pub fn png_output(image: Pixmap, file: PathBuf) -> Result<(),CloneableError> {
+pub fn png_output(image_task: CloneableLazyTask<Pixmap>, file: PathBuf) -> Result<(),CloneableError> {
     let file_string = file.to_string_lossy();
     info!("Starting task: write {}", file_string);
     create_dir_all(file.parent().unwrap())
         .map_err(|error| anyhoo!("Error writing {}: {}", file_string, error))?;
-    let data = encode_png(image).map_err(|error| anyhoo!(error))?;
+    let image = Arc::unwrap_or_clone(image_task.into_result()?);
+    let data = encode_png(*image).map_err(|error| anyhoo!(error))?;
     write(file.to_owned(), data).map_err(|error| anyhoo!(error))?;
     info!("Finishing task: write {}", file_string);
     Ok(())

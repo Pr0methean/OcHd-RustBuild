@@ -238,8 +238,7 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
                 let destination = destination.to_owned();
                 let (base_index, base_future) = base.add_to(ctx);
                 (vec![base_index], Box::new(move || {
-                    Ok(Box::new(png_output(*Arc::unwrap_or_clone(base_future.into_result()?),
-                                           destination)?))
+                    Ok(Box::new(png_output(base_future, destination)?))
                 }))
             }
             FileOutputTaskSpec::Symlink {original, link} => {
