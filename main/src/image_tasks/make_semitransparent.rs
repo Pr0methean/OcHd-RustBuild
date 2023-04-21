@@ -34,7 +34,6 @@ fn test_make_semitransparent() {
     use crate::image_tasks::color::ComparableColor;
     use crate::image_tasks::repaint::paint;
     use crate::image_tasks::repaint::to_alpha_channel;
-    use std::sync::Arc;
 
     let alpha = 0.5;
     let alpha_multiplier = (alpha * f32::from(u8::MAX)) as u16;
@@ -46,10 +45,10 @@ fn test_make_semitransparent() {
     pixmap.fill_path(&circle, &red_paint,
                      FillRule::EvenOdd, Transform::default(), None);
     let pixmap_pixels = pixmap.pixels().to_owned();
-    let mut semitransparent_circle: AlphaChannel = to_alpha_channel(pixmap).unwrap();
+    let mut semitransparent_circle: AlphaChannel = to_alpha_channel(pixmap);
     make_semitransparent(&mut semitransparent_circle, alpha);
-    let semitransparent_red_circle: Arc<Pixmap> =
-        paint(&semitransparent_circle, &ComparableColor::RED).try_into().unwrap();
+    let semitransparent_red_circle: Pixmap =
+        paint(&semitransparent_circle, &ComparableColor::RED);
     let semitransparent_pixels = semitransparent_red_circle.pixels();
     for index in 0usize..((side_length * side_length) as usize) {
         let expected_alpha: u8 = (u16::from(alpha_multiplier

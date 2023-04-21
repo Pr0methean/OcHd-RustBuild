@@ -174,7 +174,7 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
                 (vec![base_index],
                 Box::new(move || {
                     let base_image: Arc<Box<Pixmap>> = base_future.into_result()?;
-                    Ok(Box::new(to_alpha_channel(base_image.deref())?))
+                    Ok(Box::new(to_alpha_channel(base_image.deref())))
                 }))
             },
             ToAlphaChannelTaskSpec::StackAlphaOnAlpha { layers } => {
