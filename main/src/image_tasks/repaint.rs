@@ -136,9 +136,9 @@ pub mod tests {
     #[test]
     fn test_alpha_channel() {
         let side_length = 128;
-        let mut pixmap = NotFromPool(Pixmap::new(side_length, side_length).unwrap());
+        let mut pixmap = &mut NotFromPool(Pixmap::new(side_length, side_length).unwrap());
         let circle = PathBuilder::from_circle(64.0, 64.0, 50.0).unwrap();
-        pixmap.deref_mut().fill_path(&circle, &Paint::default(),
+        pixmap.fill_path(&circle, &Paint::default(),
                          FillRule::EvenOdd, Transform::default(), None);
         let alpha_channel = to_alpha_channel(&pixmap);
         let pixmap_pixels = pixmap.deref().pixels();
@@ -151,9 +151,9 @@ pub mod tests {
     #[test]
     fn test_paint() {
         let side_length = 128;
-        let mut pixmap = NotFromPool(Pixmap::new(side_length, side_length).unwrap());
+        let pixmap = &mut NotFromPool(Pixmap::new(side_length, side_length).unwrap());
         let circle = PathBuilder::from_circle(64.0, 64.0, 50.0).unwrap();
-        pixmap.deref_mut().fill_path(&circle, &Paint::default(),
+        pixmap.fill_path(&circle, &Paint::default(),
                          FillRule::EvenOdd, Transform::default(), None);
         let alpha_channel = to_alpha_channel(&pixmap);
         let repainted_alpha: u8 = 0xcf;
