@@ -21,7 +21,8 @@ fn ensure_made_dir(dir: &Path) -> Result<(),CloneableError> {
     if MADE_DIRS.read().map_err(|error| anyhoo!(error.to_string()))?.contains(dir) {
         return Ok(());
     }
-    let mut made_dirs = MADE_DIRS.write().map_err(|error| anyhoo!(error.to_string()))?;
+    let mut made_dirs = MADE_DIRS.write()
+        .map_err(|error| anyhoo!(error.to_string()))?;
     // Double-checked locking
     if made_dirs.contains(dir) {
         return Ok(());
