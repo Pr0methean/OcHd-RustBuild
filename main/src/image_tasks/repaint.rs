@@ -158,9 +158,9 @@ pub mod tests {
         let alpha_channel = to_alpha_channel(&pixmap);
         let repainted_alpha: u8 = 0xcf;
         let red = ColorU8::from_rgba(0xff, 0, 0, repainted_alpha);
-        let repainted_pixels = paint(&alpha_channel, &ComparableColor::from(red))
-            .pixels().to_owned();
+        let repainted_red: MaybeFromPool<Pixmap> = paint(&alpha_channel, &ComparableColor::from(red));
         let pixmap_pixels = pixmap.pixels();
+        let repainted_pixels = repainted_red.pixels();
         for index in 0usize..((side_length * side_length) as usize) {
             let expected_alpha: u8 = (u16::from(repainted_alpha)
                 * u16::from(pixmap_pixels[index].alpha()) / 0xff) as u8;
