@@ -17,7 +17,6 @@
 #![feature(lazy_cell)]
 #![feature(concat_idents)]
 #![feature(macro_metavar_expr)]
-use std::alloc::System;
 use std::collections::{HashMap};
 use std::path::{absolute, PathBuf};
 use std::time::Instant;
@@ -44,6 +43,7 @@ use std::fs;
 use std::io::ErrorKind::NotFound;
 use pathdiff::diff_paths;
 use futures::channel::oneshot::channel;
+use tikv_jemallocator::Jemalloc;
 use crate::image_tasks::png_output::link_with_logging;
 
 #[cfg(not(any(test,clippy)))]
@@ -61,7 +61,8 @@ lazy_static! {
 }
 
 #[global_allocator]
-static ALLOCATOR: LoggingAllocator = LoggingAllocator::with_allocator(System);
+static ALLOCATOR: LoggingAllocator<Jemalloc>
+    = LoggingAllocator::with_allocator(Jemalloc);
 
 fn copy_metadata(source_path: &PathBuf) {
     fs::read_dir(source_path).expect("Failed to read metadata directory").for_each(
