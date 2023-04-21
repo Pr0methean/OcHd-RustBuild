@@ -6,6 +6,7 @@ use std::sync::Arc;
 use log::info;
 
 use tiny_skia::{Pixmap};
+use tokio::runtime::Handle;
 use tokio::task::JoinHandle;
 use tracing::instrument;
 
@@ -20,7 +21,7 @@ pub fn png_output(image_task: CloneableLazyTask<Pixmap>, file: PathBuf)
     info!("Starting task: write {}", file_string);
     let file_string_in_mkdirs = file_string.to_string();
     let file_string_in_write_log = file_string.to_string();
-    let mkdirs = tokio::spawn(async move {
+    let mkdirs = Handle::current().spawn(async move {
         create_dir_all(mkdir_target)
             .map_err(|error| anyhoo!("Error writing {}: {}", file_string_in_mkdirs, error))
     });
