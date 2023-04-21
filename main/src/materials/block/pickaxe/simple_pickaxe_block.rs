@@ -369,6 +369,27 @@ amethyst!(SMALL_AMETHYST_BUD = ComparableColor::TRANSPARENT,
     paint_svg_task("smallAmethystBud2", shadow!())
 );
 
+make_tricolor_block_macro!(purpur, c(0xac7bac), c(0x906590), c(0xc7a8c7));
+
+purpur!(PURPUR_BLOCK = color!(),
+    paint_svg_task("bigCircle", highlight!() * 0.25),
+    paint_svg_task("borderSolid", shadow!()),
+    paint_svg_task("2x2TopLeft", highlight!())
+);
+
+purpur!(PURPUR_PILLAR = color!(),
+    paint_svg_task("bigCircle", highlight!() * 0.25),
+    paint_stack!(shadow!(), "borderSolid", "stripesVerticalThick"),
+    paint_svg_task("borderSolidTopLeft", highlight!())
+);
+
+purpur!(PURPUR_PILLAR_TOP = highlight!(),
+    paint_svg_task("bigCircle", color!() * 0.75),
+    paint_svg_task("borderSolidThick", color!()),
+    paint_svg_task("borderSolid", shadow!()),
+    paint_svg_task("borderSolidTopLeft", highlight!())
+);
+
 block_with_colors!(CUT_COPPER = COPPER.color(), COPPER.shadow(), COPPER.highlight(),
     color!(),
     paint_svg_task("streaks", highlight!()),
@@ -451,7 +472,15 @@ block_with_colors!(LIME_GLAZED_TERRACOTTA = c(0x8bd922), c(0x5ea900), c(0xffffc4
     paint_svg_task("strokeTopLeftBottomRight", shadow!()),
     paint_svg_task("railCornerInverted", highlight!())
 );
-// TODO: Purple, light gray, yellow, orange, white glazed terracotta
+block_with_colors!(WHITE_GLAZED_TERRACOTTA = , c(0x3ab3da), c(0x2389c7), c(0xffd83d),
+    ComparableColor::WHITE,
+    paint_stack!(highlight!(), "borderSolidTopLeft", "cornerRoundTopLeft")
+    paint_svg_task("strokeBottomLeftTopRightThick", shadow!()),
+    paint_svg_task("strokeBottomLeftTopRight", highlight!()),
+    paint_svg_task("cornerRoundBottomRight", color!()),
+    paint_svg_task("cornerBullseyeBottomRight", color!())
+);
+// TODO: Purple, light gray, yellow, orange, glazed terracotta
 
 group!(DEEPSLATE_VARIANTS = DEEPSLATE_BRICKS, DEEPSLATE_TOP, COBBLED_DEEPSLATE);
 group!(QUARTZ_VARIANTS = QUARTZ_BLOCK_TOP, QUARTZ_BLOCK_BOTTOM, QUARTZ_BLOCK_SIDE,
@@ -473,6 +502,8 @@ group!(MISC_BRICKS = MUD_BRICKS, BRICKS, POLISHED_BLACKSTONE_BRICKS, NETHER_BRIC
     RED_NETHER_BRICKS);
 group!(AMETHYST = AMETHYST_BLOCK, BUDDING_AMETHYST, AMETHYST_CLUSTER,
     LARGE_AMETHYST_BUD, MEDIUM_AMETHYST_BUD, SMALL_AMETHYST_BUD);
+group!(PURPUR = PURPUR_BLOCK, PURPUR_PILLAR, PURPUR_PILLAR_TOP);
 group!(SIMPLE_PICKAXE_BLOCKS = DEEPSLATE_VARIANTS, QUARTZ_VARIANTS, STONE_VARIANTS,
         COBBLESTONE_VARIANTS, SANDSTONE_VARIANTS, RED_SANDSTONE_VARIANTS, BASALT_VARIANTS,
-        GLOWSTONE, END_STONE_VARIANTS, MISC_BRICKS, TERRACOTTA_VARIANTS, AMETHYST, CUT_COPPER);
+        GLOWSTONE, END_STONE_VARIANTS, MISC_BRICKS, TERRACOTTA_VARIANTS, AMETHYST, PURPUR,
+        CUT_COPPER);
