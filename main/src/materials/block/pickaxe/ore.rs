@@ -285,8 +285,8 @@ lazy_static! {
                                   ComparableColor::WHITE);
         quartz.substrates = vec![&*NETHERRACK_BASE];
         quartz.raw_item = Box::new(|_| stack!(
-            paint_svg_task("bigDiamondSolid", QUARTZ.colors.color),
-            paint_svg_task("bigDiamondSolidTopLeftBottomRight", QUARTZ.colors.highlight),
+            paint_svg_task("quartzChunk", QUARTZ.colors.color),
+            paint_stack!(QUARTZ.colors.highlight, "diamond2", "quartzChunkTopLeftBottomRight"),
             paint_svg_task("quartz", QUARTZ.colors.shadow)
         ));
         quartz
