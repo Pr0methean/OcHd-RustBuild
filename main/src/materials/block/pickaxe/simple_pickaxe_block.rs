@@ -472,9 +472,9 @@ block_with_colors!(LIME_GLAZED_TERRACOTTA = c(0x8bd922), c(0x5ea900), c(0xffffc4
     paint_svg_task("strokeTopLeftBottomRight", shadow!()),
     paint_svg_task("railCornerInverted", highlight!())
 );
-block_with_colors!(WHITE_GLAZED_TERRACOTTA = , c(0x3ab3da), c(0x2389c7), c(0xffd83d),
+block_with_colors!(WHITE_GLAZED_TERRACOTTA = c(0x3ab3da), c(0x2389c7), c(0xffd83d),
     ComparableColor::WHITE,
-    paint_stack!(highlight!(), "borderSolidTopLeft", "cornerRoundTopLeft")
+    paint_stack!(highlight!(), "borderSolidTopLeft", "cornerRoundTopLeft"),
     paint_svg_task("strokeBottomLeftTopRightThick", shadow!()),
     paint_svg_task("strokeBottomLeftTopRight", highlight!()),
     paint_svg_task("cornerRoundBottomRight", color!()),

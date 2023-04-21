@@ -21,7 +21,7 @@ use std::collections::{HashMap};
 use std::path::{absolute, PathBuf};
 use std::time::Instant;
 
-use std::fs::{create_dir, remove_dir_all};
+use std::fs::{remove_dir_all};
 
 use petgraph::visit::{EdgeRef, IntoNodeReferences, IntoEdgeReferences, NodeIndexable};
 use fn_graph::daggy::petgraph::unionfind::UnionFind;
