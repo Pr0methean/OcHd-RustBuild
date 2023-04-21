@@ -1,7 +1,10 @@
+use std::collections::HashSet;
 use std::fs::{create_dir_all, hard_link, write};
 use std::mem;
 use std::os::unix::fs::symlink;
-use std::path::{PathBuf};
+use std::path::{Path, PathBuf};
+use std::sync::RwLock;
+use lazy_static::lazy_static;
 use log::info;
 
 use tiny_skia::{Pixmap};
@@ -10,12 +13,31 @@ use tracing::instrument;
 use crate::anyhoo;
 use crate::image_tasks::task_spec::CloneableError;
 
+lazy_static!{
+    static ref MADE_DIRS: RwLock<HashSet<PathBuf>> = RwLock::new(HashSet::new());
+}
+
+fn ensure_made_dir(dir: &Path) -> Result<(),CloneableError> {
+    if MADE_DIRS.read().map_err(|error| anyhoo!(error.to_string()))?.contains(dir) {
+        return Ok(());
+    }
+    let mut made_dirs = MADE_DIRS.write().map_err(|error| anyhoo!(error.to_string()))?;
+    // Double-checked locking
+    if made_dirs.contains(dir) {
+        return Ok(());
+    }
+    create_dir_all(dir).map_err(|error| anyhoo!(error))?;
+    made_dirs.insert(dir.to_owned());
+    Ok(())
+}
+
+
 #[instrument]
 pub fn png_output(image: Pixmap, file: PathBuf) -> Result<(),CloneableError> {
     let file_string = file.to_string_lossy();
     info!("Starting task: write {}", file_string);
-    create_dir_all(file.parent().unwrap())
-        .map_err(|error| anyhoo!("Error writing {}: {}", file_string, error))?;
+    let parent = file.parent().ok_or(anyhoo!("Output file has no parent"))?;
+    ensure_made_dir(parent)?;
     let data = encode_png(image).map_err(|error| anyhoo!(error))?;
     write(file.to_owned(), data).map_err(|error| anyhoo!(error))?;
     info!("Finishing task: write {}", file_string);
@@ -26,7 +48,8 @@ pub fn link_with_logging(original: PathBuf, link: PathBuf, hard: bool) -> Result
     let description =
         format!("{} -> {}", link.to_string_lossy(), original.to_string_lossy());
     info!("Starting task: symlink {}", description);
-    create_dir_all(link.parent().unwrap()).map_err(|error| anyhoo!(error))?;
+    let parent = link.parent().ok_or(anyhoo!("Output file has no parent"))?;
+    ensure_made_dir(parent)?;
     if hard {
         hard_link(original, link)
     } else {
