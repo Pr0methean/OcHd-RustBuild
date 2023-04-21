@@ -44,9 +44,8 @@ impl From<&Pixmap> for AlphaChannel {
 }
 
 #[instrument]
-pub fn to_alpha_channel(pixmap: &Pixmap) -> Result<AlphaChannel,CloneableError> {
-    let alpha = AlphaChannel::from(pixmap);
-    Ok(alpha)
+pub fn to_alpha_channel(pixmap: &Pixmap) -> AlphaChannel {
+    AlphaChannel::from(pixmap)
 }
 
 impl Mul<f32> for AlphaChannel {

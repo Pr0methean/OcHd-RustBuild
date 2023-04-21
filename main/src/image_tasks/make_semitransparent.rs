@@ -46,7 +46,7 @@ fn test_make_semitransparent() {
     pixmap.fill_path(&circle, &red_paint,
                      FillRule::EvenOdd, Transform::default(), None);
     let pixmap_pixels = pixmap.pixels().to_owned();
-    let mut semitransparent_circle: AlphaChannel = to_alpha_channel(pixmap).unwrap();
+    let mut semitransparent_circle: AlphaChannel = to_alpha_channel(pixmap);
     make_semitransparent(&mut semitransparent_circle, alpha);
     let semitransparent_red_circle: Arc<Pixmap> =
         paint(&semitransparent_circle, &ComparableColor::RED).try_into().unwrap();
