@@ -19,7 +19,7 @@ use crate::image_tasks::MaybeFromPool::NotFromPool;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialOrd, PartialEq)]
 pub struct AlphaChannel {
-    pixels: Box<[u8]>,
+    pixels: Vec<u8>,
     width: u32,
     height: u32
 }
@@ -36,7 +36,7 @@ impl AlphaChannel {
     fn new(width: u32, height: u32) -> AlphaChannel {
         let mut pixels: Vec<u8> = Vec::with_capacity((width * height) as usize);
         pixels.extend(iter::repeat(0).take((width * height) as usize));
-        AlphaChannel {pixels: pixels.into_boxed_slice(), width, height}
+        AlphaChannel {pixels, width, height}
     }
 }
 
