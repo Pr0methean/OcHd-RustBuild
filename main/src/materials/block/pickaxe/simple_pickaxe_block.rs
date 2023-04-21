@@ -472,6 +472,12 @@ block_with_colors!(LIME_GLAZED_TERRACOTTA = c(0x8bd922), c(0x5ea900), c(0xffffc4
     paint_svg_task("strokeTopLeftBottomRight", shadow!()),
     paint_svg_task("railCornerInverted", highlight!())
 );
+block_with_colors!(YELLOW_GLAZED_TERRACOTTA = c(0xffb000), c(0xa4764c), c(0xffff9d),
+    color!(),
+    paint_svg_task("cornersRound", shadow!()),
+    paint_stack!(highlight!(), "sunflowerPetals", "cross", "bigDotsTopLeftBottomRight",
+        "cornerRoundTopLeft")
+);
 block_with_colors!(WHITE_GLAZED_TERRACOTTA = c(0x3ab3da), c(0x2389c7), c(0xffd83d),
     ComparableColor::WHITE,
     paint_stack!(highlight!(), "borderSolidTopLeft", "cornerRoundTopLeft"),
@@ -497,7 +503,8 @@ group!(END_STONE_VARIANTS = END_STONE, END_STONE_BRICKS);
 group!(TERRACOTTA_VARIANTS = TERRACOTTA, BLACK_GLAZED_TERRACOTTA, RED_GLAZED_TERRACOTTA,
         GREEN_GLAZED_TERRACOTTA, BROWN_GLAZED_TERRACOTTA, BLUE_GLAZED_TERRACOTTA,
         CYAN_GLAZED_TERRACOTTA, GRAY_GLAZED_TERRACOTTA, PINK_GLAZED_TERRACOTTA,
-        LIME_GLAZED_TERRACOTTA, LIGHT_BLUE_GLAZED_TERRACOTTA, MAGENTA_GLAZED_TERRACOTTA);
+        LIME_GLAZED_TERRACOTTA, LIGHT_BLUE_GLAZED_TERRACOTTA, MAGENTA_GLAZED_TERRACOTTA,
+        YELLOW_GLAZED_TERRACOTTA, WHITE_GLAZED_TERRACOTTA);
 group!(MISC_BRICKS = MUD_BRICKS, BRICKS, POLISHED_BLACKSTONE_BRICKS, NETHER_BRICKS,
     RED_NETHER_BRICKS);
 group!(AMETHYST = AMETHYST_BLOCK, BUDDING_AMETHYST, AMETHYST_CLUSTER,
