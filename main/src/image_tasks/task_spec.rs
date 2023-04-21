@@ -22,6 +22,7 @@ use petgraph::graph::{IndexType, NodeIndex};
 use replace_with::replace_with_and_return;
 
 use tiny_skia::Pixmap;
+use tokio::task::JoinHandle;
 
 use crate::image_tasks::animate::animate;
 use crate::image_tasks::color::ComparableColor;
@@ -222,23 +223,23 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
     }
 }
 
-impl TaskSpecTraits<()> for FileOutputTaskSpec {
+impl TaskSpecTraits<Arc<JoinHandle<Result<(),CloneableError>>>> for FileOutputTaskSpec {
     fn add_to<'a, 'b, E, Ix>(&'b self, ctx: &mut TaskGraphBuildingContext<'a, E, Ix>)
-                         -> (NodeIndex<Ix>, CloneableLazyTask<()>)
+                         -> (NodeIndex<Ix>, CloneableLazyTask<Arc<JoinHandle<Result<(),CloneableError>>>>)
                          where Ix : IndexType, E: Default, 'b: 'a {
         let name: String = self.to_string();
         if let Some((existing_index, existing_future))
                 = ctx.output_task_to_future_map.get(&self) {
             info!("Matched an existing node: {}", name);
-            return (*existing_index, existing_future.to_owned());
+            return (*existing_index, (*existing_future).to_owned());
         }
         let self_id = ctx.graph.add_node(TaskSpec::from(self));
-        let (dependencies, function): (Vec<NodeIndex<Ix>>, LazyTaskFunction<()>) = match self {
+        let (dependencies, function): (Vec<NodeIndex<Ix>>, LazyTaskFunction<Arc<JoinHandle<Result<(),CloneableError>>>>) = match self {
             FileOutputTaskSpec::PngOutput {base, destination } => {
                 let destination = destination.to_owned();
                 let (base_index, base_future) = base.add_to(ctx);
                 (vec![base_index], Box::new(move || {
-                    Ok(Box::new(png_output(base_future, destination)?))
+                    Ok(Box::new(png_output(base_future, destination.to_owned())?))
                 }))
             }
             FileOutputTaskSpec::Symlink {original, link} => {
@@ -247,7 +248,7 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
                 let (base_index, base_future) = original.add_to(ctx);
                 (vec![base_index], Box::new(move || {
                     base_future.into_result()?;
-                    Ok(Box::new(link_with_logging(original_path, link, true)?))
+                    Ok(Box::new(Arc::new(link_with_logging(original_path, link, true)?)))
                 }))
             }
         };
@@ -547,7 +548,7 @@ pub struct TaskGraphBuildingContext<'a, E, Ix> where Ix: IndexType {
     pub graph: TaskGraph<E, Ix>,
     pixmap_task_to_future_map: HashMap<&'a ToPixmapTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<Pixmap>)>,
     alpha_task_to_future_map: HashMap<&'a ToAlphaChannelTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<AlphaChannel>)>,
-    pub output_task_to_future_map: HashMap<&'a FileOutputTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<()>)>
+    pub output_task_to_future_map: HashMap<&'a FileOutputTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<Arc<JoinHandle<Result<(),CloneableError>>>>)>
 }
 
 impl <'a,E,Ix> TaskGraphBuildingContext<'a,E,Ix> where Ix: IndexType {

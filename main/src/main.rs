@@ -33,7 +33,7 @@ use petgraph::graph::{DefaultIx, NodeIndex};
 use texture_base::material::Material;
 use rayon::prelude::*;
 
-use crate::image_tasks::task_spec::{OUT_DIR, SVG_DIR, CloneableLazyTask, TaskGraphBuildingContext, TaskSpec, TaskSpecTraits, METADATA_DIR};
+use crate::image_tasks::task_spec::{OUT_DIR, SVG_DIR, CloneableLazyTask, TaskGraphBuildingContext, TaskSpec, TaskSpecTraits, METADATA_DIR, CloneableError};
 
 mod image_tasks;
 mod texture_base;
@@ -42,8 +42,10 @@ mod materials;
 use std::env;
 use std::fs;
 use std::io::ErrorKind::NotFound;
+use std::sync::Arc;
 use pathdiff::diff_paths;
 use futures::channel::oneshot::channel;
+use tokio::task::JoinHandle;
 use crate::image_tasks::png_output::link_with_logging;
 
 #[cfg(not(any(test,clippy)))]
@@ -119,7 +121,7 @@ async fn main() {
         // union the two vertices of the edge
         vertex_sets.union(a, b);
     }
-    let mut component_map: HashMap<NodeIndex<DefaultIx>, Vec<CloneableLazyTask<()>>> = HashMap::new();
+    let mut component_map: HashMap<NodeIndex<DefaultIx>, Vec<CloneableLazyTask<Arc<JoinHandle<Result<(),CloneableError>>>>>> = HashMap::new();
     for (index, task) in ctx.graph.node_references() {
         let representative = vertex_sets.find(index);
         let (_, future) = match task {
@@ -145,15 +147,16 @@ async fn main() {
     drop(output_tasks);
 
     // Run small WCCs first so that their data can leave the heap before the big WCCs run
-    let mut components: Vec<Vec<CloneableLazyTask<()>>> = component_map.into_values().collect();
+    let mut components: Vec<Vec<CloneableLazyTask<Arc<JoinHandle<Result<(),CloneableError>>>>>>
+        = component_map.into_values().collect();
     components.sort_by_key(Vec::len);
-    let components: Vec<CloneableLazyTask<()>> = components.into_iter().flatten().collect();
+    let components: Vec<CloneableLazyTask<Arc<JoinHandle<Result<(),CloneableError>>>>> = components.into_iter().flatten().collect();
     await_mkdir_done.await.expect("Failed to create or delete output directory");
     info!("Starting tasks");
     components.into_par_iter()
         .map(|task| task.into_result())
         .for_each(|result| {
-            **result.expect("Error running a task");
+            result.expect("Error running a task");
         });
     copy_metadata.await.expect("Failed to copy metadata");
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
