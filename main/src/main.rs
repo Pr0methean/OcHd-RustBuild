@@ -40,9 +40,7 @@ mod materials;
 #[cfg(not(any(test,clippy)))]
 use std::env;
 use std::fs;
-use std::io::ErrorKind::NotFound;
 use pathdiff::diff_paths;
-use futures::channel::oneshot::channel;
 use crate::image_tasks::png_output::link_with_logging;
 
 #[cfg(not(any(test,clippy)))]
@@ -70,7 +68,7 @@ fn copy_metadata(source_path: &PathBuf) {
             let path = entry.path();
             if file_type.is_file() {
                 let mut destination = OUT_DIR.to_owned();
-                destination.push(diff_paths(&path, &*METADATA_DIR)
+                destination.push(diff_paths(&path, *METADATA_DIR)
                     .expect("Got a DirEntry that wasn't in METADATA_DIR"));
                 link_with_logging(path, destination, true).unwrap();
             } else if file_type.is_dir() {
@@ -115,7 +113,7 @@ async fn main() {
     for (index, task) in ctx.graph.node_references() {
         let representative = vertex_sets.find(index);
         let (_, future) = match task {
-            TaskSpec::FileOutputTaskSpec(sink_task_spec) => {
+            TaskSpec::FileOutput(sink_task_spec) => {
                 ctx.output_task_to_future_map.get(&sink_task_spec).unwrap()
             }
             _ => continue
@@ -144,7 +142,7 @@ async fn main() {
     components.into_par_iter()
         .map(|task| task.into_result())
         .for_each(|result| {
-            **result.expect("Error running a task");
+            result.expect("Error running a task");
         });
     copy_metadata.await.expect("Failed to copy metadata");
     info!("Finished after {} ns", start_time.elapsed().as_nanos());

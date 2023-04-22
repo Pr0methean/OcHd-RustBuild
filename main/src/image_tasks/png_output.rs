@@ -29,7 +29,7 @@ fn ensure_made_dir(dir: &Path) -> Result<(),CloneableError> {
         return Ok(());
     }
     if made_dirs.is_empty() {
-        let result = remove_dir_all(&*OUT_DIR);
+        let result = remove_dir_all(*OUT_DIR);
         if result.is_err_and(|err| err.kind() != NotFound) {
             panic!("Failed to delete old output directory");
         }
@@ -47,7 +47,7 @@ pub fn png_output(image: Pixmap, file: PathBuf) -> Result<(),CloneableError> {
     let parent = file.parent().ok_or(anyhoo!("Output file has no parent"))?;
     let data = encode_png(image).map_err(|error| anyhoo!(error))?;
     ensure_made_dir(parent)?;
-    write(file.to_owned(), data).map_err(|error| anyhoo!(error))?;
+    write(&file, data).map_err(|error| anyhoo!(error))?;
     info!("Finishing task: write {}", file_string);
     Ok(())
 }
@@ -83,7 +83,7 @@ pub fn encode_png(mut image: Pixmap) -> Result<Vec<u8>, png::EncodingError> {
         encoder.set_color(png::ColorType::Rgba);
         encoder.set_depth(png::BitDepth::Eight);
         let mut writer = encoder.write_header()?;
-        writer.write_image_data(&image.data())?;
+        writer.write_image_data(image.data())?;
     }
 
     Ok(data)

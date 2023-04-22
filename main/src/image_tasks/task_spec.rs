@@ -125,7 +125,7 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
                 (vec![base_index],
                 Box::new(move || {
                     let base_image: Arc<Box<AlphaChannel>> = base_future.into_result()?;
-                    Ok(Box::new(paint(&*base_image, &color)))
+                    Ok(Box::new(paint(&base_image, &color)))
                 }))
             },
         };
@@ -207,7 +207,7 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
                  Box::new(move || {
                      let fg_arc: Arc<Box<AlphaChannel>> = fg_future.into_result()?;
                      let mut fg_image = Arc::unwrap_or_clone(fg_arc);
-                     stack_alpha_on_background(background, &mut *fg_image);
+                     stack_alpha_on_background(background, &mut fg_image);
                      Ok(fg_image)
                  }))
             }
@@ -305,17 +305,17 @@ impl FileOutputTaskSpec {
 /// function closures and futures don't implement [Eq] or [Hash].
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum TaskSpec {
-    ToPixmapTaskSpec(ToPixmapTaskSpec),
-    ToAlphaChannelTaskSpec(ToAlphaChannelTaskSpec),
-    FileOutputTaskSpec(FileOutputTaskSpec)
+    ToPixmap(ToPixmapTaskSpec),
+    ToAlphaChannel(ToAlphaChannelTaskSpec),
+    FileOutput(FileOutputTaskSpec)
 }
 
 impl Display for TaskSpec {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let inner: Box<&dyn Display> = Box::new(match self {
-            TaskSpec::ToPixmapTaskSpec(inner) => inner,
-            TaskSpec::ToAlphaChannelTaskSpec(inner) => inner,
-            TaskSpec::FileOutputTaskSpec(inner) => inner
+            TaskSpec::ToPixmap(inner) => inner,
+            TaskSpec::ToAlphaChannel(inner) => inner,
+            TaskSpec::FileOutput(inner) => inner
         });
         <Box<&dyn Display> as Display>::fmt(&inner, f)
     }
@@ -323,19 +323,19 @@ impl Display for TaskSpec {
 
 impl From<&ToPixmapTaskSpec> for TaskSpec {
     fn from(value: &ToPixmapTaskSpec) -> Self {
-        TaskSpec::ToPixmapTaskSpec(value.to_owned())
+        TaskSpec::ToPixmap(value.to_owned())
     }
 }
 
 impl From<&ToAlphaChannelTaskSpec> for TaskSpec {
     fn from(value: &ToAlphaChannelTaskSpec) -> Self {
-        TaskSpec::ToAlphaChannelTaskSpec(value.to_owned())
+        TaskSpec::ToAlphaChannel(value.to_owned())
     }
 }
 
 impl From<&FileOutputTaskSpec> for TaskSpec {
     fn from(value: &FileOutputTaskSpec) -> Self {
-        TaskSpec::FileOutputTaskSpec(value.to_owned())
+        TaskSpec::FileOutput(value.to_owned())
     }
 }
 
@@ -353,7 +353,7 @@ impl From<Error> for CloneableError {
 #[macro_export]
 macro_rules! anyhoo {
     ($($args:expr),+) => {
-        crate::image_tasks::task_spec::CloneableError::from(anyhow::anyhow!($($args),+))
+        $crate::image_tasks::task_spec::CloneableError::from(anyhow::anyhow!($($args),+))
     }
 }
 
@@ -384,7 +384,7 @@ impl Display for ToPixmapTaskSpec {
 
 impl Display for FileOutputTaskSpec {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&*match self {
+        f.write_str(&match self {
             FileOutputTaskSpec::PngOutput { destination, .. } => {
                 destination.to_string_lossy().to_string()
             },
@@ -615,11 +615,11 @@ pub fn out_task(name: &str, base: ToPixmapTaskSpec) -> FileOutputTaskSpec {
 macro_rules! stack_alpha {
     ( $( $layers:expr ),+ ) => {
         {
-            let layers: Vec<crate::image_tasks::task_spec::ToAlphaChannelTaskSpec> = vec![$($layers.into()),+];
-            let mut layers: Vec<crate::image_tasks::task_spec::ToAlphaChannelTaskSpec> = layers
+            let layers: Vec<$crate::image_tasks::task_spec::ToAlphaChannelTaskSpec> = vec![$($layers.into()),+];
+            let mut layers: Vec<$crate::image_tasks::task_spec::ToAlphaChannelTaskSpec> = layers
                     .into_iter()
                     .flat_map(|layer|
-                        if let crate::image_tasks::task_spec::ToAlphaChannelTaskSpec::StackAlphaOnAlpha {layers: sub_layers } = layer {
+                        if let $crate::image_tasks::task_spec::ToAlphaChannelTaskSpec::StackAlphaOnAlpha {layers: sub_layers } = layer {
                             sub_layers.to_owned()
                         } else {
                             vec![layer]
@@ -627,7 +627,7 @@ macro_rules! stack_alpha {
                     )
                     .collect();
             layers.sort();
-            crate::image_tasks::task_spec::ToAlphaChannelTaskSpec::StackAlphaOnAlpha {layers: layers}
+            $crate::image_tasks::task_spec::ToAlphaChannelTaskSpec::StackAlphaOnAlpha {layers}
         }
     }
 }
@@ -670,11 +670,11 @@ pub fn stack(background: ToPixmapTaskSpec, foreground: ToPixmapTaskSpec) -> ToPi
 #[macro_export]
 macro_rules! stack {
     ( $first_layer:expr, $second_layer:expr ) => {
-        crate::image_tasks::task_spec::stack($first_layer.into(), $second_layer.into())
+        $crate::image_tasks::task_spec::stack($first_layer.into(), $second_layer.into())
     };
     ( $first_layer:expr, $second_layer:expr, $( $more_layers:expr ),+ ) => {{
-        let mut layers_so_far = crate::stack!($first_layer, $second_layer);
-        $( layers_so_far = crate::stack!(layers_so_far, $more_layers); )+
+        let mut layers_so_far = $crate::stack!($first_layer, $second_layer);
+        $( layers_so_far = $crate::stack!(layers_so_far, $more_layers); )+
         layers_so_far
     }};
 }
@@ -682,21 +682,21 @@ macro_rules! stack {
 #[macro_export]
 macro_rules! stack_on {
     ( $background:expr, $foreground:expr ) => {
-        if $background == crate::image_tasks::color::ComparableColor::TRANSPARENT {
+        if $background == $crate::image_tasks::color::ComparableColor::TRANSPARENT {
             $foreground
         } else {
-            crate::image_tasks::task_spec::ToPixmapTaskSpec::StackLayerOnColor {
+            $crate::image_tasks::task_spec::ToPixmapTaskSpec::StackLayerOnColor {
                 background: $background,
                 foreground: Box::new($foreground.into())
             }
         }
     };
     ( $background:expr, $first_layer:expr, $( $more_layers:expr ),+ ) => {{
-        if $background == crate::image_tasks::color::ComparableColor::TRANSPARENT {
-            crate::stack!($first_layer, $($more_layers),+)
+        if $background == $crate::image_tasks::color::ComparableColor::TRANSPARENT {
+            $crate::stack!($first_layer, $($more_layers),+)
         } else {
-            let mut layers_so_far = crate::stack_on!($background, $first_layer);
-            $( layers_so_far = crate::stack!(layers_so_far, $more_layers); )+
+            let mut layers_so_far = $crate::stack_on!($background, $first_layer);
+            $( layers_so_far = $crate::stack!(layers_so_far, $more_layers); )+
             layers_so_far
         }
     }};
@@ -705,10 +705,10 @@ macro_rules! stack_on {
 #[macro_export]
 macro_rules! paint_stack {
     ( $color:expr, $( $layers:expr ),* ) => {
-        crate::image_tasks::task_spec::paint_task(
-            crate::stack_alpha!(
+        $crate::image_tasks::task_spec::paint_task(
+            $crate::stack_alpha!(
                 $(
-                    crate::image_tasks::task_spec::svg_alpha_task($layers)
+                    $crate::image_tasks::task_spec::svg_alpha_task($layers)
                 ),*).into(),
             $color)
     }

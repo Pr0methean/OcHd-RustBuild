@@ -5,7 +5,7 @@ use crate::{group, single_texture_item, stack};
 use crate::texture_base::dyes::DYES;
 use crate::texture_base::material::{Material, MaterialGroup};
 
-const DISC_NAMES_AND_COLORS: &'static [(&'static str, &'static str)] = &[
+const DISC_NAMES_AND_COLORS: &[(&str, &str)] = &[
     ("far", "red"),
     ("wait", "green"),
     ("strad", "brown"),
@@ -29,7 +29,7 @@ struct MusicDisc {
 
 impl Material for MusicDisc {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
-        vec![out_task(&*format!("item/music_disc_{}", self.name), stack!(
+        vec![out_task(&format!("item/music_disc_{}", self.name), stack!(
             paint_svg_task("musicDisc", c(0x404040)),
             paint_svg_task("musicDiscGroove", ComparableColor::DARKEST_GRAY),
             paint_svg_task("musicDiscLabel", self.color)

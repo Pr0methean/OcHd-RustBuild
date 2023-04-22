@@ -5,7 +5,7 @@ use crate::{group, paint_stack, stack, stack_on};
 use crate::image_tasks::color::{c, ComparableColor};
 use crate::image_tasks::task_spec::{from_svg_task, out_task, paint_svg_task, FileOutputTaskSpec, ToPixmapTaskSpec};
 
-use crate::texture_base::material::{Material, TricolorMaterial};
+use crate::texture_base::material::{TextureBinaryFunc, TextureSupplier, TextureUnaryFunc, Material, TricolorMaterial};
 
 pub struct Wood {
     pub color: ComparableColor,
@@ -23,16 +23,16 @@ pub struct Wood {
     name: &'static str,
     planks_highlight_strength: f32,
     planks_shadow_strength: f32,
-    bark: Box<dyn (Fn(&Self) -> ToPixmapTaskSpec) + Sync + Send>,
-    stripped_log_side: Box<dyn (Fn(&Self) -> ToPixmapTaskSpec) + Sync + Send>,
-    log_top: Box<dyn (Fn(&Self, ToPixmapTaskSpec) -> ToPixmapTaskSpec) + Sync + Send>,
-    stripped_log_top: Box<dyn (Fn(&Self) -> ToPixmapTaskSpec) + Sync + Send>,
-    trapdoor: Box<dyn (Fn(&Self, ToPixmapTaskSpec) -> ToPixmapTaskSpec) + Sync + Send>,
-    door_top: Box<dyn (Fn(&Self, ToPixmapTaskSpec, ToPixmapTaskSpec) -> ToPixmapTaskSpec) + Sync + Send>,
-    door_bottom: Box<dyn (Fn(&Self, ToPixmapTaskSpec) -> ToPixmapTaskSpec) + Sync + Send>,
-    leaves: Box<dyn (Fn(&Self) -> ToPixmapTaskSpec) + Sync + Send>,
-    sapling: Box<dyn (Fn(&Self) -> ToPixmapTaskSpec) + Sync + Send>,
-    door_common_layers: Box<dyn (Fn(&Self) -> ToPixmapTaskSpec) + Sync + Send>,
+    bark: TextureSupplier<Wood>,
+    stripped_log_side: TextureSupplier<Wood>,
+    log_top: TextureUnaryFunc<Wood>,
+    stripped_log_top: TextureSupplier<Wood>,
+    trapdoor: TextureUnaryFunc<Wood>,
+    door_top: TextureBinaryFunc<Wood>,
+    door_bottom: TextureUnaryFunc<Wood>,
+    leaves: TextureSupplier<Wood>,
+    sapling: TextureSupplier<Wood>,
+    door_common_layers: TextureSupplier<Wood>,
 }
 
 impl Wood {
@@ -141,12 +141,12 @@ pub fn overworld_wood(name: &'static str, color: ComparableColor,
                       highlight: ComparableColor, shadow: ComparableColor,
                       bark_color: ComparableColor, bark_highlight: ComparableColor,
                       bark_shadow: ComparableColor,
-                      door_common_layers: Box<dyn (Fn(&Wood) -> ToPixmapTaskSpec) + Sync + Send>,
-                      trapdoor: Box<dyn (Fn(&Wood, ToPixmapTaskSpec) -> ToPixmapTaskSpec) + Sync + Send>,
-                      door_bottom: Box<dyn (Fn(&Wood, ToPixmapTaskSpec) -> ToPixmapTaskSpec) + Sync + Send>,
-                      door_top: Box<dyn (Fn(&Wood, ToPixmapTaskSpec, ToPixmapTaskSpec) -> ToPixmapTaskSpec) + Sync + Send>,
-                      leaves: Box<dyn (Fn(&Wood) -> ToPixmapTaskSpec) + Sync + Send>,
-                      sapling: Box<dyn (Fn(&Wood) -> ToPixmapTaskSpec) + Sync + Send>) -> Wood {
+                      door_common_layers: TextureSupplier<Wood>,
+                      trapdoor: TextureUnaryFunc<Wood>,
+                      door_bottom: TextureUnaryFunc<Wood>,
+                      door_top: TextureBinaryFunc<Wood>,
+                      leaves: TextureSupplier<Wood>,
+                      sapling: TextureSupplier<Wood>) -> Wood {
     Wood {
         color,
         highlight,
@@ -181,10 +181,10 @@ pub fn nether_fungus(name: &'static str, color: ComparableColor,
                      bark_color: ComparableColor, bark_highlight: ComparableColor,
                      bark_shadow: ComparableColor, leaves_color: ComparableColor,
                      leaves_highlight: ComparableColor, leaves_shadow: ComparableColor,
-                     trapdoor: Box<dyn (Fn(&Wood, ToPixmapTaskSpec) -> ToPixmapTaskSpec) + Sync + Send>,
-                     door_bottom: Box<dyn (Fn(&Wood, ToPixmapTaskSpec) -> ToPixmapTaskSpec) + Sync + Send>,
-                     leaves: Box<dyn (Fn(&Wood) -> ToPixmapTaskSpec) + Sync + Send>,
-                     sapling: Box<dyn (Fn(&Wood) -> ToPixmapTaskSpec) + Sync + Send>) -> Wood {
+                     trapdoor: TextureUnaryFunc<Wood>,
+                     door_bottom: TextureUnaryFunc<Wood>,
+                     leaves: TextureSupplier<Wood>,
+                     sapling: TextureSupplier<Wood>) -> Wood {
     return Wood {
         color,
         highlight,
@@ -440,9 +440,9 @@ lazy_static!{pub static ref SPRUCE: Wood = overworld_wood(
 lazy_static!{pub static ref OAK: Wood = overworld_wood(
     "oak",
     c(0xaf8f55),
-    c(0xC29d62),
-    c(0x70583B),
-    c(0x70583B),
+    c(0xc29d62),
+    c(0x70583b),
+    c(0x70583b),
     c(0x987849),
     c(0x4a4a39),
     Box::new(/*door_common_layers*/ |_wood| stack!(
