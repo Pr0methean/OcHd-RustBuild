@@ -20,6 +20,7 @@ jobs:
           paths:
             - /home/circleci/.cargo
             - main/target/debug/deps
+            - main/target/debug/incremental
             - main/target/release/deps
       - rust/install:
           version: nightly
@@ -45,6 +46,7 @@ jobs:
           paths:
             - /home/circleci/.cargo
             - main/target/debug/deps
+            - main/target/debug/incremental
             - main/target/release/deps
   execute:
     parameters:
