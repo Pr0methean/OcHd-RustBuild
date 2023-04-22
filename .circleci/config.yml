@@ -56,7 +56,6 @@ jobs:
       image: ubuntu-2004:current
     resource_class: arm.large
     steps:
-      - run: cat /proc/cpuinfo
       - checkout
       - attach_workspace:
           at: main/target/release
