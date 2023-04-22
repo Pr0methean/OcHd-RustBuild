@@ -8,8 +8,9 @@ orbs:
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
 jobs:
   build:
-    docker:
-      - image: cimg/rust:1.68.2
+    machine:
+      image: ubuntu-2004:current
+    resource_class: arm.large
     steps:
       - checkout
       - restore_cache:
@@ -49,9 +50,9 @@ jobs:
     parameters:
       size:
         type: integer
-    docker:
-      - image: cimg/rust:1.68.2
-    resource_class: large
+    machine:
+      image: ubuntu-2004:current
+    resource_class: arm.large
     steps:
       - run: cat /proc/cpuinfo
       - checkout

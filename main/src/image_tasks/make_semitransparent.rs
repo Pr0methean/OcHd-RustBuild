@@ -9,9 +9,9 @@ use crate::image_tasks::repaint::{AlphaChannel};
 
 #[cached(sync_writes = true)]
 pub(crate) fn create_alpha_array(out_alpha: OrderedFloat<f32>) -> [u8; 256] {
-    return (0u16..256u16)
+    (0u16..256u16)
         .map (|alpha| (out_alpha.0 * f32::from(alpha) + 0.5) as u8)
-        .collect::<Vec<u8>>().try_into().unwrap();
+        .collect::<Vec<u8>>().try_into().unwrap()
 }
 
 #[instrument]
@@ -19,10 +19,9 @@ pub(crate) fn create_alpha_array(out_alpha: OrderedFloat<f32>) -> [u8; 256] {
 pub fn make_semitransparent(input: &mut AlphaChannel, alpha: f32) {
     info!("Starting task: make semitransparent with alpha {}", alpha);
     let alpha_array = create_alpha_array(alpha.into());
-    let output_pixels = input.pixels_mut();
-    for index in 0..output_pixels.len() {
-        let pixel = output_pixels[index];
-        output_pixels[index] = alpha_array[pixel as usize];
+    let pixels = input.pixels_mut();
+    for pixel in pixels {
+        *pixel = alpha_array[*pixel as usize];
     }
     info!("Finishing task: make semitransparent with alpha {}", alpha);
 }

@@ -1,5 +1,6 @@
 use std::collections::HashSet;
-use std::fs::{create_dir_all, hard_link, write};
+use std::fs::{create_dir_all, hard_link, remove_dir_all, write};
+use std::io::ErrorKind::NotFound;
 use std::mem;
 use std::os::unix::fs::symlink;
 use std::path::{Path, PathBuf};
@@ -11,7 +12,7 @@ use tiny_skia::{Pixmap};
 use tracing::instrument;
 
 use crate::anyhoo;
-use crate::image_tasks::task_spec::CloneableError;
+use crate::image_tasks::task_spec::{CloneableError, OUT_DIR};
 
 lazy_static!{
     static ref MADE_DIRS: RwLock<HashSet<PathBuf>> = RwLock::new(HashSet::new());
@@ -27,6 +28,12 @@ fn ensure_made_dir(dir: &Path) -> Result<(),CloneableError> {
     if made_dirs.contains(dir) {
         return Ok(());
     }
+    if made_dirs.is_empty() {
+        let result = remove_dir_all(*OUT_DIR);
+        if result.is_err_and(|err| err.kind() != NotFound) {
+            panic!("Failed to delete old output directory");
+        }
+    }
     create_dir_all(dir).map_err(|error| anyhoo!(error))?;
     made_dirs.insert(dir.to_owned());
     Ok(())
@@ -38,9 +45,9 @@ pub fn png_output(image: Pixmap, file: PathBuf) -> Result<(),CloneableError> {
     let file_string = file.to_string_lossy();
     info!("Starting task: write {}", file_string);
     let parent = file.parent().ok_or(anyhoo!("Output file has no parent"))?;
-    ensure_made_dir(parent)?;
     let data = encode_png(image).map_err(|error| anyhoo!(error))?;
-    write(file.to_owned(), data).map_err(|error| anyhoo!(error))?;
+    ensure_made_dir(parent)?;
+    write(&file, data).map_err(|error| anyhoo!(error))?;
     info!("Finishing task: write {}", file_string);
     Ok(())
 }
@@ -76,7 +83,7 @@ pub fn encode_png(mut image: Pixmap) -> Result<Vec<u8>, png::EncodingError> {
         encoder.set_color(png::ColorType::Rgba);
         encoder.set_depth(png::BitDepth::Eight);
         let mut writer = encoder.write_header()?;
-        writer.write_image_data(&image.data())?;
+        writer.write_image_data(image.data())?;
     }
 
     Ok(data)
