@@ -32,7 +32,7 @@ pub struct OreBase {
     pub material: &'static SingleTextureTricolorMaterial,
 }
 lazy_static! {
-    pub static ref STONE_BASE: OreBase = OreBase {block_name_prefix: "", material: &*STONE };
-    pub static ref DEEPSLATE_BASE: OreBase = OreBase {block_name_prefix: "deepslate_", material: &*DEEPSLATE};
-    pub static ref NETHERRACK_BASE: OreBase = OreBase {block_name_prefix: "nether_", material: &*NETHERRACK};
+    pub static ref STONE_BASE: OreBase = OreBase {block_name_prefix: "", material: &STONE };
+    pub static ref DEEPSLATE_BASE: OreBase = OreBase {block_name_prefix: "deepslate_", material: &DEEPSLATE};
+    pub static ref NETHERRACK_BASE: OreBase = OreBase {block_name_prefix: "nether_", material: &NETHERRACK};
 }

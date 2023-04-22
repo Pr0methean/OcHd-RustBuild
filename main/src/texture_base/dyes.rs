@@ -31,7 +31,7 @@ impl Material for DyedBlock {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         let mut out  = Vec::with_capacity(DYES.len());
         for (dye_name, dye_color) in DYES {
-            out.push(out_task(&*format!("block/{}_{}", dye_name, self.name),
+            out.push(out_task(&format!("block/{}_{}", dye_name, self.name),
                 (self.create_dyed_texture)(*dye_color)
             ));
         }
@@ -43,8 +43,8 @@ impl Material for DyedBlock {
 macro_rules! dyed_block {
     ($name:ident = $create_dyed_texture:expr) => {
         lazy_static::lazy_static! {
-            pub static ref $name: crate::texture_base::dyes::DyedBlock =
-            crate::texture_base::dyes::DyedBlock {
+            pub static ref $name: $crate::texture_base::dyes::DyedBlock =
+            $crate::texture_base::dyes::DyedBlock {
                 name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
                 create_dyed_texture: Box::new(|color| {
                     macro_rules! color {

@@ -4,7 +4,7 @@ use crate::image_tasks::color::{ComparableColor, gray, c};
 use crate::image_tasks::task_spec::{out_task, paint_svg_task, FileOutputTaskSpec, ToPixmapTaskSpec};
 use crate::{group, paint_stack, stack, stack_on};
 use crate::materials::block::pickaxe::ore_base::{DEEPSLATE, DEEPSLATE_BASE, NETHERRACK_BASE, OreBase, STONE, STONE_BASE};
-use crate::texture_base::material::{AbstractTextureSupplier, AbstractTextureUnaryFunc, ColorTriad, Material, TricolorMaterial};
+use crate::texture_base::material::{TextureSupplier, TextureUnaryFunc, ColorTriad, Material, TricolorMaterial};
 
 lazy_static! {
     static ref OVERWORLD_SUBSTRATES: Vec<&'static OreBase> = vec![
@@ -24,11 +24,11 @@ pub struct Ore {
     svg_name: &'static str,
     item_name: &'static str,
     pub refined_colors: ColorTriad,
-    pub raw_item: AbstractTextureSupplier<Ore>,
-    pub refined_block: AbstractTextureSupplier<Ore>,
-    pub refined_item: AbstractTextureSupplier<Ore>,
-    pub raw_block: AbstractTextureSupplier<Ore>,
-    pub ore_block_for_substrate: AbstractTextureUnaryFunc<Ore>
+    pub raw_item: TextureSupplier<Ore>,
+    pub refined_block: TextureSupplier<Ore>,
+    pub refined_item: TextureSupplier<Ore>,
+    pub raw_block: TextureSupplier<Ore>,
+    pub ore_block_for_substrate: TextureUnaryFunc<Ore>
 }
 
 impl Ore {
@@ -69,15 +69,15 @@ impl Ore {
 
     fn basic_ore_block_for_substrate(&self, substrate: ToPixmapTaskSpec) -> ToPixmapTaskSpec {
         stack!(
-            substrate.to_owned(),
-            self.default_single_layer_item().to_owned()
+            substrate,
+            self.default_single_layer_item()
         )
     }
 
     fn raw_item_based_ore_block_for_substrate(&self, substrate: ToPixmapTaskSpec) -> ToPixmapTaskSpec {
         stack!(
-            substrate.to_owned(),
-            (self.raw_item)(&self).to_owned()
+            substrate,
+            (self.raw_item)(self)
         )
     }
 
@@ -122,29 +122,29 @@ impl Material for Ore {
         let mut output = Vec::with_capacity(7);
         for substrate in &self.substrates {
             output.push(out_task(
-                &*format!("block/{}{}_ore", substrate.block_name_prefix, self.name),
+                &format!("block/{}{}_ore", substrate.block_name_prefix, self.name),
                 (self.ore_block_for_substrate)(self,
                                                substrate.material.material.texture.to_owned())));
         }
         if self.name != "quartz" {
             // quartz textures are defined separately in simple_pickaxe_block.rs
             output.push(out_task(
-                &*format!("block/{}_block", self.name), (self.refined_block)(self)
+                &format!("block/{}_block", self.name), (self.refined_block)(self)
             ));
         }
         if self.needs_refining {
             output.push(out_task(
-                &*format!("block/raw_{}_block", self.name), (self.raw_block)(self)
+                &format!("block/raw_{}_block", self.name), (self.raw_block)(self)
             ));
             output.push(out_task(
-                &*format!("item/raw_{}", self.item_name), (self.raw_item)(self)
+                &format!("item/raw_{}", self.item_name), (self.raw_item)(self)
             ));
             output.push(out_task(
-                &*format!("item/{}_ingot", self.name), (self.refined_item)(self)
+                &format!("item/{}_ingot", self.name), (self.refined_item)(self)
             ));
         } else {
             output.push(out_task(
-                &*format!("item/{}", self.item_name), (self.raw_item)(self)
+                &format!("item/{}", self.item_name), (self.raw_item)(self)
             ));
         }
         output

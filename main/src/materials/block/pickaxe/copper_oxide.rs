@@ -19,16 +19,16 @@ impl Material for CopperOxide {
         );
         vec![
             out_task(
-                &*format!("block/{}_copper", self.name),
+                &format!("block/{}_copper", self.name),
                 stack!(
                     shared_layers.to_owned(),
                     paint_svg_task("copper2oxide", self.shadow)
                 )
             ),
             out_task(
-                &*format!("block/cut_{}_copper", self.name),
+                &format!("block/cut_{}_copper", self.name),
                 stack!(
-                    shared_layers.to_owned(),
+                    shared_layers,
                     paint_svg_task("cutInQuarters2", self.highlight),
                     paint_svg_task("cutInQuarters1", self.shadow)
                 )
