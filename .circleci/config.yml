@@ -62,7 +62,6 @@ jobs:
       - run: |
           cd main
           ./target/release/ochd << parameters.size >>
-      - run: cd main/out && zip -9 -r OcHD-<< parameters.size >>x<< parameters.size >>.zip *
       - store_artifacts:
           path: 'main/out/OcHD-<< parameters.size >>x<< parameters.size >>.zip'
       - store_artifacts:

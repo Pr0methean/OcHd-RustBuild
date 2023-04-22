@@ -32,7 +32,7 @@ use petgraph::graph::{DefaultIx, NodeIndex};
 use texture_base::material::Material;
 use rayon::prelude::*;
 
-use crate::image_tasks::task_spec::{OUT_DIR, SVG_DIR, CloneableLazyTask, TaskGraphBuildingContext, TaskSpec, TaskSpecTraits, METADATA_DIR};
+use crate::image_tasks::task_spec::{SVG_DIR, CloneableLazyTask, TaskGraphBuildingContext, TaskSpec, TaskSpecTraits, METADATA_DIR};
 
 mod image_tasks;
 mod texture_base;
@@ -41,7 +41,7 @@ mod materials;
 use std::env;
 use std::fs;
 use pathdiff::diff_paths;
-use crate::image_tasks::png_output::link_with_logging;
+use crate::image_tasks::png_output::{copy_in_to_out, ZIP_BUFFER};
 
 #[cfg(not(any(test,clippy)))]
 lazy_static! {
@@ -67,10 +67,9 @@ fn copy_metadata(source_path: &PathBuf) {
             let file_type = entry.file_type().expect("Failed to get a file type");
             let path = entry.path();
             if file_type.is_file() {
-                let mut destination = OUT_DIR.to_owned();
-                destination.push(diff_paths(&path, *METADATA_DIR)
-                    .expect("Got a DirEntry that wasn't in METADATA_DIR"));
-                link_with_logging(path, destination, true).unwrap();
+                let destination = diff_paths(&path, *METADATA_DIR)
+                    .expect("Got a DirEntry that wasn't in METADATA_DIR");
+                copy_in_to_out(path, destination).expect("Failed to copy a file");
             } else if file_type.is_dir() {
                 copy_metadata(&path);
             }
@@ -82,8 +81,9 @@ fn copy_metadata(source_path: &PathBuf) {
 async fn main() {
     simple_logging::log_to_file("./log.txt", LevelFilter::Trace).expect("Failed to configure file logging");
     ALLOCATOR.enable_logging();
+    let out_file = PathBuf::from(format!("./out/OcHD-{}x{}.zip", *TILE_SIZE, *TILE_SIZE));
     info!("Looking for SVGs in {}", absolute(SVG_DIR.to_path_buf()).unwrap().to_string_lossy());
-    info!("Writing output to {}", absolute(OUT_DIR.to_path_buf()).unwrap().to_string_lossy());
+    info!("Writing output to {}", absolute(&out_file).unwrap().to_string_lossy());
     let tile_size: u32 = *TILE_SIZE;
     info!("Using {:?} pixels per tile", tile_size);
     let start_time = Instant::now();
@@ -145,6 +145,8 @@ async fn main() {
             result.expect("Error running a task");
         });
     copy_metadata.await.expect("Failed to copy metadata");
+    let zip_contents = ZIP_BUFFER.get_ref();
+    fs::write(out_file.as_path(), zip_contents).expect("Failed to write ZIP file");
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     ALLOCATOR.disable_logging();
 }

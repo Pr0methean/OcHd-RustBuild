@@ -1,42 +1,31 @@
 use std::collections::HashSet;
-use std::fs::{create_dir_all, hard_link, remove_dir_all, write};
-use std::io::ErrorKind::NotFound;
+use std::fs::{File};
+use std::io::{copy, Cursor, Write};
 use std::mem;
-use std::os::unix::fs::symlink;
-use std::path::{Path, PathBuf};
-use std::sync::RwLock;
+use std::ops::DerefMut;
+use std::path::{PathBuf};
+use std::sync::{Mutex, RwLock};
 use lazy_static::lazy_static;
 use log::info;
 
 use tiny_skia::{Pixmap};
 use tracing::instrument;
+use zip::write::FileOptions;
+use zip::{ZipArchive, ZipWriter};
 
-use crate::anyhoo;
-use crate::image_tasks::task_spec::{CloneableError, OUT_DIR};
+use crate::{anyhoo};
+use crate::image_tasks::task_spec::{CloneableError};
 
 lazy_static!{
+    static ref ZIP_OPTIONS: FileOptions = FileOptions::default().compression_level(Some(9));
     static ref MADE_DIRS: RwLock<HashSet<PathBuf>> = RwLock::new(HashSet::new());
-}
-
-fn ensure_made_dir(dir: &Path) -> Result<(),CloneableError> {
-    if MADE_DIRS.read().map_err(|error| anyhoo!(error.to_string()))?.contains(dir) {
-        return Ok(());
-    }
-    let mut made_dirs = MADE_DIRS.write()
-        .map_err(|error| anyhoo!(error.to_string()))?;
-    // Double-checked locking
-    if made_dirs.contains(dir) {
-        return Ok(());
-    }
-    if made_dirs.is_empty() {
-        let result = remove_dir_all(*OUT_DIR);
-        if result.is_err_and(|err| err.kind() != NotFound) {
-            panic!("Failed to delete old output directory");
-        }
-    }
-    create_dir_all(dir).map_err(|error| anyhoo!(error))?;
-    made_dirs.insert(dir.to_owned());
-    Ok(())
+    pub static ref ZIP_BUFFER: Cursor<Vec<u8>> = Cursor::new(Vec::with_capacity(1024 * 1024));
+    static ref ZIP: Mutex<(ZipWriter<Cursor<Vec<u8>>>, ZipArchive<Cursor<Vec<u8>>>)> = {
+        Mutex::new((
+            ZipWriter::new(ZIP_BUFFER.to_owned()),
+            ZipArchive::new(ZIP_BUFFER.to_owned()).expect("Failed to open zip file for reading")
+        ))
+    };
 }
 
 
@@ -44,26 +33,37 @@ fn ensure_made_dir(dir: &Path) -> Result<(),CloneableError> {
 pub fn png_output(image: Pixmap, file: PathBuf) -> Result<(),CloneableError> {
     let file_string = file.to_string_lossy();
     info!("Starting task: write {}", file_string);
-    let parent = file.parent().ok_or(anyhoo!("Output file has no parent"))?;
     let data = encode_png(image).map_err(|error| anyhoo!(error))?;
-    ensure_made_dir(parent)?;
-    write(&file, data).map_err(|error| anyhoo!(error))?;
+    let mut zip = ZIP.lock().map_err(|error| anyhoo!(error.to_string()))?;
+    let (ref mut writer, _) = zip.deref_mut();
+    writer.start_file(file.to_string_lossy(), *ZIP_OPTIONS).map_err(|error| anyhoo!(error))?;
+    writer.write(&data).map_err(|error| anyhoo!(error))?;
     info!("Finishing task: write {}", file_string);
     Ok(())
 }
 
-pub fn link_with_logging(original: PathBuf, link: PathBuf, hard: bool) -> Result<(),CloneableError> {
-    let description =
-        format!("{} -> {}", link.to_string_lossy(), original.to_string_lossy());
-    info!("Starting task: symlink {}", description);
-    let parent = link.parent().ok_or(anyhoo!("Output file has no parent"))?;
-    ensure_made_dir(parent)?;
-    if hard {
-        hard_link(original, link)
-    } else {
-        symlink(original, link)
-    }.map_err(|error| anyhoo!(error))?;
-    info!("Finishing task: symlink {}", description);
+pub fn copy_out_to_out(source: PathBuf, dest: PathBuf) -> Result<(),CloneableError> {
+    let source_string = source.to_string_lossy();
+    let dest_string = dest.to_string_lossy();
+    info!("Starting task: copy {} to {}", &source_string, &dest_string);
+    let mut zip = ZIP.lock().map_err(|error| anyhoo!(error.to_string()))?;
+    let (ref mut writer, ref mut reader) = zip.deref_mut();
+    let source_file = reader.by_name(&source_string).map_err(|error| anyhoo!(error))?;
+    writer.raw_copy_file_rename(source_file, &*dest_string).map_err(|error| anyhoo!(error))?;
+    info!("Finishing task: copy {} to {}", &source_string, &dest_string);
+    Ok(())
+}
+
+pub fn copy_in_to_out(source: PathBuf, dest: PathBuf) -> Result<(),CloneableError> {
+    let source_string = source.to_string_lossy();
+    let dest_string = dest.to_string_lossy();
+    info!("Starting task: copy {} to {}", source_string, dest_string);
+    let mut source_file = File::open(&source).map_err(|error| anyhoo!(error))?;
+    let mut zip = ZIP.lock().map_err(|error| anyhoo!(error.to_string()))?;
+    let (ref mut writer, _) = zip.deref_mut();
+    writer.start_file(dest_string.clone(), *ZIP_OPTIONS).map_err(|error| anyhoo!(error))?;
+    copy(&mut source_file, writer).map_err(|error| anyhoo!(error))?;
+    info!("Finishing task: copy {} to {}", source_string, dest_string);
     Ok(())
 }
 
