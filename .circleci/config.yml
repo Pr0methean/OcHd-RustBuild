@@ -36,9 +36,9 @@ jobs:
       - persist_to_workspace:
           root: main/target/release
           paths:
-            - "OcHd-RustBuild"
+            - "ochd"
       - store_artifacts:
-          path: main/target/release/OcHd-RustBuild
+          path: main/target/release/ochd
           destination: "OcHd"
       - save_cache:
           key: cargo-deps-{{ checksum "main/Cargo.toml" }}
@@ -60,7 +60,7 @@ jobs:
           at: main/target/release
       - run: |
           cd main
-          ./target/release/OcHd-RustBuild << parameters.size >>
+          ./target/release/ochd << parameters.size >>
       - run: cd main/out && zip -9 -r OcHD-<< parameters.size >>x<< parameters.size >>.zip *
       - store_artifacts:
           path: 'main/out/OcHD-<< parameters.size >>x<< parameters.size >>.zip'
