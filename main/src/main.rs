@@ -22,7 +22,6 @@ use std::collections::{HashMap};
 use std::path::{absolute, PathBuf};
 use std::time::Instant;
 
-use std::fs::{remove_dir_all};
 
 use petgraph::visit::{EdgeRef, IntoNodeReferences, IntoEdgeReferences, NodeIndexable};
 use fn_graph::daggy::petgraph::unionfind::UnionFind;
@@ -91,13 +90,7 @@ async fn main() {
     info!("Using {:?} pixels per tile", tile_size);
     let start_time = Instant::now();
 
-    let (send_rmdir_done, await_rmdir_done) = channel();
     let copy_metadata = tokio::spawn(async {
-        let result = remove_dir_all(&*OUT_DIR);
-        if result.is_err_and(|err| err.kind() != NotFound) {
-            panic!("Failed to delete old output directory");
-        }
-        send_rmdir_done.send(()).expect("send_mkdir_done already sent");
         copy_metadata(&(METADATA_DIR.to_path_buf()));
     });
     let output_tasks = materials::ALL_MATERIALS.get_output_tasks();
@@ -147,7 +140,6 @@ async fn main() {
     let mut components: Vec<Vec<CloneableLazyTask<()>>> = component_map.into_values().collect();
     components.sort_by_key(Vec::len);
     let components: Vec<CloneableLazyTask<()>> = components.into_iter().flatten().collect();
-    await_rmdir_done.await.expect("Failed to create or delete output directory");
     info!("Starting tasks");
     components.into_par_iter()
         .map(|task| task.into_result())
