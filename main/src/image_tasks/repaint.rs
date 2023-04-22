@@ -101,13 +101,13 @@ impl Mul<ComparableColor> for AlphaChannel {
 
 #[cached(sync_writes = true)]
 fn create_paint_array(color: ComparableColor) -> [PremultipliedColorU8; 256] {
-    return (0u16..256u16)
+    (0u16..256u16)
         .map (|alpha| {
             let alpha_fraction = f32::from(alpha) / 255.0;
             let color_with_alpha: PremultipliedColorU8 = (color * alpha_fraction).into();
             color_with_alpha
         })
-        .collect::<Vec<PremultipliedColorU8>>().try_into().unwrap();
+        .collect::<Vec<PremultipliedColorU8>>().try_into().unwrap()
 }
 
 /// Applies the given [color] to the given [input](alpha channel).

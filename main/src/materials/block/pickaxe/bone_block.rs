@@ -4,7 +4,7 @@ use crate::image_tasks::task_spec::paint_svg_task;
 
 const COLOR: ComparableColor = c(0xe1ddca);
 const SHADOW: ComparableColor = c(0xc3bfa1);
-const HIGHLIGHT: ComparableColor = c(0xEaEaD0);
+const HIGHLIGHT: ComparableColor = c(0xeaead0);
 
 block_with_colors!(BONE_BLOCK_TOP = COLOR, SHADOW, HIGHLIGHT,
     shadow!(),

@@ -45,17 +45,17 @@ pub const DEFAULT_GROUP_SIZE: usize = 1024;
 #[macro_export]
 macro_rules! group {
     ($name:ident = $( $members:expr ),* ) => {
-        lazy_static::lazy_static! {pub static ref $name: crate::texture_base::material::MaterialGroup
+        lazy_static::lazy_static! {pub static ref $name: $crate::texture_base::material::MaterialGroup
         = {
-            let mut tasks: Vec<crate::image_tasks::task_spec::FileOutputTaskSpec>
-                = Vec::with_capacity(crate::texture_base::material::DEFAULT_GROUP_SIZE);
+            let mut tasks: Vec<$crate::image_tasks::task_spec::FileOutputTaskSpec>
+                = Vec::with_capacity($crate::texture_base::material::DEFAULT_GROUP_SIZE);
             $({
                 #![allow(unused)]
-                use crate::texture_base::material::Material;
+                use $crate::texture_base::material::Material;
                 tasks.extend($members.get_output_tasks());
             })*
             tasks.shrink_to_fit();
-            crate::texture_base::material::MaterialGroup { tasks }
+            $crate::texture_base::material::MaterialGroup { tasks }
         };}
     }
 }
@@ -110,8 +110,8 @@ impl Material for SingleTextureMaterial {
 macro_rules! material {
     ($name:ident = $directory:expr, $texture:expr) => {
         lazy_static::lazy_static! {
-            pub static ref $name: crate::texture_base::material::SingleTextureMaterial =
-                    crate::texture_base::material::SingleTextureMaterial {
+            pub static ref $name: $crate::texture_base::material::SingleTextureMaterial =
+                    $crate::texture_base::material::SingleTextureMaterial {
                 name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
                 directory: $directory,
                 texture: $texture.into()
@@ -123,19 +123,19 @@ macro_rules! material {
 #[macro_export]
 macro_rules! single_texture_material {
     ($name:ident = $directory:expr, $background:expr, $( $layers:expr ),* ) => {
-        crate::material!($name = $directory, crate::stack_on!($background, $($layers),*));
+        $crate::material!($name = $directory, $crate::stack_on!($background, $($layers),*));
     }
 }
 
 #[macro_export]
 macro_rules! single_layer_material {
     ($name:ident = $directory:expr, $layer_name:expr, $color:expr ) => {
-        crate::material!($name = $directory,
-            crate::image_tasks::task_spec::paint_svg_task($layer_name, $color));
+        $crate::material!($name = $directory,
+            $crate::image_tasks::task_spec::paint_svg_task($layer_name, $color));
     };
     ($name:ident = $directory:expr, $layer_name:expr) => {
-        crate::material!($name = $directory,
-            crate::image_tasks::task_spec::from_svg_task($layer_name));
+        $crate::material!($name = $directory,
+            $crate::image_tasks::task_spec::from_svg_task($layer_name));
     };
 }
 
@@ -148,14 +148,14 @@ pub fn item(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMater
 #[macro_export]
 macro_rules! single_texture_item {
     ($name:ident = $background:expr, $( $layers:expr ),* ) => {
-        crate::single_texture_material!($name = "item", $background, $($layers),*);
+        $crate::single_texture_material!($name = "item", $background, $($layers),*);
     }
 }
 
 #[macro_export]
 macro_rules! single_layer_item {
     ($name:ident = $($layer_name_and_maybe_color:expr),+ ) => {
-        crate::single_layer_material!($name = "item", $($layer_name_and_maybe_color),+);
+        $crate::single_layer_material!($name = "item", $($layer_name_and_maybe_color),+);
     }
 }
 
@@ -168,14 +168,14 @@ pub fn block(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMate
 #[macro_export]
 macro_rules! single_texture_block {
     ($name:ident = $background:expr, $( $layers:expr ),* ) => {
-        crate::single_texture_material!($name = "block", $background, $($layers),*);
+        $crate::single_texture_material!($name = "block", $background, $($layers),*);
     }
 }
 
 #[macro_export]
 macro_rules! single_layer_block {
     ($name:ident = $($layer_name_and_maybe_color:expr),+ ) => {
-        crate::single_layer_material!($name = "block", $($layer_name_and_maybe_color),+);
+        $crate::single_layer_material!($name = "block", $($layer_name_and_maybe_color),+);
     }
 }
 
@@ -188,14 +188,14 @@ pub fn particle(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureM
 #[macro_export]
 macro_rules! single_texture_particle {
     ($name:ident = $background:expr, $( $layers:expr ),* ) => {
-        crate::single_texture_material!($name = "particle", $background, $($layers),*);
+        $crate::single_texture_material!($name = "particle", $background, $($layers),*);
     }
 }
 
 #[macro_export]
 macro_rules! single_layer_particle {
     ($name:ident = $($layer_name_and_maybe_color:expr),+ ) => {
-        crate::single_layer_material!($name = "particle", $($layer_name_and_maybe_color),+);
+        $crate::single_layer_material!($name = "particle", $($layer_name_and_maybe_color),+);
     }
 }
 
@@ -216,11 +216,11 @@ impl Material for CopiedMaterial {
 #[macro_export]
 macro_rules! copy_block {
     ($name:ident = $base:expr, $base_name:expr) => {
-        lazy_static::lazy_static! {pub static ref $name: crate::texture_base::material::CopiedMaterial =
-        crate::texture_base::material::CopiedMaterial {
+        lazy_static::lazy_static! {pub static ref $name: $crate::texture_base::material::CopiedMaterial =
+        $crate::texture_base::material::CopiedMaterial {
             name: const_format::formatcp!("block/{}", const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name))),
             source: {
-                use crate::texture_base::material::Material;
+                use $crate::texture_base::material::Material;
                 $base.get_output_task_by_name($base_name).unwrap()
             }
         };}
@@ -240,17 +240,17 @@ macro_rules! block_with_colors {
             () => { $highlight }
         }
         lazy_static::lazy_static! {
-            pub static ref $name: crate::texture_base::material::SingleTextureTricolorMaterial =
-            crate::texture_base::material::SingleTextureTricolorMaterial {
-                colors: crate::texture_base::material::ColorTriad {
+            pub static ref $name: $crate::texture_base::material::SingleTextureTricolorMaterial =
+            $crate::texture_base::material::SingleTextureTricolorMaterial {
+                colors: $crate::texture_base::material::ColorTriad {
                     color: color!(),
                     shadow: shadow!(),
                     highlight: highlight!()
                 },
-                material: crate::texture_base::material::SingleTextureMaterial {
+                material: $crate::texture_base::material::SingleTextureMaterial {
                     name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
                     directory: "block",
-                    texture: crate::stack_on!($background, $($layers),*).into()
+                    texture: $crate::stack_on!($background, $($layers),*).into()
                 }
             };
         }
@@ -263,7 +263,7 @@ macro_rules! make_tricolor_block_macro {
         #[macro_export]
         macro_rules! $macro_name {
             ($$name:ident = $$background:expr, $$($$layers:expr),*) => {
-                crate::block_with_colors!($$name =
+                $crate::block_with_colors!($$name =
                     $color,
                     $shadow,
                     $highlight,
@@ -305,11 +305,11 @@ impl Material for GroundCoverBlock {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         vec![
             out_task(
-                &*format!("block/{}{}", self.name, self.top_name_suffix),
+                &format!("block/{}{}", self.name, self.top_name_suffix),
                 self.top.to_owned()
             ),
             out_task(
-                &*format!("block/{}_side", self.name),
+                &format!("block/{}_side", self.name),
                 ToPixmapTaskSpec::StackLayerOnLayer {
                     background: Box::new(self.base.to_owned()),
                     foreground: Box::new(self.cover_side.to_owned())
@@ -374,11 +374,11 @@ pub struct RedstoneOffOnBlockPair {
 impl Material for RedstoneOffOnBlockPair {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         vec![out_task(
-                &*format!("block/{}", self.name),
+                &format!("block/{}", self.name),
                 (self.create_texture)(ComparableColor::BLACK)
         ),
         out_task(
-            &*format!("block/{}_on", self.name),
+            &format!("block/{}_on", self.name),
             (self.create_texture)(REDSTONE_ON)
         )]
     }
@@ -387,8 +387,8 @@ impl Material for RedstoneOffOnBlockPair {
 #[macro_export]
 macro_rules! redstone_off_on_block {
     ($name:ident = $create_texture:expr ) => {
-        lazy_static::lazy_static! {pub static ref $name: crate::texture_base::material::RedstoneOffOnBlockPair =
-        crate::texture_base::material::RedstoneOffOnBlockPair {
+        lazy_static::lazy_static! {pub static ref $name: $crate::texture_base::material::RedstoneOffOnBlockPair =
+        $crate::texture_base::material::RedstoneOffOnBlockPair {
             name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
             create_texture: Box::new(|state_color| { {
                 macro_rules! state_color {
@@ -400,9 +400,9 @@ macro_rules! redstone_off_on_block {
     }
 }
 
-
-pub type AbstractTextureSupplier<T> = Box<dyn Fn(&T) -> ToPixmapTaskSpec + Send + Sync>;
-pub type AbstractTextureUnaryFunc<T> = Box<dyn Fn(&T, ToPixmapTaskSpec) -> ToPixmapTaskSpec + Send + Sync>;
+pub type TextureSupplier<T> = Box<dyn Fn(&T) -> ToPixmapTaskSpec + Send + Sync>;
+pub type TextureUnaryFunc<T> = Box<dyn Fn(&T, ToPixmapTaskSpec) -> ToPixmapTaskSpec + Send + Sync>;
+pub type TextureBinaryFunc<T> = Box<dyn Fn(&T, ToPixmapTaskSpec, ToPixmapTaskSpec) -> ToPixmapTaskSpec + Send + Sync>;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ColorTriad {

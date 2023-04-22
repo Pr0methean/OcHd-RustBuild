@@ -82,7 +82,7 @@ impl Material for CommandBlockColorType {
             background
         };
         SIDE_TYPES.iter().map(|side_type| {
-            out_task(&*format!("block/{}command_block_{}", self.prefix, side_type.name),
+            out_task(&format!("block/{}command_block_{}", self.prefix, side_type.name),
                 stack!(
                     decorated_background.to_owned(),
                     (side_type.grid_layers)(&self.colors)

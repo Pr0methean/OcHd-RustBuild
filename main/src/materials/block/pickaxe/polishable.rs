@@ -23,8 +23,8 @@ impl PolishableBlock {
 impl Material for PolishableBlock {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         vec![
-            out_task(&*format!("block/{}", self.name), self.texture.to_owned()),
-            out_task(&*format!("block/polished_{}", self.name), self.polished_texture()),
+            out_task(&format!("block/{}", self.name), self.texture.to_owned()),
+            out_task(&format!("block/polished_{}", self.name), self.polished_texture()),
         ]
     }
 }
