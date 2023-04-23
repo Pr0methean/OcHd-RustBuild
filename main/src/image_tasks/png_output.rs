@@ -31,7 +31,7 @@ lazy_static!{
 pub fn png_output(image: Pixmap, file: PathBuf) -> Result<(),CloneableError> {
     let file_string = file.to_string_lossy();
     info!("Starting task: write {}", file_string);
-    let data = encode_png(image).map_err(|error| anyhoo!(error))?;
+    let data = into_png(image).map_err(|error| anyhoo!(error))?;
     let mut zip = ZIP.lock().map_err(|error| anyhoo!(error.to_string()))?;
     let writer = zip.deref_mut();
     writer.start_file(file.to_string_lossy(), *ZIP_OPTIONS).map_err(|error| anyhoo!(error))?;
@@ -68,7 +68,7 @@ pub fn copy_in_to_out(source: PathBuf, dest: PathBuf) -> Result<(),CloneableErro
 
 /// Forked from https://docs.rs/tiny-skia/latest/src/tiny_skia/pixmap.rs.html#390 to eliminate the
 /// copy and pre-allocate the byte vector.
-pub fn encode_png(mut image: Pixmap) -> Result<Vec<u8>, png::EncodingError> {
+pub fn into_png(mut image: Pixmap) -> Result<Vec<u8>, png::EncodingError> {
     for pixel in image.pixels_mut() {
         unsafe {
             // Treat this PremultipliedColorU8 slice as a ColorU8 slice
