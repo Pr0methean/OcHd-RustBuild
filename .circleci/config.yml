@@ -20,6 +20,7 @@ jobs:
           paths:
             - /home/circleci/.cargo
             - main/target/debug/deps
+            - main/target/debug/incremental
             - main/target/release/deps
       - rust/install:
           version: nightly
@@ -45,6 +46,7 @@ jobs:
           paths:
             - /home/circleci/.cargo
             - main/target/debug/deps
+            - main/target/debug/incremental
             - main/target/release/deps
   execute:
     parameters:
@@ -54,14 +56,12 @@ jobs:
       image: ubuntu-2004:current
     resource_class: arm.large
     steps:
-      - run: cat /proc/cpuinfo
       - checkout
       - attach_workspace:
           at: main/target/release
       - run: |
           cd main
           ./target/release/ochd << parameters.size >>
-      - run: cd main/out && zip -9 -r OcHD-<< parameters.size >>x<< parameters.size >>.zip *
       - store_artifacts:
           path: 'main/out/OcHD-<< parameters.size >>x<< parameters.size >>.zip'
       - store_artifacts:
