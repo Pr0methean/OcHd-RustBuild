@@ -84,7 +84,8 @@ fn copy_metadata(source_path: &PathBuf) {
 async fn main() {
     simple_logging::log_to_file("./log.txt", LevelFilter::Trace).expect("Failed to configure file logging");
     ALLOCATOR.enable_logging();
-    let out_file = PathBuf::from(format!("./out/OcHD-{}x{}.zip", *TILE_SIZE, *TILE_SIZE));
+    let out_dir = PathBuf::from("./out");
+    let out_file = out_dir.join(format!("OcHD-{}x{}.zip", *TILE_SIZE, *TILE_SIZE));
     info!("Looking for SVGs in {}", absolute(SVG_DIR.to_path_buf()).unwrap().to_string_lossy());
     info!("Writing output to {}", absolute(&out_file).unwrap().to_string_lossy());
     let tile_size: u32 = *TILE_SIZE;
@@ -92,6 +93,7 @@ async fn main() {
     let start_time = Instant::now();
 
     let copy_metadata = tokio::spawn(async {
+        create_dir_all(out_dir);
         copy_metadata(&(METADATA_DIR.to_path_buf()));
     });
     let output_tasks = materials::ALL_MATERIALS.get_output_tasks();
