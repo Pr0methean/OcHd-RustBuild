@@ -54,6 +54,8 @@ pub fn copy_out_to_out(source: PathBuf, dest: PathBuf) -> Result<(),CloneableErr
     let mut reader = ZipArchive::new(Cursor::new(file_so_far.get_ref()))
         .map_err(|error| anyhoo!(error))?;
     let source_file = reader.by_name(&source_string).map_err(|error| anyhoo!(error))?;
+    // To copy from within the same file, we need to borrow and mutably borrow the underlying Cursor
+    // at the same time, hence the need for unsafe code.
     let source_file_copy: ZipFile = unsafe {
         transmute_copy(&source_file)
     };
