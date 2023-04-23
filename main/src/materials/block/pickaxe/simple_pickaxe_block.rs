@@ -412,6 +412,13 @@ block_with_colors!(BLUE_GLAZED_TERRACOTTA = c(0x4040aa), c(0x2d2d8f), c(0x4577d3
     paint_stack!(highlight!(), "checksLargeOutline", "cornerRingTopLeft")
 );
 
+block_with_colors!(PURPLE_GLAZED_TERRACOTTA = c(0x8900b8), c(0x5f0093), c(0xa254e0),
+    color!(),
+    paint_svg_task("borderSolidThick", shadow!()),
+    paint_stack!(ComparableColor::BLACK, "asymmetricalQuarterCircles", "strokeTopLeftBottomRightThick"),
+    paint_stack!(highlight!(), "cornerRingTopLeft", "strokeTopLeftBottomRight2")
+);
+
 block_with_colors!(BROWN_GLAZED_TERRACOTTA = c(0x8c5a35), c(0x007788), c(0xcd917c),
     color!(),
     paint_svg_task("cornersRound", shadow!()),
@@ -472,6 +479,13 @@ block_with_colors!(LIME_GLAZED_TERRACOTTA = c(0x8bd922), c(0x5ea900), c(0xffffc4
     paint_svg_task("strokeTopLeftBottomRight", shadow!()),
     paint_svg_task("railCornerInverted", highlight!())
 );
+block_with_colors!(LIGHT_GRAY_GLAZED_TERRACOTTA = ComparableColor::STONE_SHADOW, c(0x009c9c), ComparableColor::LIGHTEST_GRAY,
+    color!(),
+    from_svg_task("strokeBottomLeftTopRightThick"),
+    paint_svg_task("strokeBottomLeftTopRight2", shadow!()),
+    paint_svg_task("bigQuarterCircleTopRightFilled", highlight!()),
+    paint_svg_task("cornerBullseyeBottomLeft", shadow!())
+);
 block_with_colors!(YELLOW_GLAZED_TERRACOTTA = c(0xffb000), c(0xa4764c), c(0xffff9d),
     color!(),
     paint_svg_task("cornersRound", shadow!()),
@@ -486,7 +500,7 @@ block_with_colors!(WHITE_GLAZED_TERRACOTTA = c(0x3ab3da), c(0x2389c7), c(0xffd83
     paint_svg_task("cornerRoundBottomRight", color!()),
     paint_svg_task("cornerBullseyeBottomRight", color!())
 );
-// TODO: Purple, light gray, yellow, orange, glazed terracotta
+// TODO: orange glazed terracotta
 
 group!(DEEPSLATE_VARIANTS = DEEPSLATE_BRICKS, DEEPSLATE_TOP, COBBLED_DEEPSLATE);
 group!(QUARTZ_VARIANTS = QUARTZ_BLOCK_TOP, QUARTZ_BLOCK_BOTTOM, QUARTZ_BLOCK_SIDE,
@@ -502,7 +516,8 @@ group!(BASALT_VARIANTS = BASALT_TOP, BASALT_SIDE, POLISHED_BASALT_TOP, POLISHED_
 group!(END_STONE_VARIANTS = END_STONE, END_STONE_BRICKS);
 group!(TERRACOTTA_VARIANTS = TERRACOTTA, BLACK_GLAZED_TERRACOTTA, RED_GLAZED_TERRACOTTA,
         GREEN_GLAZED_TERRACOTTA, BROWN_GLAZED_TERRACOTTA, BLUE_GLAZED_TERRACOTTA,
-        CYAN_GLAZED_TERRACOTTA, GRAY_GLAZED_TERRACOTTA, PINK_GLAZED_TERRACOTTA,
+        PURPLE_GLAZED_TERRACOTTA, CYAN_GLAZED_TERRACOTTA, GRAY_GLAZED_TERRACOTTA,
+        LIGHT_GRAY_GLAZED_TERRACOTTA, PINK_GLAZED_TERRACOTTA,
         LIME_GLAZED_TERRACOTTA, LIGHT_BLUE_GLAZED_TERRACOTTA, MAGENTA_GLAZED_TERRACOTTA,
         YELLOW_GLAZED_TERRACOTTA, WHITE_GLAZED_TERRACOTTA);
 group!(MISC_BRICKS = MUD_BRICKS, BRICKS, POLISHED_BLACKSTONE_BRICKS, NETHER_BRICKS,
