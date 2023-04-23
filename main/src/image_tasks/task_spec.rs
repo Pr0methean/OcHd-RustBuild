@@ -22,6 +22,7 @@ use petgraph::graph::{IndexType, NodeIndex};
 use replace_with::replace_with_and_return;
 
 use tiny_skia::Pixmap;
+use tokio::task::JoinHandle;
 
 use crate::image_tasks::animate::animate;
 use crate::image_tasks::color::ComparableColor;
@@ -222,18 +223,18 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
     }
 }
 
-impl TaskSpecTraits<()> for FileOutputTaskSpec {
+impl <'c> TaskSpecTraits<&'c JoinHandle<()>> for FileOutputTaskSpec {
     fn add_to<'a, 'b, E, Ix>(&'b self, ctx: &mut TaskGraphBuildingContext<'a, E, Ix>)
-                         -> (NodeIndex<Ix>, CloneableLazyTask<()>)
+                         -> (NodeIndex<Ix>, CloneableLazyTask<&'a JoinHandle<()>>)
                          where Ix : IndexType, E: Default, 'b: 'a {
         let name: String = self.to_string();
         if let Some((existing_index, existing_future))
                 = ctx.output_task_to_future_map.get(&self) {
             info!("Matched an existing node: {}", name);
-            return (*existing_index, existing_future.to_owned());
+            return (*existing_index, (*existing_future).to_owned());
         }
         let self_id = ctx.graph.add_node(TaskSpec::from(self));
-        let (dependencies, function): (Vec<NodeIndex<Ix>>, LazyTaskFunction<()>) = match self {
+        let (dependencies, function): (Vec<NodeIndex<Ix>>, LazyTaskFunction<JoinHandle<()>>) = match self {
             FileOutputTaskSpec::PngOutput {base, destination } => {
                 let destination = destination.to_owned();
                 let (base_index, base_future) = base.add_to(ctx);
@@ -263,6 +264,7 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
 }
 
 pub type CloneableResult<T> = Result<Arc<Box<T>>, CloneableError>;
+pub type AsyncOutputResult = CloneableResult<JoinHandle<CloneableResult<()>>>;
 
 /// [TaskSpec] for a task that produces a [Pixmap].
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
@@ -548,7 +550,7 @@ pub struct TaskGraphBuildingContext<'a, E, Ix> where Ix: IndexType {
     pub graph: TaskGraph<E, Ix>,
     pixmap_task_to_future_map: HashMap<&'a ToPixmapTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<Pixmap>)>,
     alpha_task_to_future_map: HashMap<&'a ToAlphaChannelTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<AlphaChannel>)>,
-    pub output_task_to_future_map: HashMap<&'a FileOutputTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<()>)>
+    pub output_task_to_future_map: HashMap<&'a FileOutputTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<&'a JoinHandle<()>>)>
 }
 
 impl <'a,E,Ix> TaskGraphBuildingContext<'a,E,Ix> where Ix: IndexType {

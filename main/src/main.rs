@@ -44,6 +44,8 @@ use std::fs::create_dir_all;
 use std::ops::DerefMut;
 use lazy_static::lazy_static;
 use pathdiff::diff_paths;
+use tokio::runtime::{Handle, Runtime};
+use tokio::task::JoinHandle;
 use crate::image_tasks::png_output::{copy_in_to_out, ZIP};
 
 #[cfg(not(any(test,clippy)))]
@@ -58,6 +60,10 @@ lazy_static! {
 #[cfg(any(test,clippy))]
 lazy_static! {
     static ref TILE_SIZE: u32 = 128;
+}
+
+lazy_static! {
+    static ref TOKIO_RUNTIME: Handle = Handle::current();
 }
 
 #[global_allocator]
@@ -82,6 +88,7 @@ fn copy_metadata(source_path: &PathBuf) {
 
 #[tokio::main]
 async fn main() {
+    let _ = &*TOKIO_RUNTIME; // Ensure this lazy-static is initialized to the main runtime
     simple_logging::log_to_file("./log.txt", LevelFilter::Trace).expect("Failed to configure file logging");
     ALLOCATOR.enable_logging();
     let out_dir = PathBuf::from("./out");
@@ -114,7 +121,7 @@ async fn main() {
         // union the two vertices of the edge
         vertex_sets.union(a, b);
     }
-    let mut component_map: HashMap<NodeIndex<DefaultIx>, Vec<CloneableLazyTask<()>>> = HashMap::new();
+    let mut component_map: HashMap<NodeIndex<DefaultIx>, Vec<CloneableLazyTask<&JoinHandle<()>>>> = HashMap::new();
     for (index, task) in ctx.graph.node_references() {
         let representative = vertex_sets.find(index);
         let (_, future) = match task {
@@ -140,9 +147,9 @@ async fn main() {
     drop(output_tasks);
 
     // Run small WCCs first so that their data can leave the heap before the big WCCs run
-    let mut components: Vec<Vec<CloneableLazyTask<()>>> = component_map.into_values().collect();
+    let mut components: Vec<Vec<CloneableLazyTask<&JoinHandle<()>>>> = component_map.into_values().collect();
     components.sort_by_key(Vec::len);
-    let components: Vec<CloneableLazyTask<()>> = components.into_iter().flatten().collect();
+    let components: Vec<CloneableLazyTask<&JoinHandle<()>>> = components.into_iter().flatten().collect();
     info!("Starting tasks");
     components.into_par_iter()
         .map(|task| task.into_result())
