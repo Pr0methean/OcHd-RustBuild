@@ -42,6 +42,13 @@ jobs:
           path: main/target/release/ochd
           destination: "OcHd"
       - save_cache:
+          key: cargo-deps
+          paths:
+            - /home/circleci/.cargo
+            - main/target/debug/deps
+            - main/target/debug/incremental
+            - main/target/release/deps
+      - save_cache:
           key: cargo-deps-{{ checksum "main/Cargo.toml" }}
           paths:
             - /home/circleci/.cargo
