@@ -50,9 +50,9 @@ pub fn copy_out_to_out(source: PathBuf, dest: PathBuf) -> Result<(),CloneableErr
     info!("Starting task: copy {} to {}", &source_string, &dest_string);
     let mut zip = ZIP.lock().map_err(|error| anyhoo!(error.to_string()))?;
     let writer = zip.deref_mut();
-    // Need to finish and consume the writer before switching to a reader. (For some reason, refs to
-    // the underlying buffer don't reliably see updates, even when using a mutex so the read
-    // happens-after the write.)
+    // Need to finish and consume the writer before switching to a reader. (Even the Mutex won't
+    // guarantee that the read happens-after the write if the ZipWriter's mutable borrow is still
+    // open.)
     let file_so_far = writer.finish().map_err(|error| anyhoo!(error))?;
     let mut reader = ZipArchive::new(Cursor::new(file_so_far.get_ref()))
         .map_err(|error| anyhoo!(error))?;
