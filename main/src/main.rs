@@ -39,6 +39,7 @@ mod materials;
 #[cfg(not(any(test,clippy)))]
 use std::env;
 use std::fs;
+use std::fs::create_dir_all;
 use std::ops::DerefMut;
 use lazy_static::lazy_static;
 use pathdiff::diff_paths;
@@ -93,7 +94,7 @@ async fn main() {
     let start_time = Instant::now();
 
     let copy_metadata = tokio::spawn(async {
-        create_dir_all(out_dir);
+        create_dir_all(out_dir).expect("Failed to create output directory");
         copy_metadata(&(METADATA_DIR.to_path_buf()));
     });
     let output_tasks = materials::ALL_MATERIALS.get_output_tasks();
