@@ -44,6 +44,7 @@ use std::fs::create_dir_all;
 use std::ops::DerefMut;
 use lazy_static::lazy_static;
 use pathdiff::diff_paths;
+use rayon::ThreadPoolBuilder;
 use crate::image_tasks::png_output::{copy_in_to_out, ZIP};
 
 #[cfg(not(any(test,clippy)))]
@@ -82,6 +83,10 @@ fn copy_metadata(source_path: &PathBuf) {
 
 #[tokio::main]
 async fn main() {
+    ThreadPoolBuilder::new()
+        .num_threads(num_cpus::get() + 1)
+        .build_global()
+        .expect("Error configuring Rayon thread pool");
     simple_logging::log_to_file("./log.txt", LevelFilter::Trace).expect("Failed to configure file logging");
     ALLOCATOR.enable_logging();
     let out_dir = PathBuf::from("./out");

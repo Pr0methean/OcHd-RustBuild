@@ -32,3 +32,4 @@ png = "0.17.8"
 pathdiff = "0.2.1"
 tokio = {version = "1.27.0", features = ["rt-multi-thread", "macros"]}
 zip = {version = "0.6.4", features = ["bzip2"]}
+num_cpus = "1.15.0"
