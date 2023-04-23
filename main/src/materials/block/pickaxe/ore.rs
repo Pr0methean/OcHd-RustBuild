@@ -1,10 +1,10 @@
 use std::borrow::ToOwned;
 use lazy_static::lazy_static;
-use crate::image_tasks::color::{ComparableColor, gray, c};
+use crate::image_tasks::color::{ComparableColor, c};
 use crate::image_tasks::task_spec::{out_task, paint_svg_task, FileOutputTaskSpec, ToPixmapTaskSpec};
 use crate::{group, paint_stack, stack, stack_on};
 use crate::materials::block::pickaxe::ore_base::{DEEPSLATE, DEEPSLATE_BASE, NETHERRACK_BASE, OreBase, STONE, STONE_BASE};
-use crate::texture_base::material::{TextureSupplier, TextureUnaryFunc, ColorTriad, Material, TricolorMaterial};
+use crate::texture_base::material::{TextureSupplier, TextureUnaryFunc, ColorTriad, Material, TricolorMaterial, REDSTONE_ON};
 
 lazy_static! {
     static ref OVERWORLD_SUBSTRATES: Vec<&'static OreBase> = vec![
@@ -168,7 +168,7 @@ impl TricolorMaterial for Ore {
 lazy_static! {
     pub static ref COAL: Ore = {
         let mut coal = Ore::new("coal",
-                                gray(0x2f),
+                                ComparableColor::DARKEST_GRAY,
                                 ComparableColor::BLACK,
                                 ComparableColor::STONE_EXTREME_SHADOW);
         coal.ore_block_for_substrate = Box::new(|deferred_self, ore_base| {
@@ -214,8 +214,8 @@ lazy_static! {
     pub static ref REDSTONE: Ore = {
         let mut redstone = Ore::new("redstone",
                             ComparableColor::RED,
-                            c(0xca0000),
-                            c(0xff5e5e));
+                            c(0xba0000),
+                            REDSTONE_ON);
         redstone.raw_item = Box::new(Ore::basic_raw_ore);
         redstone.ore_block_for_substrate = Box::new(|_, substrate| {
             if substrate == STONE.material.texture {

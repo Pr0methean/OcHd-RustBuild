@@ -3,8 +3,7 @@ use std::hash::Hash;
 
 use crate::anyhoo;
 
-use crate::image_tasks::color::ComparableColor;
-use crate::image_tasks::color::rgb;
+use crate::image_tasks::color::{c, ComparableColor};
 use crate::image_tasks::task_spec::{out_task, paint_svg_task, FileOutputTaskSpec, ToPixmapTaskSpec, name_to_out_path, CloneableError};
 
 /// Specification in DSL form of how one or more texture images are to be generated.
@@ -364,7 +363,7 @@ impl Material for SingleLayerMaterial {
     }
 }
 
-pub const REDSTONE_ON: ComparableColor = rgb(0xff, 0x5e, 0x5e);
+pub const REDSTONE_ON: ComparableColor = c(0xff5e5e);
 
 pub struct RedstoneOffOnBlockPair {
     pub name: &'static str,

@@ -63,7 +63,7 @@ lazy_static!{
     static ref CARROTS: Crop = Crop {
         name: "carrots",
         stages: 4,
-        color: c(0xff8a00),
+        color: c(0xff8000),
         create_texture_for_growing_stage: Box::new(basic_texture_for_growing_stage),
         create_texture_for_final_stage: Box::new(root_veg_texture_for_final_stage)
     };

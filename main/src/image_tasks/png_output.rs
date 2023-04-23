@@ -1,20 +1,17 @@
 use std::fs::{File};
 use std::io::{copy, Cursor, Write};
 use std::mem;
-use std::mem::transmute_copy;
 use std::ops::DerefMut;
 use std::path::{PathBuf};
-use std::ptr::replace;
 use std::sync::{Mutex};
 use lazy_static::lazy_static;
 use log::info;
 
 use tiny_skia::{Pixmap};
 use tracing::instrument;
-use zip::write::FileOptions;
-use zip::{ZipArchive, ZipWriter};
-use zip::CompressionMethod::Bzip2;
-use zip::read::ZipFile;
+use zip_next::write::FileOptions;
+use zip_next::{ZipWriter};
+use zip_next::CompressionMethod::Bzip2;
 
 use crate::{anyhoo};
 use crate::image_tasks::MaybeFromPool;
@@ -35,7 +32,7 @@ lazy_static!{
 pub fn png_output(image: MaybeFromPool<Pixmap>, file: PathBuf) -> Result<(),CloneableError> {
     let file_string = file.to_string_lossy();
     info!("Starting task: write {}", file_string);
-    let data = encode_png(image).map_err(|error| anyhoo!(error))?;
+    let data = into_png(image).map_err(|error| anyhoo!(error))?;
     let mut zip = ZIP.lock().map_err(|error| anyhoo!(error.to_string()))?;
     let writer = zip.deref_mut();
     writer.start_file(file.to_string_lossy(), *ZIP_OPTIONS).map_err(|error| anyhoo!(error))?;
@@ -50,21 +47,7 @@ pub fn copy_out_to_out(source: PathBuf, dest: PathBuf) -> Result<(),CloneableErr
     let dest_string = dest.to_string_lossy();
     info!("Starting task: copy {} to {}", &source_string, &dest_string);
     let mut zip = ZIP.lock().map_err(|error| anyhoo!(error.to_string()))?;
-    let writer = zip.deref_mut();
-    let file_so_far = writer.finish().map_err(|error| anyhoo!(error))?;
-    let mut reader = ZipArchive::new(Cursor::new(file_so_far.get_ref()))
-        .map_err(|error| anyhoo!(error))?;
-    let source_file = reader.by_name(&source_string).map_err(|error| anyhoo!(error))?;
-    // To copy from within the same file, we need to borrow and mutably borrow the underlying Cursor
-    // at the same time, hence the need for unsafe code.
-    let source_file_copy: ZipFile = unsafe {
-        transmute_copy(&source_file)
-    };
-    drop(source_file);
-    unsafe {
-        replace(writer, ZipWriter::new_append(file_so_far).map_err(|error| anyhoo!(error))?);
-    }
-    writer.raw_copy_file_rename(source_file_copy, &*dest_string).map_err(|error| anyhoo!(error))?;
+    zip.deref_mut().shallow_copy_file(&source_string, &dest_string).map_err(|error| anyhoo!(error))?;
     drop(zip);
     info!("Finishing task: copy {} to {}", &source_string, &dest_string);
     Ok(())
@@ -86,7 +69,7 @@ pub fn copy_in_to_out(source: PathBuf, dest: PathBuf) -> Result<(),CloneableErro
 
 /// Forked from https://docs.rs/tiny-skia/latest/src/tiny_skia/pixmap.rs.html#390 to eliminate the
 /// copy and pre-allocate the byte vector.
-pub fn encode_png(mut image: MaybeFromPool<Pixmap>) -> Result<Vec<u8>, png::EncodingError> {
+pub fn into_png(mut image: MaybeFromPool<Pixmap>) -> Result<Vec<u8>, png::EncodingError> {
     for pixel in image.pixels_mut() {
         unsafe {
             // Treat this PremultipliedColorU8 slice as a ColorU8 slice
