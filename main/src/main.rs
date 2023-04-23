@@ -17,6 +17,7 @@
 #![feature(lazy_cell)]
 #![feature(concat_idents)]
 #![feature(macro_metavar_expr)]
+#![feature(const_io_structs)]
 use std::alloc::System;
 use std::collections::{HashMap};
 use std::path::{absolute, PathBuf};
@@ -25,7 +26,6 @@ use std::time::Instant;
 
 use petgraph::visit::{EdgeRef, IntoNodeReferences, IntoEdgeReferences, NodeIndexable};
 use fn_graph::daggy::petgraph::unionfind::UnionFind;
-use lazy_static::lazy_static;
 use log::{info, LevelFilter};
 use logging_allocator::LoggingAllocator;
 use petgraph::graph::{DefaultIx, NodeIndex};
@@ -40,8 +40,10 @@ mod materials;
 #[cfg(not(any(test,clippy)))]
 use std::env;
 use std::fs;
+use std::ops::DerefMut;
+use lazy_static::lazy_static;
 use pathdiff::diff_paths;
-use crate::image_tasks::png_output::{copy_in_to_out, ZIP_BUFFER};
+use crate::image_tasks::png_output::{copy_in_to_out, ZIP};
 
 #[cfg(not(any(test,clippy)))]
 lazy_static! {
@@ -145,7 +147,11 @@ async fn main() {
             result.expect("Error running a task");
         });
     copy_metadata.await.expect("Failed to copy metadata");
-    let zip_contents = ZIP_BUFFER.get_ref();
+    let mut zip = ZIP.lock().expect("Failed to lock ZIP buffer");
+    let zip_writer = zip.deref_mut();
+    let zip_contents = zip_writer.finish()
+        .expect("Failed to finalize ZIP file").into_inner();
+    info!("ZIP file size is {} bytes", zip_contents.len());
     fs::write(out_file.as_path(), zip_contents).expect("Failed to write ZIP file");
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     ALLOCATOR.disable_logging();
