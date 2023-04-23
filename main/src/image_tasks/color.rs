@@ -212,13 +212,13 @@ fn test_hash() {
     assert_eq!(transparent_hash_1,transparent_hash_2);
 }
 
-pub const fn rgb(r: u8, g: u8, b: u8) -> ComparableColor {
+const fn rgb(r: u8, g: u8, b: u8) -> ComparableColor {
     ComparableColor {
         red: r, green: g, blue: b, alpha: u8::MAX
     }
 }
 
-pub const fn rgba(r: u8, g: u8, b: u8, a: u8) -> ComparableColor {
+const fn rgba(r: u8, g: u8, b: u8, a: u8) -> ComparableColor {
     ComparableColor {
         red: r, green: g, blue: b, alpha: a
     }
@@ -272,21 +272,4 @@ fn test_is_black_or_transparent() {
     assert!(!ComparableColor::GREEN.is_black_or_transparent());
     assert!(!ComparableColor::BLUE.is_black_or_transparent());
     assert!(!(rgba(0xff,0x00,0x00,0xcc).is_black_or_transparent())); // semitransparent red
-}
-
-pub const fn ca(rgb: u32) -> ComparableColor {
-    let bytes = rgb.to_be_bytes();
-    ComparableColor {
-        red: bytes[0],
-        green: bytes[1],
-        blue: bytes[2],
-        alpha: bytes[3]
-    }
-}
-
-#[test]
-fn test_ca() {
-    assert_eq!(ca(0x1337c0de),
-               ComparableColor { red: 0x13, green: 0x37, blue: 0xc0, alpha: 0xde }
-    )
 }

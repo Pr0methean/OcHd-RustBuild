@@ -1,24 +1,24 @@
-use crate::image_tasks::color::{gray, rgb};
+use crate::image_tasks::color::c;
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::task_spec::{out_task, FileOutputTaskSpec, ToPixmapTaskSpec};
 use crate::texture_base::material::Material;
 
 pub static DYES: &[(&str, ComparableColor)] = &[
     ("black",       ComparableColor::BLACK),
-    ("red",         rgb(0xb0, 0x00, 0x00)),
-    ("green",       rgb(0x00, 0x7c, 0x00)),
-    ("brown",       rgb(0x83, 0x54, 0x00)),
-    ("blue",        rgb(0x00, 0x00, 0xaa)),
-    ("purple",      rgb(0x89, 0x00, 0xb8)),
-    ("cyan",        rgb(0x00, 0x9c, 0x9c)),
-    ("light_gray",  gray(0xaa)),
-    ("gray",        gray(0x51)),
-    ("pink",        rgb(0xff, 0x9a, 0x9a)),
-    ("lime",        rgb(0x80, 0xff, 0x00)),
-    ("yellow",      rgb(0xff, 0xff, 0x00)),
-    ("light_blue",  rgb(0x77, 0x77, 0xff)),
-    ("magenta",     rgb(0xff, 0x4e, 0xff)),
-    ("orange",      rgb(0xff, 0x80, 0x00)),
+    ("red",         c(0xba0000)),
+    ("green",       c(0x007c00)),
+    ("brown",       c(0x835400)),
+    ("blue",        c(0x0000aa)),
+    ("purple",      c(0x8900b8)),
+    ("cyan",        c(0x009c9c)),
+    ("light_gray",  ComparableColor::STONE_HIGHLIGHT),
+    ("gray",        ComparableColor::STONE_EXTREME_SHADOW),
+    ("pink",        c(0xff9a9a)),
+    ("lime",        c(0x80ff00)),
+    ("yellow",      ComparableColor::YELLOW),
+    ("light_blue",  c(0x7777ff)),
+    ("magenta",     c(0xff4eff)),
+    ("orange",      c(0xff8000)),
     ("white",       ComparableColor::WHITE)
 ];
 

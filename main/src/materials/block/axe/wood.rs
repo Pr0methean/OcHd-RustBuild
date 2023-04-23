@@ -504,7 +504,7 @@ lazy_static!{pub static ref CRIMSON: Wood = nether_fungus(
     c(0x863e5a),
     c(0x4b2737),
     c(0x442929),
-    c(0xb10000),
+    c(0xba0000),
     c(0x7b0000),
     c(0x500000),
     c(0xac2020),

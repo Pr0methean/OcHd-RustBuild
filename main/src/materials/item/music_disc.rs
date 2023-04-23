@@ -1,5 +1,5 @@
 use lazy_static::lazy_static;
-use crate::image_tasks::color::{ComparableColor, c};
+use crate::image_tasks::color::{ComparableColor};
 use crate::image_tasks::task_spec::{FileOutputTaskSpec, out_task, paint_svg_task};
 use crate::{group, single_texture_item, stack};
 use crate::texture_base::dyes::DYES;
@@ -30,7 +30,7 @@ struct MusicDisc {
 impl Material for MusicDisc {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         vec![out_task(&format!("item/music_disc_{}", self.name), stack!(
-            paint_svg_task("musicDisc", c(0x404040)),
+            paint_svg_task("musicDisc", ComparableColor::STONE_EXTREME_SHADOW),
             paint_svg_task("musicDiscGroove", ComparableColor::DARKEST_GRAY),
             paint_svg_task("musicDiscLabel", self.color)
         ))]
