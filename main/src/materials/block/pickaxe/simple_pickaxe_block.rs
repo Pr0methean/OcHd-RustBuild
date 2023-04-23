@@ -492,6 +492,14 @@ block_with_colors!(YELLOW_GLAZED_TERRACOTTA = c(0xffb000), c(0xa4764c), c(0xffff
     paint_stack!(highlight!(), "sunflowerPetals", "cross", "bigDotsTopLeftBottomRight",
         "cornerRoundTopLeft")
 );
+block_with_colors!(ORANGE_GLAZED_TERRACOTTA = c(0xff8000), c(0x009c9c), c(0x00c6c6),
+    highlight!(),
+    paint_stack!(color!(), "bigDotsBottomLeftTopRight", "cornerTwoLobesSolidTopLeft"),
+    paint_svg_task("dots0", shadow!()),
+    paint_svg_task("strokeTopLeftBottomRight", ComparableColor::WHITE),
+    paint_stack!(shadow!(), "cornerTwoLobesBorderTopLeft", "cornerRoundBottomRight"),
+    paint_svg_task("cornerRingBottomRight", color!())
+);
 block_with_colors!(WHITE_GLAZED_TERRACOTTA = c(0x3ab3da), c(0x2389c7), c(0xffd83d),
     ComparableColor::WHITE,
     paint_stack!(highlight!(), "borderSolidTopLeft", "cornerRoundTopLeft"),
@@ -500,7 +508,6 @@ block_with_colors!(WHITE_GLAZED_TERRACOTTA = c(0x3ab3da), c(0x2389c7), c(0xffd83
     paint_svg_task("cornerRoundBottomRight", color!()),
     paint_svg_task("cornerBullseyeBottomRight", color!())
 );
-// TODO: orange glazed terracotta
 
 group!(DEEPSLATE_VARIANTS = DEEPSLATE_BRICKS, DEEPSLATE_TOP, COBBLED_DEEPSLATE);
 group!(QUARTZ_VARIANTS = QUARTZ_BLOCK_TOP, QUARTZ_BLOCK_BOTTOM, QUARTZ_BLOCK_SIDE,
@@ -519,7 +526,7 @@ group!(TERRACOTTA_VARIANTS = TERRACOTTA, BLACK_GLAZED_TERRACOTTA, RED_GLAZED_TER
         PURPLE_GLAZED_TERRACOTTA, CYAN_GLAZED_TERRACOTTA, GRAY_GLAZED_TERRACOTTA,
         LIGHT_GRAY_GLAZED_TERRACOTTA, PINK_GLAZED_TERRACOTTA,
         LIME_GLAZED_TERRACOTTA, LIGHT_BLUE_GLAZED_TERRACOTTA, MAGENTA_GLAZED_TERRACOTTA,
-        YELLOW_GLAZED_TERRACOTTA, WHITE_GLAZED_TERRACOTTA);
+        YELLOW_GLAZED_TERRACOTTA, ORANGE_GLAZED_TERRACOTTA, WHITE_GLAZED_TERRACOTTA);
 group!(MISC_BRICKS = MUD_BRICKS, BRICKS, POLISHED_BLACKSTONE_BRICKS, NETHER_BRICKS,
     RED_NETHER_BRICKS);
 group!(AMETHYST = AMETHYST_BLOCK, BUDDING_AMETHYST, AMETHYST_CLUSTER,
