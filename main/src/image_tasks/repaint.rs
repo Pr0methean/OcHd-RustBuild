@@ -1,5 +1,4 @@
 use std::iter;
-use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Mul};
 use std::sync::Arc;
 use cached::proc_macro::cached;

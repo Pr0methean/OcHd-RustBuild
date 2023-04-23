@@ -18,7 +18,6 @@ use zip::read::ZipFile;
 
 use crate::{anyhoo};
 use crate::image_tasks::MaybeFromPool;
-use crate::image_tasks::task_spec::{CloneableError, OUT_DIR};
 use crate::image_tasks::task_spec::{CloneableError};
 
 pub type ZipBufferRaw = Cursor<Vec<u8>>;
