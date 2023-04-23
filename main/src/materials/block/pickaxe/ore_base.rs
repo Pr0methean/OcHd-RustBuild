@@ -7,7 +7,7 @@ block_with_colors!(STONE = ComparableColor::STONE, ComparableColor::STONE_SHADOW
     color!(),
     paint_svg_task("checksQuarterCircles", highlight!()),
     paint_svg_task("checksQuarterCircles2", shadow!()),
-    paint_svg_task("bigCircle", color!() * .75)
+    paint_svg_task("bigCircle", color!() * 0.75)
 );
 
 block_with_colors!(DEEPSLATE = ComparableColor::DEEPSLATE, ComparableColor::DEEPSLATE_SHADOW,
