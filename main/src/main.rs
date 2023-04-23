@@ -17,6 +17,7 @@
 #![feature(lazy_cell)]
 #![feature(concat_idents)]
 #![feature(macro_metavar_expr)]
+#![feature(const_io_structs)]
 use std::alloc::System;
 use std::collections::{HashMap};
 use std::path::{absolute, PathBuf};
@@ -25,14 +26,13 @@ use std::time::Instant;
 
 use petgraph::visit::{EdgeRef, IntoNodeReferences, IntoEdgeReferences, NodeIndexable};
 use fn_graph::daggy::petgraph::unionfind::UnionFind;
-use lazy_static::lazy_static;
 use log::{info, LevelFilter};
 use logging_allocator::LoggingAllocator;
 use petgraph::graph::{DefaultIx, NodeIndex};
 use texture_base::material::Material;
 use rayon::prelude::*;
 
-use crate::image_tasks::task_spec::{OUT_DIR, SVG_DIR, CloneableLazyTask, TaskGraphBuildingContext, TaskSpec, TaskSpecTraits, METADATA_DIR};
+use crate::image_tasks::task_spec::{SVG_DIR, CloneableLazyTask, TaskGraphBuildingContext, TaskSpec, TaskSpecTraits, METADATA_DIR};
 
 mod image_tasks;
 mod texture_base;
@@ -40,8 +40,10 @@ mod materials;
 #[cfg(not(any(test,clippy)))]
 use std::env;
 use std::fs;
+use std::ops::DerefMut;
+use lazy_static::lazy_static;
 use pathdiff::diff_paths;
-use crate::image_tasks::png_output::link_with_logging;
+use crate::image_tasks::png_output::{copy_in_to_out, ZIP};
 
 #[cfg(not(any(test,clippy)))]
 lazy_static! {
@@ -67,10 +69,9 @@ fn copy_metadata(source_path: &PathBuf) {
             let file_type = entry.file_type().expect("Failed to get a file type");
             let path = entry.path();
             if file_type.is_file() {
-                let mut destination = OUT_DIR.to_owned();
-                destination.push(diff_paths(&path, *METADATA_DIR)
-                    .expect("Got a DirEntry that wasn't in METADATA_DIR"));
-                link_with_logging(path, destination, true).unwrap();
+                let destination = diff_paths(&path, *METADATA_DIR)
+                    .expect("Got a DirEntry that wasn't in METADATA_DIR");
+                copy_in_to_out(path, destination).expect("Failed to copy a file");
             } else if file_type.is_dir() {
                 copy_metadata(&path);
             }
@@ -82,8 +83,9 @@ fn copy_metadata(source_path: &PathBuf) {
 async fn main() {
     simple_logging::log_to_file("./log.txt", LevelFilter::Trace).expect("Failed to configure file logging");
     ALLOCATOR.enable_logging();
+    let out_file = PathBuf::from(format!("./out/OcHD-{}x{}.zip", *TILE_SIZE, *TILE_SIZE));
     info!("Looking for SVGs in {}", absolute(SVG_DIR.to_path_buf()).unwrap().to_string_lossy());
-    info!("Writing output to {}", absolute(OUT_DIR.to_path_buf()).unwrap().to_string_lossy());
+    info!("Writing output to {}", absolute(&out_file).unwrap().to_string_lossy());
     let tile_size: u32 = *TILE_SIZE;
     info!("Using {:?} pixels per tile", tile_size);
     let start_time = Instant::now();
@@ -145,6 +147,12 @@ async fn main() {
             result.expect("Error running a task");
         });
     copy_metadata.await.expect("Failed to copy metadata");
+    let mut zip = ZIP.lock().expect("Failed to lock ZIP buffer");
+    let zip_writer = zip.deref_mut();
+    let zip_contents = zip_writer.finish()
+        .expect("Failed to finalize ZIP file").into_inner();
+    info!("ZIP file size is {} bytes", zip_contents.len());
+    fs::write(out_file.as_path(), zip_contents).expect("Failed to write ZIP file");
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     ALLOCATOR.disable_logging();
 }
