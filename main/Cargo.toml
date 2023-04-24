@@ -31,5 +31,5 @@ once_cell = "1.17.1"
 png = "0.17.8"
 pathdiff = "0.2.1"
 tokio = {version = "1.27.0", features = ["rt-multi-thread", "macros"]}
-zip_next = {version = "0.6.6", features = ["bzip2"]}
+zip_next = {version = "0.6.6"}
 num_cpus = "1.15.0"

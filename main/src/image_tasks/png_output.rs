@@ -9,9 +9,9 @@ use log::info;
 
 use tiny_skia::{Pixmap};
 use tracing::instrument;
+use zip_next::CompressionMethod::Deflated;
 use zip_next::write::FileOptions;
 use zip_next::{ZipWriter};
-use zip_next::CompressionMethod::Bzip2;
 
 use crate::{anyhoo};
 use crate::image_tasks::task_spec::{CloneableError};
@@ -20,7 +20,7 @@ pub type ZipBufferRaw = Cursor<Vec<u8>>;
 
 lazy_static!{
     static ref ZIP_OPTIONS: FileOptions = FileOptions::default()
-        .compression_method(Bzip2)
+        .compression_method(Deflated)
         .compression_level(Some(9));
     pub static ref ZIP: Mutex<ZipWriter<ZipBufferRaw>> = Mutex::new(ZipWriter::new(Cursor::new(
         Vec::with_capacity(1024 * 1024)
