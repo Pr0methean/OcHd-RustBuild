@@ -21,15 +21,14 @@ lazy_static!{
         ),
         stack_on!(
             ComparableColor::LIGHT_BIOME_COLORABLE,
-            paint_svg_task("borderShortDashes", ComparableColor::MEDIUM_BIOME_COLORABLE),
-            paint_svg_task("borderDotted", ComparableColor::DARK_BIOME_COLORABLE)
+            paint_stack!(ComparableColor::MEDIUM_BIOME_COLORABLE, "borderDotted", "vees"),
         )
     );
 }
 
 single_texture_block!(GRASS_BLOCK_SIDE_OVERLAY = ComparableColor::TRANSPARENT,
-    paint_svg_task("topPart", ComparableColor::MEDIUM_BIOME_COLORABLE),
-    paint_svg_task("veesTop", ComparableColor::DARK_BIOME_COLORABLE)
+    paint_svg_task("topPart", ComparableColor::LIGHT_BIOME_COLORABLE),
+    paint_svg_task("veesTop", ComparableColor::MEDIUM_BIOME_COLORABLE)
 );
 
 pub const PODZOL_COLOR: ComparableColor = c(0x6a4418);
