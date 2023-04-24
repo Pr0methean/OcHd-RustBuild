@@ -1,7 +1,6 @@
 use std::fs::{File};
 use std::io::{copy, Cursor, Write};
 use std::mem;
-use std::mem::{transmute_copy};
 use std::ops::DerefMut;
 use std::path::{PathBuf};
 use std::sync::{Mutex};
@@ -10,7 +9,6 @@ use log::info;
 
 use tiny_skia::{Pixmap};
 use tracing::instrument;
-use zip_next::read::{ZipArchive, ZipFile};
 use zip_next::CompressionMethod::Deflated;
 use zip_next::write::FileOptions;
 use zip_next::{ZipWriter};
@@ -48,25 +46,7 @@ pub fn copy_out_to_out(source: PathBuf, dest: PathBuf) -> Result<(),CloneableErr
     let dest_string = dest.to_string_lossy();
     info!("Starting task: copy {} to {}", &source_string, &dest_string);
     let mut zip = ZIP.lock().map_err(|error| anyhoo!(error.to_string()))?;
-    let writer = zip.deref_mut();
-    // Need to finish and consume the writer before switching to a reader. (Even the Mutex won't
-    // guarantee that the read happens-after the write if the ZipWriter's mutable borrow is still
-    // open.)
-    let file_so_far = writer.finish().map_err(|error| anyhoo!(error))?;
-    let mut reader = ZipArchive::new(Cursor::new(file_so_far.get_ref()))
-        .map_err(|error| anyhoo!(error))?;
-    let source_file = reader.by_name(&source_string).map_err(|error| anyhoo!(error))?;
-    // To copy from within the same file, we need to borrow and mutably borrow the underlying Cursor
-    // at the same time, hence the need for unsafe code.
-    // WARNING: This won't generalize to any archive format that carries the compression dictionary
-    // between files!
-    let source_file_copy: ZipFile = unsafe {
-        transmute_copy(&source_file)
-    };
-    drop(source_file);
-    *writer = ZipWriter::new_append(file_so_far).map_err(|error| anyhoo!(error))?;
-    writer.raw_copy_file_rename(source_file_copy, &*dest_string).map_err(|error| anyhoo!(error))?;
-    drop(zip);
+    zip.deep_copy_file(&source_string, &dest_string).map_err(|error| anyhoo!(error.to_string()))?;
     info!("Finishing task: copy {} to {}", &source_string, &dest_string);
     Ok(())
 }
