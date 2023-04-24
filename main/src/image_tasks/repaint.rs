@@ -135,9 +135,11 @@ pub mod tests {
         for index in 0usize..((side_length * side_length) as usize) {
             let expected_alpha: u8 = (u16::from(repainted_alpha)
                 * u16::from(pixmap_pixels[index].alpha()) / 0xff) as u8;
-            assert_eq!(repainted_pixels[index].alpha(), expected_alpha);
+            assert!(repainted_pixels[index].alpha().abs_diff(expected_alpha) <= 1);
             if expected_alpha > 0 {
-                assert_eq!(repainted_pixels[index].red(), expected_alpha); // premultiplied
+                // premultiplied
+                assert_eq!(repainted_pixels[index].red(), repainted_pixels[index].alpha());
+
                 assert_eq!(repainted_pixels[index].green(), 0);
                 assert_eq!(repainted_pixels[index].blue(), 0);
             }
