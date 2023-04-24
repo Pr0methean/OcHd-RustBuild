@@ -20,14 +20,14 @@ pub fn animate(background: &Pixmap, frames: Vec<CloneableLazyTask<Pixmap>>)
                         background,
                         &PixmapPaint::default(),
                         Transform::default(),
-                        None).ok_or(anyhoo!("draw_pixmap failed"))?;
+                        None);
         let frame_result: CloneableResult<Pixmap> = frame.into_result();
         let frame_pixmap: &Pixmap = &*frame_result?;
         out.draw_pixmap(0, (index as i32) * (frame_height as i32),
                         frame_pixmap.as_ref(),
                         &PixmapPaint::default(),
                         Transform::default(),
-                        None).ok_or(anyhoo!("draw_pixmap failed"))?;
+                        None);
     }
     info!("Finishing task: Animate");
     Ok(Box::from(out))
