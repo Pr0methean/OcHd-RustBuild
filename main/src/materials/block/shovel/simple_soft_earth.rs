@@ -34,10 +34,8 @@ block_with_colors!(MUD = c(0x3a3a3a), c(0x333333), c(0x515151),
 );
 block_with_colors!(MOSS_BLOCK = c(0x647233),c(0x42552d),c(0x70922d),
     color!(),
-    paint_svg_task("strokeTopLeftBottomRight4", highlight!()),
-    paint_svg_task("strokeBottomLeftTopRight4", shadow!()),
-    paint_svg_task("borderSolid", highlight!()),
-    paint_svg_task("borderShortDashes", shadow!())
+    paint_stack!(highlight!(), "strokeTopLeftBottomRight4", "borderSolid"),
+    paint_svg_task("strokeBottomLeftTopRight4xorBorder", shadow!()),
 );
 block_with_colors!(SOUL_SAND = c(0x624033), c(0x3F2D23), c(0x915431),
     color!(),
@@ -48,7 +46,7 @@ block_with_colors!(SOUL_SAND = c(0x624033), c(0x3F2D23), c(0x915431),
 block_with_colors!(SOUL_SOIL = c(0x3F2D23), c(0x352922), c(0x915431),
     shadow!(),
     paint_svg_task("borderSolid", color!()),
-    paint_stack!(highlight!(), "strokeBottomLeftTopRight4", "bigDotsTopLeftBottomRight"),
+    paint_stack!(highlight!(), "strokeBottomLeftTopRight4xorBorder", "bigDotsTopLeftBottomRight"),
     paint_svg_task("soulFaces", shadow!())
 );
 block_with_colors!(PACKED_MUD = c(0x8c674f),c(0x5e4841),c(0xab8661),

@@ -39,10 +39,9 @@ single_texture_block!(JUKEBOX_TOP = OAK.color,
     from_svg_task("thirdRail")
 );
 single_texture_block!(JUKEBOX_SIDE = OAK.highlight,
-    paint_stack!(OAK.shadow, "strokeTopLeftBottomRight4", "strokeBottomLeftTopRight4"),
     paint_svg_task("borderSolidThick", OAK.color),
     paint_svg_task("borderSolid", OAK.highlight),
-    paint_svg_task("borderDotted", OAK.shadow)
+    paint_stack!(OAK.shadow, "strokeTopLeftBottomRight4", "strokeBottomLeftTopRight4xorBorder")
 );
 single_texture_block!(NOTE_BLOCK = ComparableColor::TRANSPARENT,
     JUKEBOX_SIDE.texture.to_owned(),
