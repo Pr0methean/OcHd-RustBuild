@@ -13,7 +13,7 @@ fn_graph = { version = "0.8.2", features = ["fn_meta", "resman"] }
 resman = { version = "0.16.1", features = ["fn_res", "fn_meta"] }
 fn_meta = "0.7.3"
 smallvec = "1.10.0"
-usvg = "0.31.0"
+usvg = "0.32.0"
 anyhow = "1.0"
 cached = "0.43.0"
 ordered-float = "3.6.0"
