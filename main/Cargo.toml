@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 tiny-skia = "0.8.4"
-tiny-skia-path = "0.8.4"
+tiny-skia-path = "0.9.0"
 resvg = "0.31.1"
 fn_graph = { version = "0.8.2", features = ["fn_meta", "resman"] }
 resman = { version = "0.16.1", features = ["fn_res", "fn_meta"] }
