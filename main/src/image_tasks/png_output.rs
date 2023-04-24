@@ -1,7 +1,7 @@
 use std::fs::{File};
 use std::io::{copy, Cursor, Write};
 use std::mem;
-use std::mem::{replace, transmute_copy};
+use std::mem::{transmute_copy};
 use std::ops::DerefMut;
 use std::path::{PathBuf};
 use std::sync::{Mutex};
