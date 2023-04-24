@@ -91,7 +91,7 @@ async fn main() {
     let start_time = Instant::now();
 
     let copy_metadata = tokio::spawn(async {
-        create_dir_all(&OUT_DIR).expect("Failed to create output directory");
+        create_dir_all(&*OUT_DIR).expect("Failed to create output directory");
         copy_metadata(&(METADATA_DIR.to_path_buf()));
     });
     let output_tasks = materials::ALL_MATERIALS.get_output_tasks();
