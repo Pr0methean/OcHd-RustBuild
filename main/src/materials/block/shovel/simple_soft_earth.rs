@@ -41,7 +41,6 @@ block_with_colors!(MOSS_BLOCK = c(0x647233),c(0x42552d),c(0x70922d),
 );
 block_with_colors!(SOUL_SAND = c(0x624033), c(0x3F2D23), c(0x915431),
     color!(),
-    paint_svg_task("borderSolid", shadow!()),
     paint_svg_task("checksSmall", highlight!()),
     paint_svg_task("bigDotsTopLeftBottomRight", shadow!()),
     paint_svg_task("soulFaces", highlight!())
