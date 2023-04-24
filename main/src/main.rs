@@ -32,7 +32,7 @@ use petgraph::graph::{DefaultIx, NodeIndex};
 use texture_base::material::Material;
 use rayon::prelude::*;
 
-use crate::image_tasks::task_spec::{SVG_DIR, CloneableLazyTask, TaskGraphBuildingContext, TaskSpec, TaskSpecTraits, METADATA_DIR};
+use crate::image_tasks::task_spec::{OUT_DIR, SVG_DIR, CloneableLazyTask, TaskGraphBuildingContext, TaskSpec, TaskSpecTraits, METADATA_DIR};
 
 mod image_tasks;
 mod texture_base;
@@ -41,11 +41,9 @@ mod materials;
 use std::env;
 use std::fs;
 use std::fs::create_dir_all;
-use std::ops::DerefMut;
 use lazy_static::lazy_static;
 use pathdiff::diff_paths;
-use rayon::ThreadPoolBuilder;
-use crate::image_tasks::png_output::{copy_in_to_out, ZIP};
+use crate::image_tasks::png_output::link_with_logging;
 
 #[cfg(not(any(test,clippy)))]
 lazy_static! {
@@ -71,9 +69,10 @@ fn copy_metadata(source_path: &PathBuf) {
             let file_type = entry.file_type().expect("Failed to get a file type");
             let path = entry.path();
             if file_type.is_file() {
-                let destination = diff_paths(&path, *METADATA_DIR)
-                    .expect("Got a DirEntry that wasn't in METADATA_DIR");
-                copy_in_to_out(path, destination).expect("Failed to copy a file");
+                let mut destination = OUT_DIR.to_owned();
+                destination.push(diff_paths(&path, *METADATA_DIR)
+                    .expect("Got a DirEntry that wasn't in METADATA_DIR"));
+                link_with_logging(path, destination, true).unwrap();
             } else if file_type.is_dir() {
                 copy_metadata(&path);
             }
@@ -83,22 +82,16 @@ fn copy_metadata(source_path: &PathBuf) {
 
 #[tokio::main]
 async fn main() {
-    ThreadPoolBuilder::new()
-        .num_threads(num_cpus::get() + 1)
-        .build_global()
-        .expect("Error configuring Rayon thread pool");
     simple_logging::log_to_file("./log.txt", LevelFilter::Trace).expect("Failed to configure file logging");
     ALLOCATOR.enable_logging();
-    let out_dir = PathBuf::from("./out");
-    let out_file = out_dir.join(format!("OcHD-{}x{}.zip", *TILE_SIZE, *TILE_SIZE));
     info!("Looking for SVGs in {}", absolute(SVG_DIR.to_path_buf()).unwrap().to_string_lossy());
-    info!("Writing output to {}", absolute(&out_file).unwrap().to_string_lossy());
+    info!("Writing output to {}", absolute(OUT_DIR.to_path_buf()).unwrap().to_string_lossy());
     let tile_size: u32 = *TILE_SIZE;
     info!("Using {:?} pixels per tile", tile_size);
     let start_time = Instant::now();
 
     let copy_metadata = tokio::spawn(async {
-        create_dir_all(out_dir).expect("Failed to create output directory");
+        create_dir_all(&OUT_DIR).expect("Failed to create output directory");
         copy_metadata(&(METADATA_DIR.to_path_buf()));
     });
     let output_tasks = materials::ALL_MATERIALS.get_output_tasks();
@@ -155,12 +148,6 @@ async fn main() {
             result.expect("Error running a task");
         });
     copy_metadata.await.expect("Failed to copy metadata");
-    let mut zip = ZIP.lock().expect("Failed to lock ZIP buffer");
-    let zip_writer = zip.deref_mut();
-    let zip_contents = zip_writer.finish()
-        .expect("Failed to finalize ZIP file").into_inner();
-    info!("ZIP file size is {} bytes", zip_contents.len());
-    fs::write(out_file.as_path(), zip_contents).expect("Failed to write ZIP file");
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     ALLOCATOR.disable_logging();
 }

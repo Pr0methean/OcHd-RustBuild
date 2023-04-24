@@ -205,7 +205,7 @@ pub struct CopiedMaterial {
 
 impl Material for CopiedMaterial {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
-        vec![FileOutputTaskSpec::Copy {
+        vec![FileOutputTaskSpec::Symlink {
             original: Box::new(self.source.to_owned()),
             link: name_to_out_path(self.name)
         }]

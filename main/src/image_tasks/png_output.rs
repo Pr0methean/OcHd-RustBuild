@@ -1,68 +1,68 @@
-use std::fs::{File};
-use std::io::{copy, Cursor, Write};
+use std::collections::HashSet;
+use std::fs::{create_dir_all, hard_link, remove_dir_all, write};
+use std::io::ErrorKind::NotFound;
 use std::mem;
-use std::ops::DerefMut;
-use std::path::{PathBuf};
-use std::sync::{Mutex};
+use std::os::unix::fs::symlink;
+use std::path::{Path, PathBuf};
+use std::sync::RwLock;
 use lazy_static::lazy_static;
 use log::info;
 
 use tiny_skia::{Pixmap};
 use tracing::instrument;
-use zip_next::write::FileOptions;
-use zip_next::{ZipWriter};
-use zip_next::CompressionMethod::Bzip2;
 
-use crate::{anyhoo};
-use crate::image_tasks::task_spec::{CloneableError};
-
-pub type ZipBufferRaw = Cursor<Vec<u8>>;
+use crate::anyhoo;
+use crate::image_tasks::task_spec::{CloneableError, OUT_DIR};
 
 lazy_static!{
-    static ref ZIP_OPTIONS: FileOptions = FileOptions::default()
-        .compression_method(Bzip2)
-        .compression_level(Some(9));
-    pub static ref ZIP: Mutex<ZipWriter<ZipBufferRaw>> = Mutex::new(ZipWriter::new(Cursor::new(
-        Vec::with_capacity(1024 * 1024)
-    )));
+    static ref MADE_DIRS: RwLock<HashSet<PathBuf>> = RwLock::new(HashSet::new());
+}
+
+fn ensure_made_dir(dir: &Path) -> Result<(),CloneableError> {
+    if MADE_DIRS.read().map_err(|error| anyhoo!(error.to_string()))?.contains(dir) {
+        return Ok(());
+    }
+    let mut made_dirs = MADE_DIRS.write()
+        .map_err(|error| anyhoo!(error.to_string()))?;
+    // Double-checked locking
+    if made_dirs.contains(dir) {
+        return Ok(());
+    }
+    if made_dirs.is_empty() {
+        let result = remove_dir_all(*OUT_DIR);
+        if result.is_err_and(|err| err.kind() != NotFound) {
+            panic!("Failed to delete old output directory");
+        }
+    }
+    create_dir_all(dir).map_err(|error| anyhoo!(error))?;
+    made_dirs.insert(dir.to_owned());
+    Ok(())
 }
 
 #[instrument]
 pub fn png_output(image: Pixmap, file: PathBuf) -> Result<(),CloneableError> {
     let file_string = file.to_string_lossy();
     info!("Starting task: write {}", file_string);
+    let parent = file.parent().ok_or(anyhoo!("Output file has no parent"))?;
     let data = into_png(image).map_err(|error| anyhoo!(error))?;
-    let mut zip = ZIP.lock().map_err(|error| anyhoo!(error.to_string()))?;
-    let writer = zip.deref_mut();
-    writer.start_file(file.to_string_lossy(), *ZIP_OPTIONS).map_err(|error| anyhoo!(error))?;
-    writer.write(&data).map_err(|error| anyhoo!(error))?;
-    drop(zip);
+    ensure_made_dir(parent)?;
+    write(&file, data).map_err(|error| anyhoo!(error))?;
     info!("Finishing task: write {}", file_string);
     Ok(())
 }
 
-pub fn copy_out_to_out(source: PathBuf, dest: PathBuf) -> Result<(),CloneableError> {
-    let source_string = source.to_string_lossy();
-    let dest_string = dest.to_string_lossy();
-    info!("Starting task: copy {} to {}", &source_string, &dest_string);
-    let mut zip = ZIP.lock().map_err(|error| anyhoo!(error.to_string()))?;
-    zip.deref_mut().shallow_copy_file(&source_string, &dest_string).map_err(|error| anyhoo!(error))?;
-    drop(zip);
-    info!("Finishing task: copy {} to {}", &source_string, &dest_string);
-    Ok(())
-}
-
-pub fn copy_in_to_out(source: PathBuf, dest: PathBuf) -> Result<(),CloneableError> {
-    let source_string = source.to_string_lossy();
-    let dest_string = dest.to_string_lossy();
-    info!("Starting task: copy {} to {}", source_string, dest_string);
-    let mut source_file = File::open(&source).map_err(|error| anyhoo!(error))?;
-    let mut zip = ZIP.lock().map_err(|error| anyhoo!(error.to_string()))?;
-    let writer = zip.deref_mut();
-    // writer.start_file(dest_string.clone(), *ZIP_OPTIONS).map_err(|error| anyhoo!(error))?;
-    // copy(&mut source_file, writer).map_err(|error| anyhoo!(error))?;
-    drop(zip);
-    info!("Finishing task: copy {} to {}", source_string, dest_string);
+pub fn link_with_logging(original: PathBuf, link: PathBuf, hard: bool) -> Result<(),CloneableError> {
+    let description =
+        format!("{} -> {}", link.to_string_lossy(), original.to_string_lossy());
+    info!("Starting task: symlink {}", description);
+    let parent = link.parent().ok_or(anyhoo!("Output file has no parent"))?;
+    ensure_made_dir(parent)?;
+    if hard {
+        hard_link(original, link)
+    } else {
+        symlink(original, link)
+    }.map_err(|error| anyhoo!(error))?;
+    info!("Finishing task: symlink {}", description);
     Ok(())
 }
 

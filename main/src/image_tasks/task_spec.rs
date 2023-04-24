@@ -27,7 +27,7 @@ use crate::image_tasks::animate::animate;
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::from_svg::{COLOR_SVGS, from_svg};
 use crate::image_tasks::make_semitransparent::make_semitransparent;
-use crate::image_tasks::png_output::{copy_out_to_out, png_output};
+use crate::image_tasks::png_output::{png_output, link_with_logging};
 use crate::image_tasks::repaint::{AlphaChannel, to_alpha_channel};
 use crate::image_tasks::repaint::paint;
 use crate::image_tasks::stack::{stack_alpha_on_alpha, stack_alpha_on_background, stack_layer_on_background, stack_layer_on_layer};
@@ -242,13 +242,13 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
                                            destination)?))
                 }))
             }
-            FileOutputTaskSpec::Copy {original, link} => {
+            FileOutputTaskSpec::Symlink {original, link} => {
                 let link = link.to_owned();
                 let original_path = original.get_path();
                 let (base_index, base_future) = original.add_to(ctx);
                 (vec![base_index], Box::new(move || {
                     base_future.into_result()?;
-                    Ok(Box::new(copy_out_to_out(original_path, link)?))
+                    Ok(Box::new(link_with_logging(original_path, link, true)?))
                 }))
             }
         };
@@ -288,14 +288,14 @@ pub enum ToAlphaChannelTaskSpec {
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum FileOutputTaskSpec {
     PngOutput {base: ToPixmapTaskSpec, destination: PathBuf},
-    Copy {original: Box<FileOutputTaskSpec>, link: PathBuf}
+    Symlink {original: Box<FileOutputTaskSpec>, link: PathBuf}
 }
 
 impl FileOutputTaskSpec {
     pub(crate) fn get_path(&self) -> PathBuf {
         match self {
             FileOutputTaskSpec::PngOutput { destination, .. } => destination.to_owned(),
-            FileOutputTaskSpec::Copy { link, .. } => link.to_owned()
+            FileOutputTaskSpec::Symlink { link, .. } => link.to_owned()
         }
     }
 }
@@ -388,7 +388,7 @@ impl Display for FileOutputTaskSpec {
             FileOutputTaskSpec::PngOutput { destination, .. } => {
                 destination.to_string_lossy().to_string()
             },
-            FileOutputTaskSpec::Copy { original, link } => {
+            FileOutputTaskSpec::Symlink { original, link } => {
                 format!("Symlink {} -> {}", link.to_string_lossy(), original.to_string())
             }
         })
@@ -563,7 +563,8 @@ impl <'a,E,Ix> TaskGraphBuildingContext<'a,E,Ix> where Ix: IndexType {
 }
 
 lazy_static! {
-    pub static ref ASSET_DIR: &'static Path = Path::new("assets/minecraft/textures");
+    pub static ref OUT_DIR: &'static Path = Path::new("./out/");
+    pub static ref ASSET_DIR: &'static Path = Path::new("./out/assets/minecraft/textures");
     pub static ref SVG_DIR: &'static Path = Path::new("./svg/");
     pub static ref METADATA_DIR: &'static Path = Path::new("./metadata");
 }
