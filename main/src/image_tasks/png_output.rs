@@ -59,8 +59,8 @@ pub fn copy_in_to_out(source: PathBuf, dest: PathBuf) -> Result<(),CloneableErro
     let mut source_file = File::open(&source).map_err(|error| anyhoo!(error))?;
     let mut zip = ZIP.lock().map_err(|error| anyhoo!(error.to_string()))?;
     let writer = zip.deref_mut();
-    writer.start_file(dest_string.clone(), *ZIP_OPTIONS).map_err(|error| anyhoo!(error))?;
-    copy(&mut source_file, writer).map_err(|error| anyhoo!(error))?;
+    // writer.start_file(dest_string.clone(), *ZIP_OPTIONS).map_err(|error| anyhoo!(error))?;
+    // copy(&mut source_file, writer).map_err(|error| anyhoo!(error))?;
     drop(zip);
     info!("Finishing task: copy {} to {}", source_string, dest_string);
     Ok(())
