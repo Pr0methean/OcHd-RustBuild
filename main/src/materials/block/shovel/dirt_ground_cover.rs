@@ -21,7 +21,7 @@ lazy_static!{
         ),
         stack_on!(
             ComparableColor::LIGHT_BIOME_COLORABLE,
-            paint_stack!(ComparableColor::MEDIUM_BIOME_COLORABLE, "borderDotted", "vees"),
+            paint_stack!(ComparableColor::MEDIUM_BIOME_COLORABLE, "borderDotted", "vees")
         )
     );
 }
