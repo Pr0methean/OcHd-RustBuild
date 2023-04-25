@@ -84,7 +84,6 @@ fn copy_metadata(source_path: &PathBuf) {
 #[tokio::main]
 async fn main() {
     ThreadPoolBuilder::new()
-        .num_threads(num_cpus::get() + 1)
         .build_global()
         .expect("Error configuring Rayon thread pool");
     simple_logging::log_to_file("./log.txt", LevelFilter::Trace).expect("Failed to configure file logging");
