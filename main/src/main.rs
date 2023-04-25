@@ -10,7 +10,6 @@
 #![feature(result_option_inspect)]
 #![feature(let_chains)]
 #![feature(hash_set_entry)]
-#![feature(once_cell_try)]
 #![feature(allocator_api)]
 #![feature(poll_ready)]
 #![feature(arc_unwrap_or_clone)]
