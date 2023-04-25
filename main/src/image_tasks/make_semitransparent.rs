@@ -5,6 +5,7 @@ use tiny_skia::{Mask};
 
 use tracing::instrument;
 use crate::image_tasks::MaybeFromPool;
+use crate::image_tasks::repaint::pixmap_to_mask;
 
 #[cached(sync_writes = true)]
 pub(crate) fn create_alpha_array(out_alpha: OrderedFloat<f32>) -> [u8; 256] {
@@ -28,7 +29,7 @@ pub fn make_semitransparent(input: &mut Mask, alpha: f32) {
 
 #[test]
 fn test_make_semitransparent() {
-    use tiny_skia::{FillRule, MaskType, Paint, Pixmap};
+    use tiny_skia::{FillRule, Paint, Pixmap};
     use tiny_skia_path::{PathBuilder, Transform};
     use crate::image_tasks::color::ComparableColor;
     use crate::image_tasks::repaint::paint;
@@ -42,7 +43,7 @@ fn test_make_semitransparent() {
     pixmap.fill_path(&circle, &red_paint,
                      FillRule::EvenOdd, Transform::default(), None);
     let pixmap_pixels = pixmap.pixels().to_owned();
-    let mut semitransparent_circle: Mask = Mask::from_pixmap(pixmap.as_ref(), MaskType::Alpha);
+    let mut semitransparent_circle: MaybeFromPool<Mask> = pixmap_to_mask(pixmap);
     make_semitransparent(&mut semitransparent_circle, alpha);
     let semitransparent_red_circle: Box<MaybeFromPool<Pixmap>> =
         paint(&semitransparent_circle, ComparableColor::RED).unwrap();
