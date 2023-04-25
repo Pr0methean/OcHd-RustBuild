@@ -6,7 +6,6 @@ use log::info;
 use resvg::{FitTo, render};
 use tiny_skia::Pixmap;
 use tiny_skia_path::Transform;
-use tracing::instrument;
 use usvg::{Options, Tree, TreeParsing};
 
 use crate::anyhoo;
@@ -37,7 +36,6 @@ pub const COLOR_SVGS: &[&str] = &[
     "./svg/vineBerries.svg",
 ];
 
-#[instrument]
 pub fn from_svg(path: &PathBuf, width: u32) -> Result<MaybeFromPool<Pixmap>,CloneableError> {
     let path_str = path.to_string_lossy();
     info!("Starting task: Import svg from {}", path_str);

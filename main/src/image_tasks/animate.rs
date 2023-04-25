@@ -3,10 +3,8 @@ use tiny_skia::{Pixmap, PixmapPaint};
 use tiny_skia_path::Transform;
 
 use crate::image_tasks::task_spec::{CloneableError, CloneableLazyTask, CloneableResult};
-use tracing::instrument;
 use crate::image_tasks::{allocate_pixmap, MaybeFromPool};
 
-#[instrument]
 pub fn animate(background: &Pixmap, frames: Vec<CloneableLazyTask<MaybeFromPool<Pixmap>>>)
                      -> Result<Box<MaybeFromPool<Pixmap>>, CloneableError> {
     info!("Starting task: Animate");

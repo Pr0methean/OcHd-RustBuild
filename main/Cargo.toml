@@ -21,7 +21,6 @@ petgraph = "0.6.3"
 logging-allocator = "0.1.1"
 simple-logging = "2.0.2"
 log = "0.4.17"
-tracing = {version = "0.1.38", features = ["attributes"]}
 itertools = "0.10.5"
 replace_with = "0.1.7"
 lockfree-object-pool = "0.1.4"

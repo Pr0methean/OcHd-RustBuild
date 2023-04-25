@@ -3,7 +3,6 @@ use log::info;
 use ordered_float::OrderedFloat;
 use tiny_skia::{Mask};
 
-use tracing::instrument;
 use crate::image_tasks::MaybeFromPool;
 use crate::image_tasks::repaint::pixmap_to_mask;
 
@@ -14,7 +13,6 @@ pub(crate) fn create_alpha_array(out_alpha: OrderedFloat<f32>) -> [u8; 256] {
         .collect::<Vec<u8>>().try_into().unwrap()
 }
 
-#[instrument]
 /// Multiplies the opacity of all pixels in the [input](given pixmap) by a given [alpha].
 pub fn make_semitransparent(input: &mut Mask, alpha: f32) {
 

@@ -8,7 +8,6 @@ use lazy_static::lazy_static;
 use log::info;
 
 use tiny_skia::{Pixmap};
-use tracing::instrument;
 use zip_next::CompressionMethod::Deflated;
 use zip_next::write::FileOptions;
 use zip_next::{ZipWriter};
@@ -28,7 +27,6 @@ lazy_static!{
     )));
 }
 
-#[instrument]
 pub fn png_output(image: MaybeFromPool<Pixmap>, file: PathBuf) -> Result<(),CloneableError> {
     let file_string = file.to_string_lossy();
     info!("Starting task: write {}", file_string);

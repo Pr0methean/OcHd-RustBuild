@@ -5,7 +5,6 @@ use lockfree_object_pool::LinearObjectPool;
 use log::info;
 use tiny_skia::{Mask, Paint, Pixmap};
 use tiny_skia_path::{Rect, Transform};
-use tracing::instrument;
 use crate::{anyhoo, TILE_SIZE};
 
 use crate::image_tasks::{allocate_pixmap, MaybeFromPool};
@@ -51,7 +50,6 @@ pub fn pixmap_to_mask(value: &Pixmap) -> MaybeFromPool<Mask> {
 }
 
 /// Applies the given [color] to the given [input](alpha channel).
-#[instrument]
 pub fn paint(input: &Mask, color: ComparableColor) -> Result<Box<MaybeFromPool<Pixmap>>, CloneableError> {
     info!("Starting task: paint with color {}", color);
     let mut output = allocate_pixmap(input.width(), input.height());
