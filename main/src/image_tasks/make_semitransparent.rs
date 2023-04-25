@@ -27,7 +27,7 @@ pub fn make_semitransparent(input: &mut Mask, alpha: f32) {
 
 #[test]
 fn test_make_semitransparent() {
-    use tiny_skia::{FillRule, Paint, Pixmap};
+    use tiny_skia::{FillRule, MaskType, Paint, Pixmap};
     use tiny_skia_path::{PathBuilder, Transform};
     use crate::image_tasks::color::ComparableColor;
     use crate::image_tasks::repaint::paint;
@@ -44,7 +44,7 @@ fn test_make_semitransparent() {
     let mut semitransparent_circle: Mask = Mask::from_pixmap(pixmap.as_ref(), MaskType::Alpha);
     make_semitransparent(&mut semitransparent_circle, alpha);
     let semitransparent_red_circle: Box<Pixmap> =
-        paint(&semitransparent_circle, ComparableColor::RED)?;
+        paint(&semitransparent_circle, ComparableColor::RED).unwrap();
     let semitransparent_pixels = semitransparent_red_circle.pixels();
     for index in 0usize..((side_length * side_length) as usize) {
         let expected_alpha: u8 = (u16::from(alpha_multiplier
