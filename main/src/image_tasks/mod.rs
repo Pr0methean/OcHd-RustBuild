@@ -79,9 +79,9 @@ impl <T> Ord for MaybeFromPool<T> where T: Ord {
 
 impl Clone for MaybeFromPool<Pixmap> {
     fn clone(&self) -> Self {
-        let mut pixmap = allocate_pixmap(self.width(), self.height());
-        self.deref().clone_into(pixmap.deref_mut());
-        pixmap
+        let mut clone = allocate_pixmap(self.width(), self.height());
+        clone.data_mut().copy_from_slice(self.data());
+        clone
     }
 }
 

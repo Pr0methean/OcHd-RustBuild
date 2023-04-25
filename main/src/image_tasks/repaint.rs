@@ -22,7 +22,7 @@ lazy_static!{
 impl Clone for MaybeFromPool<Mask> {
     fn clone(&self) -> Self {
         let mut clone = allocate_alpha_channel(self.width(), self.height());
-        self.deref().clone_into(clone.deref_mut());
+        clone.data_mut().copy_from_slice(self.data());
         clone
     }
 }
