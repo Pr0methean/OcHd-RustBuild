@@ -47,6 +47,7 @@ pub fn copy_out_to_out(source: PathBuf, dest: PathBuf) -> Result<(),CloneableErr
     info!("Starting task: copy {} to {}", &source_string, &dest_string);
     let mut zip = ZIP.lock().map_err(|error| anyhoo!(error.to_string()))?;
     zip.deep_copy_file(&source_string, &dest_string).map_err(|error| anyhoo!(error.to_string()))?;
+    drop(zip);
     info!("Finishing task: copy {} to {}", &source_string, &dest_string);
     Ok(())
 }

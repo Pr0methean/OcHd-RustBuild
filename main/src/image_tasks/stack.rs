@@ -26,9 +26,10 @@ pub fn stack_layer_on_background(background: ComparableColor, foreground: &mut P
 
 pub(crate) fn stack_alpha_on_alpha(background: &mut Mask, foreground: &Mask) {
     let fg_data = foreground.data();
-    for (index, &mut mut pixel) in background.data_mut().iter_mut().enumerate() {
-        pixel = (pixel as u16 +
-            (fg_data[index] as u16) * ((u8::MAX - pixel) as u16) / (u8::MAX as u16)) as u8;
+    let bg_data = background.data_mut();
+    for (index, pixel) in fg_data.iter().enumerate() {
+        bg_data[index] = (*pixel as u16 +
+            (bg_data[index] as u16) * ((u8::MAX - pixel) as u16) / (u8::MAX as u16)) as u8;
     }
 }
 
