@@ -1,11 +1,10 @@
 
 use log::info;
-use tiny_skia::{BlendMode, Paint, Pixmap, PixmapPaint, Shader};
+use tiny_skia::{BlendMode, Mask, Paint, Pixmap, PixmapPaint};
 use tiny_skia_path::{Rect, Transform};
 use tracing::instrument;
 
 use crate::image_tasks::color::ComparableColor;
-use crate::image_tasks::repaint::AlphaChannel;
 
 #[instrument]
 pub fn stack_layer_on_layer(background: &mut Pixmap, foreground: &Pixmap) {
@@ -16,31 +15,29 @@ pub fn stack_layer_on_layer(background: &mut Pixmap, foreground: &Pixmap) {
 }
 
 #[instrument]
-pub fn stack_layer_on_background(background: &ComparableColor, foreground: &mut Pixmap) {
+pub fn stack_layer_on_background(background: ComparableColor, foreground: &mut Pixmap) {
     info!("Starting task: stack_layer_on_background (background: {})", background);
+    let mut paint = Paint::default();
+    paint.set_color(background.into());
+    paint.blend_mode = BlendMode::DestinationOver;
     foreground.fill_rect(Rect::from_xywh(0.0, 0.0, foreground.width() as f32, foreground.height() as f32).unwrap(),
-                         &Paint {
-                             shader: Shader::SolidColor((*background).into()),
-                             blend_mode: BlendMode::DestinationOver,
-                             anti_alias: true,
-                             force_hq_pipeline: false
-                         }, Transform::default(), None);
+                         &paint, Transform::default(), None);
     info!("Finishing task: stack_layer_on_background (background: {})", background);
 }
 
-pub(crate) fn stack_alpha_on_alpha(background: &mut AlphaChannel, foreground: &AlphaChannel)
-        {
-    let output_pixels = background.pixels_mut();
-    for (index, &pixel) in foreground.pixels().iter().enumerate() {
-        output_pixels[index] = (pixel as u16 +
-            ((output_pixels[index] as u16) * ((u8::MAX - pixel) as u16) / (u8::MAX as u16))) as u8;
+pub(crate) fn stack_alpha_on_alpha(background: &mut Mask, foreground: &Mask) {
+    let fg_data = foreground.data();
+    let bg_data = background.data_mut();
+    for (index, pixel) in fg_data.iter().enumerate() {
+        bg_data[index] = (*pixel as u16 +
+            (bg_data[index] as u16) * ((u8::MAX - pixel) as u16) / (u8::MAX as u16)) as u8;
     }
 }
 
-pub fn stack_alpha_on_background(background_alpha: f32, foreground: &mut AlphaChannel)
+pub fn stack_alpha_on_background(background_alpha: f32, foreground: &mut Mask)
 {
     let background_alpha = (u8::MAX as f32 * background_alpha + 0.5) as u8;
-    let output_pixels = foreground.pixels_mut();
+    let output_pixels = foreground.data_mut();
     for pixel in output_pixels {
         *pixel = background_alpha + (
             ((*pixel as u16) * (u8::MAX - background_alpha) as u16) / u8::MAX as u16) as u8;

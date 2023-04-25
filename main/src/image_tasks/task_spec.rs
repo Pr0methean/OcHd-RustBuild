@@ -21,14 +21,13 @@ use ordered_float::OrderedFloat;
 use petgraph::graph::{IndexType, NodeIndex};
 use replace_with::replace_with_and_return;
 
-use tiny_skia::Pixmap;
+use tiny_skia::{Mask, MaskType, Pixmap};
 
 use crate::image_tasks::animate::animate;
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::from_svg::{COLOR_SVGS, from_svg};
 use crate::image_tasks::make_semitransparent::make_semitransparent;
 use crate::image_tasks::png_output::{copy_out_to_out, png_output};
-use crate::image_tasks::repaint::{AlphaChannel, to_alpha_channel};
 use crate::image_tasks::repaint::paint;
 use crate::image_tasks::stack::{stack_alpha_on_alpha, stack_alpha_on_background, stack_layer_on_background, stack_layer_on_layer};
 use crate::TILE_SIZE;
@@ -82,7 +81,7 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
                 Box::new(move || {
                     let fg_image: Arc<Box<Pixmap>> = fg_future.into_result()?;
                     let mut fg_image = Arc::unwrap_or_clone(fg_image);
-                    stack_layer_on_background(&background, &mut fg_image);
+                    stack_layer_on_background(background, &mut fg_image);
                     Ok(fg_image)
                 }))
             },
@@ -124,8 +123,8 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
                 let (base_index, base_future) = base.add_to(ctx);
                 (vec![base_index],
                 Box::new(move || {
-                    let base_image: Arc<Box<AlphaChannel>> = base_future.into_result()?;
-                    Ok(Box::new(paint(&base_image, &color)))
+                    let base_image: Arc<Box<Mask>> = base_future.into_result()?;
+                    Ok(paint(Arc::unwrap_or_clone(base_image).as_ref(), color)?)
                 }))
             },
         };
@@ -139,9 +138,9 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
     }
 }
 
-impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
+impl TaskSpecTraits<Mask> for ToAlphaChannelTaskSpec {
     fn add_to<'a, 'b, E, Ix>(&'b self, ctx: &mut TaskGraphBuildingContext<'a, E, Ix>)
-                         -> (NodeIndex<Ix>, CloneableLazyTask<AlphaChannel>)
+                         -> (NodeIndex<Ix>, CloneableLazyTask<Mask>)
                          where Ix : IndexType, E: Default, 'b: 'a {
         let name: String = self.to_string();
         if let Some((existing_index, existing_future))
@@ -150,7 +149,7 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
             return (*existing_index, existing_future.to_owned());
         }
         let self_id = ctx.graph.add_node(TaskSpec::from(self));
-        let (dependencies, function): (Vec<NodeIndex<Ix>>, LazyTaskFunction<AlphaChannel>)
+        let (dependencies, function): (Vec<NodeIndex<Ix>>, LazyTaskFunction<Mask>)
                 = match self {
             ToAlphaChannelTaskSpec::MakeSemitransparent { base, alpha } => {
                 if *alpha == 1.0 {
@@ -160,7 +159,7 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
                 let (base_index, base_future) = base.add_to(ctx);
                 (vec![base_index],
                 Box::new(move || {
-                    let base_result: Arc<Box<AlphaChannel>> = base_future.into_result()?;
+                    let base_result: Arc<Box<Mask>> = base_future.into_result()?;
                     let mut channel = Arc::unwrap_or_clone(base_result);
                     make_semitransparent(&mut channel, alpha);
                     Ok(channel)
@@ -174,12 +173,13 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
                 (vec![base_index],
                 Box::new(move || {
                     let base_image: Arc<Box<Pixmap>> = base_future.into_result()?;
-                    Ok(Box::new(to_alpha_channel(base_image.deref())))
+                    Ok(Box::new(Mask::from_pixmap((**base_image).as_ref(),
+                                                  MaskType::Alpha)))
                 }))
             },
             ToAlphaChannelTaskSpec::StackAlphaOnAlpha { layers } => {
                 let mut layer_indices = Vec::with_capacity(layers.len());
-                let mut layer_tasks: Vec<CloneableLazyTask<AlphaChannel>> = Vec::with_capacity(layers.len());
+                let mut layer_tasks: Vec<CloneableLazyTask<Mask>> = Vec::with_capacity(layers.len());
                 for layer in layers {
                     let (layer_index, layer_task) = layer.add_to(ctx);
                     layer_indices.push(layer_index);
@@ -189,7 +189,7 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
                 Box::new(move || {
                     let mut iter = layer_tasks.into_iter();
                     let bg = iter.next().unwrap();
-                    let bg_arc: Arc<Box<AlphaChannel>> = bg.into_result()?;
+                    let bg_arc: Arc<Box<Mask>> = bg.into_result()?;
                     let mut out_image = Arc::unwrap_or_clone(bg_arc);
                     for layer in iter {
                         stack_alpha_on_alpha(&mut out_image, &*(layer.into_result()?));
@@ -205,7 +205,7 @@ impl TaskSpecTraits<AlphaChannel> for ToAlphaChannelTaskSpec {
                 let (fg_index, fg_future) = foreground.add_to(ctx);
                 (vec![fg_index],
                  Box::new(move || {
-                     let fg_arc: Arc<Box<AlphaChannel>> = fg_future.into_result()?;
+                     let fg_arc: Arc<Box<Mask>> = fg_future.into_result()?;
                      let mut fg_image = Arc::unwrap_or_clone(fg_arc);
                      stack_alpha_on_background(background, &mut fg_image);
                      Ok(fg_image)
@@ -547,7 +547,7 @@ pub type TaskGraph<E, Ix> = Dag<TaskSpec, E, Ix>;
 pub struct TaskGraphBuildingContext<'a, E, Ix> where Ix: IndexType {
     pub graph: TaskGraph<E, Ix>,
     pixmap_task_to_future_map: HashMap<&'a ToPixmapTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<Pixmap>)>,
-    alpha_task_to_future_map: HashMap<&'a ToAlphaChannelTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<AlphaChannel>)>,
+    alpha_task_to_future_map: HashMap<&'a ToAlphaChannelTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<Mask>)>,
     pub output_task_to_future_map: HashMap<&'a FileOutputTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<()>)>
 }
 
