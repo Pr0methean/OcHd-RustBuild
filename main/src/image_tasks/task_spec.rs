@@ -11,7 +11,6 @@ use anyhow::{Error};
 
 use cached::lazy_static::lazy_static;
 use crate::anyhoo;
-use fn_graph::{DataAccessDyn, TypeIds};
 use fn_graph::daggy::Dag;
 use itertools::{Itertools};
 
@@ -412,19 +411,6 @@ impl Display for ToAlphaChannelTaskSpec {
                 write!(f, "{},{}", background, foreground)
             }
         }
-    }
-}
-
-
-trait TaskSpecFnMetadata: DataAccessDyn {}
-
-impl DataAccessDyn for &TaskSpec {
-    fn borrows(&self) -> TypeIds {
-        TypeIds::new()
-    }
-
-    fn borrow_muts(&self) -> TypeIds {
-        TypeIds::new()
     }
 }
 
