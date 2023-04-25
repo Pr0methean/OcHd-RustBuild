@@ -10,6 +10,7 @@ use tracing::instrument;
 use usvg::{Options, Tree, TreeParsing};
 
 use crate::anyhoo;
+use crate::image_tasks::{allocate_pixmap, MaybeFromPool};
 use crate::image_tasks::task_spec::{CloneableError};
 
 pub const COLOR_SVGS: &[&str] = &[
@@ -37,15 +38,14 @@ pub const COLOR_SVGS: &[&str] = &[
 ];
 
 #[instrument]
-pub fn from_svg(path: &PathBuf, width: u32) -> Result<Pixmap,CloneableError> {
+pub fn from_svg(path: &PathBuf, width: u32) -> Result<MaybeFromPool<Pixmap>,CloneableError> {
     let path_str = path.to_string_lossy();
     info!("Starting task: Import svg from {}", path_str);
     let svg_data = fs::read(path).map_err(|error| anyhoo!("Error reading {}: {}", path_str, error))?;
     let svg_tree = Tree::from_data(&svg_data, &Options::default()).map_err(|error| anyhoo!(error))?;
     let view_box = svg_tree.view_box;
     let height = f64::from(width) * view_box.rect.height() / view_box.rect.width();
-    let mut out = Pixmap::new(width, height as u32)
-        .ok_or(anyhoo!("Failed to create output Pixmap"))?;
+    let mut out = allocate_pixmap(width, height as u32);
     render(
         &svg_tree,
         FitTo::Width(width),

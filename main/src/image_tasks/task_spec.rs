@@ -27,6 +27,7 @@ use crate::image_tasks::animate::animate;
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::from_svg::{COLOR_SVGS, from_svg};
 use crate::image_tasks::make_semitransparent::make_semitransparent;
+use crate::image_tasks::MaybeFromPool;
 use crate::image_tasks::png_output::{copy_out_to_out, png_output};
 use crate::image_tasks::repaint::paint;
 use crate::image_tasks::stack::{stack_alpha_on_alpha, stack_alpha_on_background, stack_layer_on_background, stack_layer_on_layer};
@@ -38,9 +39,9 @@ pub trait TaskSpecTraits <T>: Clone + Debug + Display + Ord + Eq + Hash {
         where Ix : IndexType, E: Default, 'b: 'a;
 }
 
-impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
+impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
     fn add_to<'a, 'b, E, Ix>(&'b self, ctx: &mut TaskGraphBuildingContext<'a, E, Ix>)
-                         -> (NodeIndex<Ix>, CloneableLazyTask<Pixmap>)
+                         -> (NodeIndex<Ix>, CloneableLazyTask<MaybeFromPool<Pixmap>>)
                          where Ix : IndexType, E: Default, 'b: 'a {
         let name: String = self.to_string();
         if let Some((existing_index, existing_future)) = ctx.pixmap_task_to_future_map.get(&self) {
@@ -48,20 +49,21 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
             return (*existing_index, existing_future.to_owned());
         }
         let self_id = ctx.graph.add_node(TaskSpec::from(self));
-        let (dependencies, function): (Vec<NodeIndex<Ix>>, LazyTaskFunction<Pixmap>) = match self {
+        let (dependencies, function): (Vec<NodeIndex<Ix>>, LazyTaskFunction<MaybeFromPool<Pixmap>>) = match self {
             ToPixmapTaskSpec::None { .. } => panic!("Tried to add None task to graph"),
             ToPixmapTaskSpec::Animate { background, frames } => {
                 let (background_index, background_future) = background.add_to(ctx);
                 let mut dependencies = Vec::with_capacity(frames.len() + 1);
                 dependencies.push(background_index);
-                let mut frame_futures: Vec<CloneableLazyTask<Pixmap>> = Vec::with_capacity(frames.len());
+                let mut frame_futures: Vec<CloneableLazyTask<MaybeFromPool<Pixmap>>>
+                    = Vec::with_capacity(frames.len());
                 for frame in frames {
                     let (frame_index, frame_future) = frame.add_to(ctx);
                     frame_futures.push(frame_future);
                     dependencies.push(frame_index);
                 }
                 (dependencies, Box::new(move || {
-                    let background: Arc<Box<Pixmap>> = background_future.into_result()?;
+                    let background: Arc<Box<MaybeFromPool<Pixmap>>> = background_future.into_result()?;
                     animate(&background, frame_futures)
                 }))
             },
@@ -79,7 +81,7 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
                 let (fg_index, fg_future) = foreground.add_to(ctx);
                 (vec![fg_index],
                 Box::new(move || {
-                    let fg_image: Arc<Box<Pixmap>> = fg_future.into_result()?;
+                    let fg_image: Arc<Box<MaybeFromPool<Pixmap>>> = fg_future.into_result()?;
                     let mut fg_image = Arc::unwrap_or_clone(fg_image);
                     stack_layer_on_background(background, &mut fg_image);
                     Ok(fg_image)
@@ -106,9 +108,9 @@ impl TaskSpecTraits<Pixmap> for ToPixmapTaskSpec {
                 let (bg_index, bg_future) = background.add_to(ctx);
                 let (fg_index, fg_future) = foreground.add_to(ctx);
                 (vec![bg_index, fg_index], Box::new(move || {
-                    let bg_image: Arc<Box<Pixmap>> = bg_future.into_result()?;
+                    let bg_image: Arc<Box<MaybeFromPool<Pixmap>>> = bg_future.into_result()?;
                     let mut out_image = Arc::unwrap_or_clone(bg_image);
-                    let fg_image: Arc<Box<Pixmap>> = fg_future.into_result()?;
+                    let fg_image: Arc<Box<MaybeFromPool<Pixmap>>> = fg_future.into_result()?;
                     stack_layer_on_layer(&mut out_image, fg_image.deref());
                     Ok(out_image)
                 }))
@@ -172,7 +174,7 @@ impl TaskSpecTraits<Mask> for ToAlphaChannelTaskSpec {
                 let (base_index, base_future) = base.add_to(ctx);
                 (vec![base_index],
                 Box::new(move || {
-                    let base_image: Arc<Box<Pixmap>> = base_future.into_result()?;
+                    let base_image: Arc<Box<MaybeFromPool<Pixmap>>> = base_future.into_result()?;
                     Ok(Box::new(Mask::from_pixmap((**base_image).as_ref(),
                                                   MaskType::Alpha)))
                 }))
@@ -546,7 +548,7 @@ impl From<ToPixmapTaskSpec> for ToAlphaChannelTaskSpec {
 pub type TaskGraph<E, Ix> = Dag<TaskSpec, E, Ix>;
 pub struct TaskGraphBuildingContext<'a, E, Ix> where Ix: IndexType {
     pub graph: TaskGraph<E, Ix>,
-    pixmap_task_to_future_map: HashMap<&'a ToPixmapTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<Pixmap>)>,
+    pixmap_task_to_future_map: HashMap<&'a ToPixmapTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<MaybeFromPool<Pixmap>>)>,
     alpha_task_to_future_map: HashMap<&'a ToAlphaChannelTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<Mask>)>,
     pub output_task_to_future_map: HashMap<&'a FileOutputTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<()>)>
 }
