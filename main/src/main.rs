@@ -101,7 +101,7 @@ async fn main() {
         copy_metadata(&(METADATA_DIR.to_path_buf()));
     });
     let output_tasks = materials::ALL_MATERIALS.get_output_tasks();
-    let mut output_task_ids = Vec::with_capacity(1024);
+    let mut output_task_ids = Vec::with_capacity(output_tasks.len());
     let mut ctx: TaskGraphBuildingContext<(), DefaultIx>
         = TaskGraphBuildingContext::new();
     for task in output_tasks.iter() {
@@ -118,7 +118,8 @@ async fn main() {
         // union the two vertices of the edge
         vertex_sets.union(a, b);
     }
-    let mut component_map: HashMap<NodeIndex<DefaultIx>, Vec<CloneableLazyTask<()>>> = HashMap::new();
+    let mut component_map: HashMap<NodeIndex<DefaultIx>, Vec<CloneableLazyTask<()>>>
+        = HashMap::with_capacity(ctx.graph.node_bound());
     for (index, task) in ctx.graph.node_references() {
         let representative = vertex_sets.find(index);
         let (_, future) = match task {
