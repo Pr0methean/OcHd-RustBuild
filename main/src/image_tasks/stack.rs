@@ -1,6 +1,6 @@
 
 use log::info;
-use tiny_skia::{Mask, Paint, Pixmap, PixmapPaint};
+use tiny_skia::{BlendMode, Mask, Paint, Pixmap, PixmapPaint};
 use tiny_skia_path::{Rect, Transform};
 use tracing::instrument;
 
@@ -19,6 +19,7 @@ pub fn stack_layer_on_background(background: ComparableColor, foreground: &mut P
     info!("Starting task: stack_layer_on_background (background: {})", background);
     let mut paint = Paint::default();
     paint.set_color(background.into());
+    paint.blend_mode = BlendMode::DestinationOver;
     foreground.fill_rect(Rect::from_xywh(0.0, 0.0, foreground.width() as f32, foreground.height() as f32).unwrap(),
                          &paint, Transform::default(), None);
     info!("Finishing task: stack_layer_on_background (background: {})", background);
