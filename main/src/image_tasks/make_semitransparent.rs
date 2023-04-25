@@ -3,9 +3,6 @@ use log::info;
 use ordered_float::OrderedFloat;
 use tiny_skia::{Mask};
 
-use crate::image_tasks::MaybeFromPool;
-use crate::image_tasks::repaint::pixmap_to_mask;
-
 #[cached(sync_writes = true)]
 pub(crate) fn create_alpha_array(out_alpha: OrderedFloat<f32>) -> [u8; 256] {
     (0u16..256u16)
@@ -30,7 +27,10 @@ fn test_make_semitransparent() {
     use tiny_skia::{FillRule, Paint, Pixmap};
     use tiny_skia_path::{PathBuilder, Transform};
     use crate::image_tasks::color::ComparableColor;
+    use crate::image_tasks::MaybeFromPool;
     use crate::image_tasks::repaint::paint;
+    use crate::image_tasks::repaint::pixmap_to_mask;
+
     let alpha = 0.5;
     let alpha_multiplier = (alpha * f32::from(u8::MAX)) as u16;
     let side_length = 128;

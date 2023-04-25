@@ -125,7 +125,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                 (vec![base_index],
                 Box::new(move || {
                     let base_image: Arc<Box<MaybeFromPool<Mask>>> = base_future.into_result()?;
-                    Ok(paint(Arc::unwrap_or_clone(base_image).as_ref(), color)?)
+                    paint(Arc::unwrap_or_clone(base_image).as_ref(), color)
                 }))
             },
         };
