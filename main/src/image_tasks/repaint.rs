@@ -16,7 +16,7 @@ pub fn paint(input: &Mask, color: ComparableColor) -> Result<Box<Pixmap>, Clonea
         .ok_or(anyhoo!("Failed to create output Pixmap"))?;
     let mut paint = Paint::default();
     paint.set_color(color.into());
-    output.fill_rect(Rect::from_xywh(0.0, 0.0, input.width() as f32, input.height() as f32)
+    output.fill_rect(Rect::from_ltrb(0.0, 0.0, input.width() as f32, input.height() as f32)
                          .ok_or(anyhoo!("Failed to create rectangle for paint()"))?,
                      &paint, Transform::default(),
                      Some(input));
