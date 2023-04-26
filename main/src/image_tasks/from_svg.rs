@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use log::info;
 
 use resvg::{FitTo, render};
-use tiny_skia::Pixmap;
+use tiny_skia::{Color, Pixmap};
 use tiny_skia_path::Transform;
 use usvg::{Options, Tree, TreeParsing};
 
@@ -43,6 +43,7 @@ pub fn from_svg(path: &PathBuf, width: u32) -> Result<MaybeFromPool<Pixmap>,Clon
     let view_box = svg_tree.view_box;
     let height = f64::from(width) * view_box.rect.height() / view_box.rect.width();
     let mut out = allocate_pixmap(width, height as u32);
+    out.fill(Color::TRANSPARENT);
     render(
         &svg_tree,
         FitTo::Width(width),

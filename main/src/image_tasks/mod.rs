@@ -20,7 +20,7 @@ pub mod make_semitransparent;
 lazy_static! {
 static ref PIXMAP_POOL: Arc<LinearObjectPool<Pixmap>> = Arc::new(LinearObjectPool::new(
     || Pixmap::new(*TILE_SIZE, *TILE_SIZE).unwrap(),
-    |pixmap| pixmap.fill(Color::TRANSPARENT)
+    |_| {} // Reset at time of use if needed; often not needed
 ));
 }
 

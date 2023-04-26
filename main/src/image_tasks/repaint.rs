@@ -2,7 +2,7 @@ use std::sync::Arc;
 use lazy_static::lazy_static;
 use lockfree_object_pool::LinearObjectPool;
 use log::info;
-use tiny_skia::{Mask, Paint, Pixmap};
+use tiny_skia::{Color, Mask, Paint, Pixmap};
 use tiny_skia_path::{Rect, Transform};
 use crate::{anyhoo, TILE_SIZE};
 
@@ -52,6 +52,7 @@ pub fn pixmap_to_mask(value: &Pixmap) -> MaybeFromPool<Mask> {
 pub fn paint(input: &Mask, color: ComparableColor) -> Result<Box<MaybeFromPool<Pixmap>>, CloneableError> {
     info!("Starting task: paint with color {}", color);
     let mut output = allocate_pixmap(input.width(), input.height());
+    output.fill(Color::TRANSPARENT);
     let mut paint = Paint::default();
     paint.set_color(color.into());
     output.fill_rect(Rect::from_ltrb(0.0, 0.0, input.width() as f32, input.height() as f32)
