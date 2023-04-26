@@ -38,6 +38,7 @@ mod materials;
 #[cfg(not(any(test,clippy)))]
 use std::env;
 use std::fs;
+use std::fs::create_dir_all;
 use std::ops::DerefMut;
 use include_dir::{Dir, DirEntry};
 use lazy_static::lazy_static;
