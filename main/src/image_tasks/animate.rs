@@ -1,5 +1,5 @@
 use log::info;
-use tiny_skia::{Pixmap, PixmapPaint};
+use tiny_skia::{Color, Pixmap, PixmapPaint};
 use tiny_skia_path::Transform;
 
 use crate::image_tasks::task_spec::{CloneableError, CloneableLazyTask, CloneableResult};
@@ -11,6 +11,7 @@ pub fn animate(background: &Pixmap, frames: Vec<CloneableLazyTask<MaybeFromPool<
     let frame_height = background.height();
     let mut out = allocate_pixmap(background.width(),
                               frame_height * (frames.len() as u32));
+    out.fill(Color::TRANSPARENT);
     for (index, frame) in frames.into_iter().enumerate() {
         let background = (*background).as_ref();
         out.draw_pixmap(0, (index as i32) * (frame_height as i32),
