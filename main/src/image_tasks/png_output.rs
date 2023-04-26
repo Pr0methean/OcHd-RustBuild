@@ -1,8 +1,8 @@
-use std::fs::{File};
-use std::io::{copy, Cursor, Write};
+use include_dir::{File};
+use std::io::{Cursor, Write};
 use std::mem;
 use std::ops::DerefMut;
-use std::path::{PathBuf};
+use std::path::{Path};
 use std::sync::{Mutex};
 use lazy_static::lazy_static;
 use log::info;
@@ -27,7 +27,7 @@ lazy_static!{
     )));
 }
 
-pub fn png_output(image: MaybeFromPool<Pixmap>, file: PathBuf) -> Result<(),CloneableError> {
+pub fn png_output(image: MaybeFromPool<Pixmap>, file: &Path) -> Result<(),CloneableError> {
     let file_string = file.to_string_lossy();
     info!("Starting task: write {}", file_string);
     let data = into_png(image).map_err(|error| anyhoo!(error))?;
@@ -40,7 +40,7 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, file: PathBuf) -> Result<(),Clon
     Ok(())
 }
 
-pub fn copy_out_to_out(source: PathBuf, dest: PathBuf) -> Result<(),CloneableError> {
+pub fn copy_out_to_out(source: &Path, dest: &Path) -> Result<(),CloneableError> {
     let source_string = source.to_string_lossy();
     let dest_string = dest.to_string_lossy();
     info!("Starting task: copy {} to {}", &source_string, &dest_string);
@@ -51,15 +51,14 @@ pub fn copy_out_to_out(source: PathBuf, dest: PathBuf) -> Result<(),CloneableErr
     Ok(())
 }
 
-pub fn copy_in_to_out(source: PathBuf, dest: PathBuf) -> Result<(),CloneableError> {
-    let source_string = source.to_string_lossy();
+pub fn copy_in_to_out(source: &File, dest: &Path) -> Result<(),CloneableError> {
+    let source_string = source.path().to_string_lossy();
     let dest_string = dest.to_string_lossy();
     info!("Starting task: copy {} to {}", source_string, dest_string);
-    let mut source_file = File::open(&source).map_err(|error| anyhoo!(error))?;
     let mut zip = ZIP.lock().map_err(|error| anyhoo!(error.to_string()))?;
     let writer = zip.deref_mut();
     writer.start_file(dest_string.clone(), *ZIP_OPTIONS).map_err(|error| anyhoo!(error))?;
-    copy(&mut source_file, writer).map_err(|error| anyhoo!(error))?;
+    writer.write_all(source.contents()).map_err(|error| anyhoo!(error))?;
     drop(zip);
     info!("Finishing task: copy {} to {}", source_string, dest_string);
     Ok(())

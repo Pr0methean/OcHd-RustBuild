@@ -12,6 +12,7 @@ use anyhow::{Error};
 use cached::lazy_static::lazy_static;
 use crate::anyhoo;
 use fn_graph::daggy::Dag;
+use include_dir::{Dir, include_dir};
 use itertools::{Itertools};
 
 
@@ -239,7 +240,7 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
                 let (base_index, base_future) = base.add_to(ctx);
                 (vec![base_index], Box::new(move || {
                     Ok(Box::new(png_output(*Arc::unwrap_or_clone(base_future.into_result()?),
-                                           destination)?))
+                                           &destination)?))
                 }))
             }
             FileOutputTaskSpec::Copy {original, link} => {
@@ -248,7 +249,7 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
                 let (base_index, base_future) = original.add_to(ctx);
                 (vec![base_index], Box::new(move || {
                     base_future.into_result()?;
-                    Ok(Box::new(copy_out_to_out(original_path, link)?))
+                    Ok(Box::new(copy_out_to_out(&original_path, &link)?))
                 }))
             }
         };
@@ -549,22 +550,19 @@ impl <'a,E,Ix> TaskGraphBuildingContext<'a,E,Ix> where Ix: IndexType {
     }
 }
 
+pub const SVG_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/svg");
+pub const METADATA_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/metadata");
+
 lazy_static! {
     pub static ref ASSET_DIR: &'static Path = Path::new("assets/minecraft/textures");
-    pub static ref SVG_DIR: &'static Path = Path::new("./svg/");
-    pub static ref METADATA_DIR: &'static Path = Path::new("./metadata");
 }
 
 pub fn name_to_out_path(name: &str) -> PathBuf {
-    let mut out_file_path = ASSET_DIR.to_path_buf();
-    out_file_path.push(format!("{}.png", name));
-    out_file_path
+    ASSET_DIR.join(format!("{}.png", name))
 }
 
 pub fn name_to_svg_path(name: &str) -> PathBuf {
-    let mut svg_file_path = SVG_DIR.to_path_buf();
-    svg_file_path.push(format!("{}.svg", name));
-    svg_file_path
+    PathBuf::from(format!("{}.svg", name))
 }
 
 pub fn from_svg_task(name: &str) -> ToPixmapTaskSpec {
@@ -594,7 +592,7 @@ pub fn semitrans_svg_task(name: &str, alpha: f32) -> ToAlphaChannelTaskSpec {
 }
 
 pub fn out_task(name: &str, base: ToPixmapTaskSpec) -> FileOutputTaskSpec {
-    FileOutputTaskSpec::PngOutput {base, destination: name_to_out_path(name)}
+    FileOutputTaskSpec::PngOutput {base, destination: name_to_out_path(name) }
 }
 
 #[macro_export]

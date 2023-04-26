@@ -25,7 +25,6 @@ itertools = "0.10.5"
 replace_with = "0.1.7"
 lockfree-object-pool = "0.1.4"
 png = "0.17.8"
-pathdiff = "0.2.1"
-tokio = {version = "1.28.0", features = ["rt-multi-thread", "macros"]}
+include_dir = "0.7.3"
 tikv-jemallocator = "0.5.0"
 zip_next = {version = "0.6.7"}

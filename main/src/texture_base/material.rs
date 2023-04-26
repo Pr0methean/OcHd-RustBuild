@@ -1,10 +1,11 @@
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::path::{PathBuf};
 
 use crate::anyhoo;
 
 use crate::image_tasks::color::{c, ComparableColor};
-use crate::image_tasks::task_spec::{out_task, paint_svg_task, FileOutputTaskSpec, ToPixmapTaskSpec, name_to_out_path, CloneableError};
+use crate::image_tasks::task_spec::{out_task, paint_svg_task, FileOutputTaskSpec, ToPixmapTaskSpec, CloneableError};
 
 /// Specification in DSL form of how one or more texture images are to be generated.
 pub trait Material: Send {
@@ -199,7 +200,7 @@ macro_rules! single_layer_particle {
 }
 
 pub struct CopiedMaterial {
-    pub name: &'static str,
+    pub name: PathBuf,
     pub source: FileOutputTaskSpec
 }
 
@@ -207,7 +208,7 @@ impl Material for CopiedMaterial {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         vec![FileOutputTaskSpec::Copy {
             original: Box::new(self.source.to_owned()),
-            link: name_to_out_path(self.name)
+            link: self.name.to_owned()
         }]
     }
 }
@@ -217,7 +218,9 @@ macro_rules! copy_block {
     ($name:ident = $base:expr, $base_name:expr) => {
         lazy_static::lazy_static! {pub static ref $name: $crate::texture_base::material::CopiedMaterial =
         $crate::texture_base::material::CopiedMaterial {
-            name: const_format::formatcp!("block/{}", const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name))),
+            name: $crate::image_tasks::task_spec::name_to_out_path(
+                const_format::formatcp!("block/{}", const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)))
+            ),
             source: {
                 use $crate::texture_base::material::Material;
                 $base.get_output_task_by_name($base_name).unwrap()

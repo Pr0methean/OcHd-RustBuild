@@ -1,4 +1,3 @@
-use std::fs;
 use std::path::PathBuf;
 
 use log::info;
@@ -10,37 +9,37 @@ use usvg::{Options, Tree, TreeParsing};
 
 use crate::anyhoo;
 use crate::image_tasks::{allocate_pixmap, MaybeFromPool};
-use crate::image_tasks::task_spec::{CloneableError};
+use crate::image_tasks::task_spec::{CloneableError, SVG_DIR};
 
 pub const COLOR_SVGS: &[&str] = &[
-    "./svg/bed.svg",
-    "./svg/blastFurnaceHolesLit.svg",
-    "./svg/blastFurnaceHolesLit1.svg",
-    "./svg/bonemeal.svg",
-    "./svg/bonemealSmall.svg",
-    "./svg/bonemealSmallNoBorder.svg",
-    "./svg/bookShelves.svg",
-    "./svg/chain.svg",
-    "./svg/commandBlockChains.svg",
-    "./svg/commandBlockChains4x.svg",
-    "./svg/commandBlockGrid.svg",
-    "./svg/commandBlockGridFront.svg",
-    "./svg/doorKnob.svg",
-    "./svg/furnaceFrontLit.svg",
-    "./svg/loopArrow4x.svg",
-    "./svg/soulFlameTorch.svg",
-    "./svg/soulFlameTorchSmall.svg",
-    "./svg/torchFlame.svg",
-    "./svg/torchFlameSmall.svg",
-    "./svg/torchRedstoneHead.svg",
-    "./svg/vineBerries.svg",
+    "bed.svg",
+    "blastFurnaceHolesLit.svg",
+    "blastFurnaceHolesLit1.svg",
+    "bonemeal.svg",
+    "bonemealSmall.svg",
+    "bonemealSmallNoBorder.svg",
+    "bookShelves.svg",
+    "chain.svg",
+    "commandBlockChains.svg",
+    "commandBlockChains4x.svg",
+    "commandBlockGrid.svg",
+    "commandBlockGridFront.svg",
+    "doorKnob.svg",
+    "furnaceFrontLit.svg",
+    "loopArrow4x.svg",
+    "soulFlameTorch.svg",
+    "soulFlameTorchSmall.svg",
+    "torchFlame.svg",
+    "torchFlameSmall.svg",
+    "torchRedstoneHead.svg",
+    "vineBerries.svg",
 ];
 
 pub fn from_svg(path: &PathBuf, width: u32) -> Result<MaybeFromPool<Pixmap>,CloneableError> {
     let path_str = path.to_string_lossy();
     info!("Starting task: Import svg from {}", path_str);
-    let svg_data = fs::read(path).map_err(|error| anyhoo!("Error reading {}: {}", path_str, error))?;
-    let svg_tree = Tree::from_data(&svg_data, &Options::default()).map_err(|error| anyhoo!(error))?;
+    let svg = SVG_DIR.get_file(path).ok_or(anyhoo!(format!("File not found: {}", path_str)))?;
+    let svg_tree = Tree::from_data(svg.contents(), &Options::default()).map_err(|error| anyhoo!(error))?;
     let view_box = svg_tree.view_box;
     let height = f64::from(width) * view_box.rect.height() / view_box.rect.width();
     let mut out = allocate_pixmap(width, height as u32);
