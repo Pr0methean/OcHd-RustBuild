@@ -2,11 +2,11 @@ use std::sync::Arc;
 use lazy_static::lazy_static;
 use lockfree_object_pool::LinearObjectPool;
 use log::info;
-use tiny_skia::{Color, Mask, Paint, Pixmap};
+use tiny_skia::{Mask, Paint, Pixmap};
 use tiny_skia_path::{Rect, Transform};
 use crate::{anyhoo, TILE_SIZE};
 
-use crate::image_tasks::{allocate_pixmap, MaybeFromPool};
+use crate::image_tasks::{allocate_pixmap_empty, MaybeFromPool};
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::MaybeFromPool::NotFromPool;
 use crate::image_tasks::task_spec::{CloneableError};
@@ -20,13 +20,13 @@ lazy_static!{
 
 impl Clone for MaybeFromPool<Mask> {
     fn clone(&self) -> Self {
-        let mut clone = allocate_alpha_channel(self.width(), self.height());
+        let mut clone = allocate_mask_for_overwrite(self.width(), self.height());
         clone.data_mut().copy_from_slice(self.data());
         clone
     }
 }
 
-fn allocate_alpha_channel(width: u32, height: u32) -> MaybeFromPool<Mask> {
+fn allocate_mask_for_overwrite(width: u32, height: u32) -> MaybeFromPool<Mask> {
     if width == *TILE_SIZE && height == *TILE_SIZE {
         let pool: &Arc<LinearObjectPool<Mask>> = &ALPHA_CHANNEL_POOL;
         MaybeFromPool::FromPool {
@@ -39,7 +39,7 @@ fn allocate_alpha_channel(width: u32, height: u32) -> MaybeFromPool<Mask> {
 
 pub fn pixmap_to_mask(value: &Pixmap) -> MaybeFromPool<Mask> {
     info!("Starting task: convert Pixmap to AlphaChannel");
-    let mut mask = allocate_alpha_channel(value.width(), value.height());
+    let mut mask = allocate_mask_for_overwrite(value.width(), value.height());
     let mask_pixels = mask.data_mut();
     for (index, pixel) in value.pixels().iter().enumerate() {
         mask_pixels[index] = pixel.alpha();
@@ -51,8 +51,7 @@ pub fn pixmap_to_mask(value: &Pixmap) -> MaybeFromPool<Mask> {
 /// Applies the given [color] to the given [input](alpha channel).
 pub fn paint(input: &Mask, color: ComparableColor) -> Result<Box<MaybeFromPool<Pixmap>>, CloneableError> {
     info!("Starting task: paint with color {}", color);
-    let mut output = allocate_pixmap(input.width(), input.height());
-    output.fill(Color::TRANSPARENT);
+    let mut output = allocate_pixmap_empty(input.width(), input.height());
     let mut paint = Paint::default();
     paint.set_color(color.into());
     output.fill_rect(Rect::from_ltrb(0.0, 0.0, input.width() as f32, input.height() as f32)

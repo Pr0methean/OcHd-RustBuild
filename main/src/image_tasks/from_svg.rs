@@ -3,12 +3,12 @@ use std::path::PathBuf;
 use log::info;
 
 use resvg::{FitTo, render};
-use tiny_skia::{Color, Pixmap};
+use tiny_skia::{Pixmap};
 use tiny_skia_path::Transform;
 use usvg::{Options, Tree, TreeParsing};
 
 use crate::anyhoo;
-use crate::image_tasks::{allocate_pixmap, MaybeFromPool};
+use crate::image_tasks::{allocate_pixmap_empty, MaybeFromPool};
 use crate::image_tasks::task_spec::{CloneableError, SVG_DIR};
 
 pub const COLOR_SVGS: &[&str] = &[
@@ -42,8 +42,7 @@ pub fn from_svg(path: &PathBuf, width: u32) -> Result<MaybeFromPool<Pixmap>,Clon
     let svg_tree = Tree::from_data(svg.contents(), &Options::default()).map_err(|error| anyhoo!(error))?;
     let view_box = svg_tree.view_box;
     let height = f64::from(width) * view_box.rect.height() / view_box.rect.width();
-    let mut out = allocate_pixmap(width, height as u32);
-    out.fill(Color::TRANSPARENT);
+    let mut out = allocate_pixmap_empty(width, height as u32);
     render(
         &svg_tree,
         FitTo::Width(width),

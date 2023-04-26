@@ -20,7 +20,7 @@ pub mod make_semitransparent;
 lazy_static! {
 static ref PIXMAP_POOL: Arc<LinearObjectPool<Pixmap>> = Arc::new(LinearObjectPool::new(
     || Pixmap::new(*TILE_SIZE, *TILE_SIZE).unwrap(),
-    |_| {} // Reset at time of use if needed; often not needed
+    |_| {} // no reset needed if using allocate_pixmap_for_overwrite
 ));
 }
 
@@ -79,7 +79,7 @@ impl <T> Ord for MaybeFromPool<T> where T: Ord {
 
 impl Clone for MaybeFromPool<Pixmap> {
     fn clone(&self) -> Self {
-        let mut clone = allocate_pixmap(self.width(), self.height());
+        let mut clone = allocate_pixmap_for_overwrite(self.width(), self.height());
         clone.data_mut().copy_from_slice(self.data());
         clone
     }
@@ -94,9 +94,19 @@ impl <T> Debug for MaybeFromPool<T> {
     }
 }
 
-pub fn allocate_pixmap(width: u32, height: u32) -> MaybeFromPool<Pixmap> {
+pub fn allocate_pixmap_for_overwrite(width: u32, height: u32) -> MaybeFromPool<Pixmap> {
     if width == *TILE_SIZE && height == *TILE_SIZE {
         MaybeFromPool::FromPool { reusable: PIXMAP_POOL.pull_owned() }
+    } else {
+        MaybeFromPool::NotFromPool(Pixmap::new(width, height).unwrap())
+    }
+}
+
+pub fn allocate_pixmap_empty(width: u32, height: u32) -> MaybeFromPool<Pixmap> {
+    if width == *TILE_SIZE && height == *TILE_SIZE {
+        let mut reusable = PIXMAP_POOL.pull_owned();
+        reusable.fill(Color::TRANSPARENT);
+        MaybeFromPool::FromPool { reusable }
     } else {
         MaybeFromPool::NotFromPool(Pixmap::new(width, height).unwrap())
     }
