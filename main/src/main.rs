@@ -87,6 +87,7 @@ fn main() {
     info!("Using {:?} pixels per tile", tile_size);
     let start_time = Instant::now();
     rayon::join(|| {
+        create_dir_all(out_dir).expect("Failed to create output directory");
         copy_metadata(&METADATA_DIR);
     }, || {
         let output_tasks = materials::ALL_MATERIALS.get_output_tasks();
