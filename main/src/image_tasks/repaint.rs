@@ -38,13 +38,13 @@ fn allocate_mask_for_overwrite(width: u32, height: u32) -> MaybeFromPool<Mask> {
 }
 
 pub fn pixmap_to_mask(value: &Pixmap) -> MaybeFromPool<Mask> {
-    info!("Starting task: convert Pixmap to AlphaChannel");
+    info!("Starting task: pixmap_to_mask");
     let mut mask = allocate_mask_for_overwrite(value.width(), value.height());
     let mask_pixels = mask.data_mut();
     for (index, pixel) in value.pixels().iter().enumerate() {
         mask_pixels[index] = pixel.alpha();
     }
-    info!("Finishing task: convert Pixmap to AlphaChannel");
+    info!("Finishing task: pixmap_to_mask");
     mask
 }
 

@@ -37,7 +37,7 @@ pub const COLOR_SVGS: &[&str] = &[
 
 pub fn from_svg(path: &PathBuf, width: u32) -> Result<MaybeFromPool<Pixmap>,CloneableError> {
     let path_str = path.to_string_lossy();
-    info!("Starting task: Import svg from {}", path_str);
+    info!("Starting task: from_svg({})", path_str);
     let svg = SVG_DIR.get_file(path).ok_or(anyhoo!(format!("File not found: {}", path_str)))?;
     let svg_tree = Tree::from_data(svg.contents(), &Options::default()).map_err(|error| anyhoo!(error))?;
     let view_box = svg_tree.view_box;
@@ -49,6 +49,6 @@ pub fn from_svg(path: &PathBuf, width: u32) -> Result<MaybeFromPool<Pixmap>,Clon
         Transform::default(),
         out.as_mut())
         .ok_or(anyhoo!("Failed to render output Pixmap"))?;
-    info!("Finishing task: Import svg from {}", path.to_string_lossy());
+    info!("Finishing task: from_svg({})", path_str);
     Ok(out)
 }
