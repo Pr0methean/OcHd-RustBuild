@@ -13,7 +13,6 @@ use zip_next::CompressionMethod::Deflated;
 use zip_next::write::FileOptions;
 use zip_next::{ZipWriter};
 
-use crate::{anyhoo};
 use crate::image_tasks::MaybeFromPool;
 use crate::image_tasks::task_spec::{CloneableError};
 
@@ -35,11 +34,11 @@ lazy_static!{
 pub fn png_output(image: MaybeFromPool<Pixmap>, file: &Path) -> Result<(),CloneableError> {
     let file_string = file.to_string_lossy();
     info!("Starting task: write {}", file_string);
-    let data = into_png(image).map_err(|error| anyhoo!(error))?;
-    let mut zip = ZIP.lock().map_err(|error| anyhoo!(error.to_string()))?;
+    let data = into_png(image)?;
+    let mut zip = ZIP.lock()?;
     let writer = zip.deref_mut();
-    writer.start_file(file.to_string_lossy(), *ZIP_OPTIONS).map_err(|error| anyhoo!(error))?;
-    writer.write(&data).map_err(|error| anyhoo!(error))?;
+    writer.start_file(file.to_string_lossy(), *ZIP_OPTIONS)?;
+    writer.write_all(&data)?;
     drop(zip);
     info!("Finishing task: write {}", file_string);
     Ok(())
@@ -49,8 +48,8 @@ pub fn copy_out_to_out(source: &Path, dest: &Path) -> Result<(),CloneableError> 
     let source_string = source.to_string_lossy();
     let dest_string = dest.to_string_lossy();
     info!("Starting task: copy {} to {}", &source_string, &dest_string);
-    let mut zip = ZIP.lock().map_err(|error| anyhoo!(error.to_string()))?;
-    zip.deep_copy_file(&source_string, &dest_string).map_err(|error| anyhoo!(error.to_string()))?;
+    let mut zip = ZIP.lock()?;
+    zip.deep_copy_file(&source_string, &dest_string)?;
     drop(zip);
     info!("Finishing task: copy {} to {}", &source_string, &dest_string);
     Ok(())
@@ -60,10 +59,10 @@ pub fn copy_in_to_out(source: &File, dest: &Path) -> Result<(),CloneableError> {
     let source_string = source.path().to_string_lossy();
     let dest_string = dest.to_string_lossy();
     info!("Starting task: copy {} to {}", source_string, dest_string);
-    let mut zip = ZIP.lock().map_err(|error| anyhoo!(error.to_string()))?;
+    let mut zip = ZIP.lock()?;
     let writer = zip.deref_mut();
-    writer.start_file(dest_string.clone(), *ZIP_OPTIONS).map_err(|error| anyhoo!(error))?;
-    writer.write_all(source.contents()).map_err(|error| anyhoo!(error))?;
+    writer.start_file(dest_string.clone(), *ZIP_OPTIONS)?;
+    writer.write_all(source.contents())?;
     drop(zip);
     info!("Finishing task: copy {} to {}", source_string, dest_string);
     Ok(())

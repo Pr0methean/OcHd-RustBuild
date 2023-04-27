@@ -39,7 +39,7 @@ pub fn from_svg(path: &PathBuf, width: u32) -> Result<MaybeFromPool<Pixmap>,Clon
     let path_str = path.to_string_lossy();
     info!("Starting task: from_svg({})", path_str);
     let svg = SVG_DIR.get_file(path).ok_or(anyhoo!(format!("File not found: {}", path_str)))?;
-    let svg_tree = Tree::from_data(svg.contents(), &Options::default()).map_err(|error| anyhoo!(error))?;
+    let svg_tree = Tree::from_data(svg.contents(), &Options::default())?;
     let view_box = svg_tree.view_box;
     let height = f64::from(width) * view_box.rect.height() / view_box.rect.width();
     let mut out = allocate_pixmap_empty(width, height as u32);

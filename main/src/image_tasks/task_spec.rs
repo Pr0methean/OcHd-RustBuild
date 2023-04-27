@@ -7,7 +7,6 @@ use std::ops::{Deref, DerefMut, Mul};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
-use anyhow::{Error};
 
 use cached::lazy_static::lazy_static;
 use crate::anyhoo;
@@ -345,8 +344,8 @@ pub struct CloneableError {
     message: String
 }
 
-impl From<Error> for CloneableError {
-    fn from(value: Error) -> Self {
+impl <T> From<T> for CloneableError where T: ToString {
+    fn from(value: T) -> Self {
         CloneableError {message: value.to_string()}
     }
 }
