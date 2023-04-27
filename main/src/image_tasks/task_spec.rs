@@ -474,9 +474,7 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
                         },
                     }
                 },
-                Err(e) => {
-                    Err(anyhoo!(e.to_string()))
-                }
+                Err(e) => Err(e.into())
             },
             Err(arc) => {
                 // We're not the last referent to this Lazy, so we need to make at least a shallow
@@ -499,9 +497,7 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
                             }
                         }
                     ),
-                    Err(e) => {
-                        Err(anyhoo!(e.to_string()))
-                    }
+                    Err(e) => Err(e.into())
                 }
             }
         }
