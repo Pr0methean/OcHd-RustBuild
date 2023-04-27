@@ -3,8 +3,9 @@ use std::io::{Cursor, Write};
 use std::mem;
 use std::ops::DerefMut;
 use std::path::{Path};
-use std::sync::{Mutex};
+use std::sync::{Arc, Mutex};
 use lazy_static::lazy_static;
+use lockfree_object_pool::{LinearObjectPool, LinearOwnedReusable};
 use log::info;
 
 use tiny_skia::{Pixmap};
@@ -25,6 +26,10 @@ lazy_static!{
     pub static ref ZIP: Mutex<ZipWriter<ZipBufferRaw>> = Mutex::new(ZipWriter::new(Cursor::new(
         Vec::with_capacity(1024 * 1024)
     )));
+    static ref PNG_BUFFER_POOL: Arc<LinearObjectPool<Vec<u8>>> = Arc::new(LinearObjectPool::new(
+        || Vec::with_capacity(1024 * 1024),
+        |vec| vec.clear()
+));
 }
 
 pub fn png_output(image: MaybeFromPool<Pixmap>, file: &Path) -> Result<(),CloneableError> {
@@ -66,7 +71,7 @@ pub fn copy_in_to_out(source: &File, dest: &Path) -> Result<(),CloneableError> {
 
 /// Forked from https://docs.rs/tiny-skia/latest/src/tiny_skia/pixmap.rs.html#390 to eliminate the
 /// copy and pre-allocate the byte vector.
-pub fn into_png(mut image: MaybeFromPool<Pixmap>) -> Result<Vec<u8>, png::EncodingError> {
+pub fn into_png(mut image: MaybeFromPool<Pixmap>) -> Result<LinearOwnedReusable<Vec<u8>>, png::EncodingError> {
     for pixel in image.pixels_mut() {
         unsafe {
             // Treat this PremultipliedColorU8 slice as a ColorU8 slice
@@ -74,7 +79,8 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>) -> Result<Vec<u8>, png::Encodi
         }
     }
 
-    let mut data = Vec::with_capacity(1024 * 1024);
+    let mut reusable = PNG_BUFFER_POOL.pull_owned();
+    let mut data = reusable.deref_mut();
     {
         let mut encoder = png::Encoder::new(&mut data, image.width(), image.height());
         encoder.set_color(png::ColorType::Rgba);
@@ -83,5 +89,5 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>) -> Result<Vec<u8>, png::Encodi
         writer.write_image_data(image.data())?;
     }
 
-    Ok(data)
+    Ok(reusable)
 }
