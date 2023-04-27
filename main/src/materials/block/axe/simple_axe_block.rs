@@ -33,6 +33,12 @@ single_texture_block!(LADDER = ComparableColor::TRANSPARENT,
 single_texture_block!(BOOKSHELF = OAK.color,
     from_svg_task("bookShelves")
 );
+single_texture_block!(CHISELED_BOOKSHELF_EMPTY = OAK.color,
+    from_svg_task("bookShelvesChiseledEmpty")
+);
+single_texture_block!(CHISELED_BOOKSHELF = OAK.color,
+    from_svg_task("bookShelvesChiseled")
+);
 single_texture_block!(JUKEBOX_TOP = OAK.color,
     paint_svg_task("borderSolidThick", OAK.highlight),
     paint_svg_task("borderDotted", OAK.shadow),
@@ -63,5 +69,6 @@ single_texture_block!(COMPOSTER_SIDE = OAK.color,
     paint_svg_task("borderDotted", OAK.highlight)
 );
 group!(SIMPLE_AXE_BLOCK = CRAFTING_TABLE_SIDE, CRAFTING_TABLE_TOP, CRAFTING_TABLE_FRONT,
-    LADDER, BOOKSHELF, JUKEBOX_TOP, JUKEBOX_SIDE, NOTE_BLOCK,
+    LADDER, BOOKSHELF, CHISELED_BOOKSHELF_EMPTY, CHISELED_BOOKSHELF,
+    JUKEBOX_TOP, JUKEBOX_SIDE, NOTE_BLOCK,
     COMPOSTER_BOTTOM, COMPOSTER_TOP, COMPOSTER_SIDE);
