@@ -1,12 +1,10 @@
-
 use log::info;
 use tiny_skia::{BlendMode, Mask, Paint, Pixmap, PixmapPaint};
 use tiny_skia_path::{Rect, Transform};
 
 use crate::image_tasks::color::ComparableColor;
-use crate::image_tasks::MaybeFromPool;
 
-pub fn stack_layer_on_layer(background: &mut MaybeFromPool<Pixmap>, foreground: &MaybeFromPool<Pixmap>) {
+pub fn stack_layer_on_layer(background: &mut Pixmap, foreground: &Pixmap) {
     info!("Starting task: stack_layer_on_layer");
     background.draw_pixmap(0, 0, foreground.as_ref(), &PixmapPaint::default(),
                        Transform::default(), None);
