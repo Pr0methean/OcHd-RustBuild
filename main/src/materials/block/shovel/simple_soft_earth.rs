@@ -11,7 +11,8 @@ block_with_colors!(SAND = c(0xdfd5aa), c(0xd1ba8a), c(0xeaead0),
 block_with_colors!(GRAVEL = c(0x737373), c(0x515151), c(0xaaaaaa),
     color!(),
     paint_svg_task("checksLarge", highlight!()),
-    paint_svg_task("diagonalChecksFillBottomLeftTopRight", shadow!())
+    paint_stack!(shadow!(), "diagonalChecksTopLeftBottomRight", "diagonalChecksFillBottomLeftTopRight"),
+    paint_svg_task("diagonalChecksFillerSquaresTopLeftBottomRight", highlight!())
 );
 block_with_colors!(RED_SAND = c(0xbf6721), c(0xac5700), c(0xd97b30),
     color!(),
