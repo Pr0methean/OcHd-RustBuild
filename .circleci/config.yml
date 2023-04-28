@@ -15,24 +15,17 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - cargo-deps-{{ checksum "main/Cargo.toml" }}
-            - cargo-deps
+            - cargo-rel-{{ checksum "main/Cargo.toml" }}
+            - cargo-rel
           paths:
             - /home/circleci/.cargo
-            - main/target/debug/deps
-            - main/target/debug/incremental
             - main/target/release/deps
+            - main/target/release/incremental
       - rust/install:
           version: nightly
-      - run: |
-          cd main
-          cargo clippy || true
       - rust/build:
           with_cache: false
           release: true
-          working_directory: main
-      - rust/test:
-          with_cache: false
           working_directory: main
       - persist_to_workspace:
           root: main/target/release
@@ -42,19 +35,47 @@ jobs:
           path: main/target/release/ochd
           destination: "OcHd"
       - save_cache:
-          key: cargo-deps
+          key: cargo-rel
           paths:
             - /home/circleci/.cargo
-            - main/target/debug/deps
-            - main/target/debug/incremental
             - main/target/release/deps
+            - main/target/release/incremental
       - save_cache:
-          key: cargo-deps-{{ checksum "main/Cargo.toml" }}
+          key: cargo-rel-{{ checksum "main/Cargo.toml" }}
           paths:
             - /home/circleci/.cargo
-            - main/target/debug/deps
-            - main/target/debug/incremental
             - main/target/release/deps
+            - main/target/release/incremental
+  unit_tests:
+    - checkout
+    - restore_cache:
+        keys:
+          - cargo-dbg-{{ checksum "main/Cargo.toml" }}
+          - cargo-dbg
+        paths:
+          - /home/circleci/.cargo
+          - main/target/debug/deps
+          - main/target/debug/incremental
+    - rust/install:
+        version: nightly
+    - run: |
+        cd main
+        cargo clippy || true
+    - rust/test:
+        with_cache: false
+        working_directory: main
+    - save_cache:
+        key: cargo-dbg
+        paths:
+          - /home/circleci/.cargo
+          - main/target/debug/deps
+          - main/target/debug/incremental
+    - save_cache:
+        key: cargo-dbg-{{ checksum "main/Cargo.toml" }}
+        paths:
+          - /home/circleci/.cargo
+          - main/target/debug/deps
+          - main/target/debug/incremental
   execute:
     parameters:
       size:
@@ -79,6 +100,7 @@ workflows:
   build-and-execute:
     jobs:
       - build
+      - unit_tests
       - execute:
           requires:
             - build
