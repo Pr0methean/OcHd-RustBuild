@@ -47,35 +47,39 @@ jobs:
             - main/target/release/deps
             - main/target/release/incremental
   unit_tests:
-    - checkout
-    - restore_cache:
-        keys:
-          - cargo-dbg-{{ checksum "main/Cargo.toml" }}
-          - cargo-dbg
-        paths:
-          - /home/circleci/.cargo
-          - main/target/debug/deps
-          - main/target/debug/incremental
-    - rust/install:
-        version: nightly
-    - run: |
-        cd main
-        cargo clippy || true
-    - rust/test:
-        with_cache: false
-        working_directory: main
-    - save_cache:
-        key: cargo-dbg
-        paths:
-          - /home/circleci/.cargo
-          - main/target/debug/deps
-          - main/target/debug/incremental
-    - save_cache:
-        key: cargo-dbg-{{ checksum "main/Cargo.toml" }}
-        paths:
-          - /home/circleci/.cargo
-          - main/target/debug/deps
-          - main/target/debug/incremental
+    machine:
+      image: ubuntu-2004:current
+    resource_class: arm.large
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - cargo-dbg-{{ checksum "main/Cargo.toml" }}
+            - cargo-dbg
+          paths:
+            - /home/circleci/.cargo
+            - main/target/debug/deps
+            - main/target/debug/incremental
+      - rust/install:
+          version: nightly
+      - run: |
+          cd main
+          cargo clippy || true
+      - rust/test:
+          with_cache: false
+          working_directory: main
+      - save_cache:
+          key: cargo-dbg
+          paths:
+            - /home/circleci/.cargo
+            - main/target/debug/deps
+            - main/target/debug/incremental
+      - save_cache:
+          key: cargo-dbg-{{ checksum "main/Cargo.toml" }}
+          paths:
+            - /home/circleci/.cargo
+            - main/target/debug/deps
+            - main/target/debug/incremental
   execute:
     parameters:
       size:
