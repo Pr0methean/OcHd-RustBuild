@@ -51,7 +51,7 @@ single_texture_block!(JUKEBOX_SIDE = OAK.highlight,
     paint_stack!(OAK.shadow, "strokeTopLeftBottomRight4", "strokeBottomLeftTopRight4xorBorder")
 );
 single_texture_block!(NOTE_BLOCK = ComparableColor::TRANSPARENT,
-    JUKEBOX_SIDE.texture.to_owned(),
+    JUKEBOX_SIDE.texture(),
     paint_svg_task("note", DARK_OAK.shadow)
 );
 // Compost textures are part of DirtGroundCover.PODZOL
@@ -74,16 +74,16 @@ single_texture_block!(BEEHIVE_END = ComparableColor::TRANSPARENT,
     paint_svg_task("honeycomb", BIRCH.shadow)
 );
 single_texture_block!(BEEHIVE_SIDE = ComparableColor::TRANSPARENT,
-    BEEHIVE_END.texture.to_owned(),
+    BEEHIVE_END.texture(),
     paint_svg_task("topPart", BIRCH.shadow),
     paint_svg_task("topStripeThick", BIRCH.color)
 );
 single_texture_block!(BEEHIVE_FRONT = ComparableColor::TRANSPARENT,
-    BEEHIVE_SIDE.texture.to_owned(),
+    BEEHIVE_SIDE.texture(),
     from_svg_task("beehiveEntrance")
 );
 single_texture_block!(BEEHIVE_FRONT_HONEY = ComparableColor::TRANSPARENT,
-    BEEHIVE_SIDE.texture.to_owned(),
+    BEEHIVE_SIDE.texture(),
     paint_svg_task("beehiveEntrance", HONEYCOMB_BORDER)
 );
 single_texture_block!(BEE_NEST_SIDE = HONEYCOMB_BORDER,

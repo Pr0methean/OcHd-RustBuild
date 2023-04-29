@@ -64,7 +64,16 @@ macro_rules! group {
 pub struct SingleTextureMaterial {
     pub name: &'static str,
     pub directory: &'static str,
-    pub texture: ToPixmapTaskSpec
+    texture: ToPixmapTaskSpec
+}
+
+impl SingleTextureMaterial {
+    pub fn texture(&self) -> ToPixmapTaskSpec {
+        self.texture.to_owned()
+    }
+    pub fn new(name: &'static str, directory: &'static str, texture: ToPixmapTaskSpec) -> Self {
+        SingleTextureMaterial {name, directory, texture}
+    }
 }
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
@@ -102,7 +111,7 @@ impl From<SingleTextureMaterial> for ToPixmapTaskSpec {
 impl Material for SingleTextureMaterial {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         vec![out_task(&format!("{}/{}", self.directory, self.name),
-                          self.texture.to_owned())]
+                          self.texture())]
     }
 }
 
@@ -111,11 +120,11 @@ macro_rules! material {
     ($name:ident = $directory:expr, $texture:expr) => {
         lazy_static::lazy_static! {
             pub static ref $name: $crate::texture_base::material::SingleTextureMaterial =
-                    $crate::texture_base::material::SingleTextureMaterial {
-                name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
-                directory: $directory,
-                texture: $texture.into()
-            };
+                    $crate::texture_base::material::SingleTextureMaterial::new(
+                const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
+                $directory,
+                $texture.into()
+            );
         }
     }
 }
@@ -123,7 +132,8 @@ macro_rules! material {
 #[macro_export]
 macro_rules! single_texture_material {
     ($name:ident = $directory:expr, $background:expr, $( $layers:expr ),* ) => {
-        $crate::material!($name = $directory, $crate::stack_on!($background, $($layers),*));
+        $crate::material!(
+            $name = $directory, $crate::stack_on!($background, $($layers),*));
     }
 }
 
@@ -141,9 +151,7 @@ macro_rules! single_layer_material {
 
 #[allow(dead_code)]
 pub fn item(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMaterial {
-    SingleTextureMaterial {
-        name, directory: "item", texture
-    }
+    SingleTextureMaterial::new(name, "item", texture)
 }
 
 #[macro_export]
@@ -163,9 +171,7 @@ macro_rules! single_layer_item {
 }
 
 pub fn block(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMaterial {
-    SingleTextureMaterial {
-        name, directory: "block", texture
-    }
+    SingleTextureMaterial::new(name, "block", texture)
 }
 
 #[macro_export]
@@ -187,9 +193,7 @@ macro_rules! single_layer_block {
 
 #[allow(dead_code)]
 pub fn particle(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMaterial {
-    SingleTextureMaterial {
-        name, directory: "particle", texture
-    }
+    SingleTextureMaterial::new(name, "particle", texture)
 }
 
 #[macro_export]
@@ -256,11 +260,11 @@ macro_rules! block_with_colors {
                     shadow: shadow!(),
                     highlight: highlight!()
                 },
-                material: $crate::texture_base::material::SingleTextureMaterial {
-                    name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
-                    directory: "block",
-                    texture: $crate::stack_on!($background, $($layers),*).into()
-                }
+                material: $crate::texture_base::material::SingleTextureMaterial::new(
+                    const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
+                    "block",
+                    $crate::stack_on!($background, $($layers),*).into()
+                )
             };
         }
     }
@@ -353,7 +357,7 @@ pub fn ground_cover_block(name: &'static str,
                           top: ToPixmapTaskSpec
 )->GroundCoverBlock {
     GroundCoverBlock {
-        name, top_name_suffix, base: base.texture.to_owned(),
+        name, top_name_suffix, base: base.texture(),
         colors: ColorTriad {color, shadow, highlight},
         cover_side, top
     }

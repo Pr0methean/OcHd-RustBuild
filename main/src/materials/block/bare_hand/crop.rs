@@ -8,11 +8,13 @@ use crate::texture_base::material::{Material, TextureSupplier};
 const VEG_LEAVES_SHADOW: ComparableColor = c(0x256325);
 const VEG_LEAVES_HIGHLIGHT: ComparableColor = c(0x55ff2d);
 
+type CropTextureSupplier = Box<dyn Fn(&Crop, u8) -> ToPixmapTaskSpec + Send + Sync>;
+
 struct Crop {
     name: &'static str,
     stages: u8,
     color: ComparableColor,
-    create_texture_for_growing_stage: Box<dyn Fn(&Crop, u8) -> ToPixmapTaskSpec + Send + Sync>,
+    create_texture_for_growing_stage: CropTextureSupplier,
     create_texture_for_final_stage: TextureSupplier<Crop>
 }
 

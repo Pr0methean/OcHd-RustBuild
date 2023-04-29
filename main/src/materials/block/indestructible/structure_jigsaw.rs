@@ -12,7 +12,7 @@ macro_rules! sjs {
     ($name:ident = $layer_name:expr) => {
         sj!($name =
             ComparableColor::TRANSPARENT,
-            JIGSAW_BOTTOM.material.texture.to_owned(),
+            JIGSAW_BOTTOM.material.texture(),
             paint_svg_task($layer_name, highlight!())
         );
     }
@@ -26,13 +26,13 @@ sjs!(STRUCTURE_BLOCK_CORNER = "cornerCrosshairs");
 sjs!(STRUCTURE_BLOCK_DATA = "data");
 sj!(STRUCTURE_BLOCK_LOAD =
     ComparableColor::TRANSPARENT,
-    JIGSAW_BOTTOM.material.texture.to_owned(),
+    JIGSAW_BOTTOM.material.texture(),
     paint_svg_task("folder", color!()),
     paint_svg_task("loadArrow", highlight!())
 );
 sj!(STRUCTURE_BLOCK_SAVE =
     ComparableColor::TRANSPARENT,
-    JIGSAW_BOTTOM.material.texture.to_owned(),
+    JIGSAW_BOTTOM.material.texture(),
     paint_svg_task("folder", color!()),
     paint_svg_task("saveArrow", highlight!())
 );

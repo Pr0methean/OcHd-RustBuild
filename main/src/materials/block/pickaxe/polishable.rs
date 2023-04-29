@@ -7,13 +7,17 @@ use crate::texture_base::material::{ColorTriad, Material, TricolorMaterial};
 pub struct PolishableBlock {
     pub name: &'static str,
     pub colors: ColorTriad,
-    pub texture: ToPixmapTaskSpec,
+    texture: ToPixmapTaskSpec,
 }
 
 impl PolishableBlock {
+    pub fn texture(&self) -> ToPixmapTaskSpec {
+        self.texture.to_owned()
+    }
+
     fn polished_texture(&self) -> ToPixmapTaskSpec {
         stack!(
-            self.texture.to_owned(),
+            self.texture(),
             paint_svg_task("borderSolid", self.colors.shadow),
             paint_svg_task("borderSolidTopLeft", self.colors.highlight)
         )
@@ -23,7 +27,7 @@ impl PolishableBlock {
 impl Material for PolishableBlock {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         vec![
-            out_task(&format!("block/{}", self.name), self.texture.to_owned()),
+            out_task(&format!("block/{}", self.name), self.texture()),
             out_task(&format!("block/polished_{}", self.name), self.polished_texture()),
         ]
     }

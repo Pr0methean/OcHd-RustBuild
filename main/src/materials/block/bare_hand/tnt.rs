@@ -9,7 +9,7 @@ tnt!(TNT_BOTTOM = ComparableColor::BLACK,
 );
 
 tnt!(TNT_TOP = ComparableColor::TRANSPARENT,
-    TNT_BOTTOM.material.texture.to_owned(),
+    TNT_BOTTOM.material.texture(),
     from_svg_task("tntFuzes")
 );
 

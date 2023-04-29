@@ -10,14 +10,14 @@ use crate::texture_base::material::{SingleTextureMaterial, TricolorMaterial};
 use crate::texture_base::material::block;
 
 single_texture_block!(DEEPSLATE_BRICKS = ComparableColor::TRANSPARENT,
-    DEEPSLATE.material.texture.to_owned(),
+    DEEPSLATE.material.texture(),
     paint_svg_task("bricksSmall", DEEPSLATE.shadow()),
     paint_svg_task("borderDotted", DEEPSLATE.highlight()),
     paint_svg_task("borderDottedBottomRight", DEEPSLATE.shadow())
 );
 
 single_texture_block!(DEEPSLATE_TOP = ComparableColor::TRANSPARENT,
-        DEEPSLATE.material.texture.to_owned(),
+        DEEPSLATE.material.texture(),
         paint_svg_task("cross", DEEPSLATE.shadow()),
         paint_svg_task("borderSolid", DEEPSLATE.highlight())
 );
@@ -127,7 +127,7 @@ sandstone!(CUT_SANDSTONE =
 
 sandstone!(CHISELED_SANDSTONE =
     ComparableColor::TRANSPARENT,
-    CUT_SANDSTONE.material.texture.to_owned(),
+    CUT_SANDSTONE.material.texture(),
     paint_svg_task("creeperFaceSmall", shadow!())
 );
 
@@ -165,7 +165,7 @@ red_sandstone!(CUT_RED_SANDSTONE =
 
 red_sandstone!(CHISELED_RED_SANDSTONE =
     ComparableColor::TRANSPARENT,
-    CUT_RED_SANDSTONE.material.texture.to_owned(),
+    CUT_RED_SANDSTONE.material.texture(),
     paint_svg_task("witherSymbol", shadow!())
 );
 
@@ -262,7 +262,7 @@ stone!(STONE_BRICKS =
 
 stone!(CRACKED_STONE_BRICKS =
     ComparableColor::TRANSPARENT,
-    STONE_BRICKS.material.texture.to_owned(),
+    STONE_BRICKS.material.texture(),
     paint_svg_task("streaks", extreme_shadow!())
 );
 
@@ -343,7 +343,7 @@ amethyst!(AMETHYST_BLOCK =
 );
 
 single_texture_block!(BUDDING_AMETHYST = ComparableColor::TRANSPARENT,
-    AMETHYST_BLOCK.material.texture.to_owned(),
+    AMETHYST_BLOCK.material.texture(),
     paint_svg_task("buddingAmethystCenter", c(0x462b7d))
 );
 

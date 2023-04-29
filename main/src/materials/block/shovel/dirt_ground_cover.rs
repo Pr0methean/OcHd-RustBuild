@@ -87,7 +87,7 @@ block_with_colors!(GRASS_BLOCK_SNOW =
     POWDER_SNOW.highlight(),
 
     ComparableColor::TRANSPARENT,
-    DIRT.material.texture.to_owned(),
+    DIRT.material.texture(),
     paint_svg_task("topPart", color!()),
     paint_svg_task("diagonalChecksTopLeft", shadow!()),
     paint_stack!(highlight!(), "diagonalChecksTopRight",

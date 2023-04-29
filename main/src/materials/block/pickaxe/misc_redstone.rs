@@ -8,7 +8,7 @@ use crate::texture_base::material::TricolorMaterial;
 
 lazy_static!{
     static ref RC_BASE: ToPixmapTaskSpec = stack!(
-        SMOOTH_STONE.material.texture.to_owned(),
+        SMOOTH_STONE.material.texture(),
         paint_svg_task("repeaterSideInputs", ComparableColor::STONE_SHADOW)
     );
 }

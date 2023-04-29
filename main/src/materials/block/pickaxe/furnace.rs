@@ -10,12 +10,12 @@ single_texture_block!(FURNACE_SIDE =
 );
 single_texture_block!(FURNACE_FRONT =
     ComparableColor::TRANSPARENT,
-    FURNACE_SIDE.texture.to_owned(),
+    FURNACE_SIDE.texture(),
     paint_svg_task("furnaceFrontLit", ComparableColor::BLACK)
 );
 single_texture_block!(FURNACE_FRONT_ON =
     ComparableColor::TRANSPARENT,
-    FURNACE_SIDE.texture.to_owned(),
+    FURNACE_SIDE.texture(),
     from_svg_task("furnaceFrontLit")
 );
 single_texture_block!(BLAST_FURNACE_TOP =
@@ -30,7 +30,7 @@ single_texture_block!(BLAST_FURNACE =
 
 lazy_static! {
     static ref BLAST_FURNACE_FRONT_BASE: ToPixmapTaskSpec = stack!(
-        BLAST_FURNACE.texture.to_owned(),
+        BLAST_FURNACE.texture(),
         paint_svg_task("craftingGridSquare", ComparableColor::STONE_EXTREME_HIGHLIGHT)
     );
 }

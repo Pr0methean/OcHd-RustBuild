@@ -15,13 +15,13 @@ block_with_colors!(BEDROCK =
 
 single_texture_block!(END_PORTAL_FRAME_SIDE =
     ComparableColor::TRANSPARENT,
-    END_STONE.material.texture.to_owned(),
+    END_STONE.material.texture(),
     paint_svg_task("endPortalFrameSide", c(0x26002a))
 );
 
 single_texture_block!(END_PORTAL_FRAME_TOP =
     ComparableColor::TRANSPARENT,
-    END_STONE.material.texture.to_owned(),
+    END_STONE.material.texture(),
     paint_svg_task("endPortalFrameTop", c(0x26002a)),
     from_svg_task("railDetector") // Good shape & size for pearl hole
 );
