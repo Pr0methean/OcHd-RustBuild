@@ -12,7 +12,7 @@ mod biome_colorized_plant;
 mod cave_vines;
 mod crop;
 mod sunflower;
-mod simple_bare_hand_block;
+pub mod simple_bare_hand_block;
 mod tnt;
 mod torch;
 mod wool;

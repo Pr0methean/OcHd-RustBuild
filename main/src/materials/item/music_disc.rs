@@ -38,7 +38,6 @@ impl Material for MusicDisc {
 }
 
 single_texture_item!(MUSIC_DISC_11 =
-    ComparableColor::TRANSPARENT,
     paint_svg_task("musicDiscBroken", ComparableColor::DARKEST_GRAY),
     paint_svg_task("musicDiscGrooveBroken", ComparableColor::STONE_EXTREME_SHADOW)
 );

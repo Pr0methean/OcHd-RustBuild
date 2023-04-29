@@ -578,6 +578,7 @@ pub fn paint_svg_task(name: &str, color: ComparableColor) -> ToPixmapTaskSpec {
                color)
 }
 
+#[allow(dead_code)]
 pub fn semitrans_svg_task(name: &str, alpha: f32) -> ToAlphaChannelTaskSpec {
     ToAlphaChannelTaskSpec::MakeSemitransparent {
         base: Box::new(ToAlphaChannelTaskSpec::FromPixmap {

@@ -1,7 +1,7 @@
 use crate::group;
 
 mod axe;
-mod bare_hand;
+pub(crate) mod bare_hand;
 mod hoe;
 mod indestructible;
 mod liquid;

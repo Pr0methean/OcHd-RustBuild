@@ -21,8 +21,8 @@ pub struct Wood {
     leaves_synonym: &'static str,
     sapling_synonym: &'static str,
     name: &'static str,
-    planks_highlight_strength: f32,
-    planks_shadow_strength: f32,
+    grain_highlight_strength: f32,
+    grain_shadow_strength: f32,
     bark: TextureSupplier<Wood>,
     stripped_log_side: TextureSupplier<Wood>,
     log_top: TextureUnaryFunc<Wood>,
@@ -36,10 +36,15 @@ pub struct Wood {
 }
 
 impl Wood {
-    pub fn planks(&self) -> ToPixmapTaskSpec {
+    pub fn grain(&self) -> ToPixmapTaskSpec {
         stack_on!(self.color,
-                paint_svg_task("waves2", self.highlight * self.planks_highlight_strength),
-                paint_svg_task("waves", self.shadow * self.planks_shadow_strength),
+                paint_svg_task("waves2", self.highlight * self.grain_highlight_strength),
+                paint_svg_task("waves", self.shadow * self.grain_shadow_strength)
+        )
+    }
+
+    pub fn planks(&self) -> ToPixmapTaskSpec {
+        stack!(self.grain(),
                 paint_svg_task("planksTopBorder", self.shadow),
                 paint_svg_task("borderShortDashes", self.highlight)
         )
@@ -62,7 +67,7 @@ impl Wood {
     }
 
     pub fn overworld_stripped_log_side(&self) -> ToPixmapTaskSpec {
-        stack_on!(self.color,
+        stack!(self.grain(),
             paint_svg_task("borderSolid", self.shadow),
             paint_svg_task("borderShortDashes", self.highlight)
         )
@@ -71,7 +76,8 @@ impl Wood {
     pub fn fungus_stripped_log_side(&self) -> ToPixmapTaskSpec {
         stack_on!(self.color,
             paint_svg_task("borderSolid", self.shadow),
-            paint_svg_task("borderDotted", self.highlight))
+            paint_stack!(self.highlight, "borderDotted", "zigzagBroken")
+        )
     }
 
     pub fn overworld_stripped_log_top(&self) -> ToPixmapTaskSpec {
@@ -161,8 +167,8 @@ pub fn overworld_wood(name: &'static str, color: ComparableColor,
         leaves_synonym: "leaves",
         sapling_synonym: "sapling",
         name,
-        planks_highlight_strength: 0.5,
-        planks_shadow_strength: 0.5,
+        grain_highlight_strength: 0.5,
+        grain_shadow_strength: 0.5,
         bark: Box::new(Wood::overworld_bark),
         stripped_log_side: Box::new(Wood::overworld_stripped_log_side),
         log_top: Box::new(Wood::overworld_log_top),
@@ -198,8 +204,8 @@ pub fn nether_fungus(name: &'static str, color: ComparableColor,
         log_synonym: "stem",
         leaves_synonym: "wart_block",
         sapling_synonym: "fungus",
-        planks_highlight_strength: 0.75,
-        planks_shadow_strength: 0.75,
+        grain_highlight_strength: 0.75,
+        grain_shadow_strength: 0.75,
         name,
         bark: Box::new(Wood::fungus_bark),
         stripped_log_side: Box::new(Wood::fungus_stripped_log_side),
@@ -290,7 +296,7 @@ lazy_static! {pub static ref BIRCH: Wood = {
             paint_svg_task("saplingLeaves", c(0x6c9e38))
         )),
     );
-    base.planks_highlight_strength = 1.0;
+    base.grain_highlight_strength = 1.0;
     base
 };}
 lazy_static! {pub static ref DARK_OAK: Wood = overworld_wood(
@@ -364,8 +370,8 @@ lazy_static!{pub static ref JUNGLE: Wood = {
             paint_svg_task("acaciaSapling", c(0x378020))
         )),
     );
-    base.planks_shadow_strength = 1.0;
-    base.planks_highlight_strength = 1.0;
+    base.grain_shadow_strength = 1.0;
+    base.grain_highlight_strength = 1.0;
     base
 };}
 lazy_static!{pub static ref MANGROVE: Wood = {

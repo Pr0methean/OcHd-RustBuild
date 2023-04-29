@@ -139,6 +139,7 @@ macro_rules! single_layer_material {
     };
 }
 
+#[allow(dead_code)]
 pub fn item(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMaterial {
     SingleTextureMaterial {
         name, directory: "item", texture
@@ -147,8 +148,10 @@ pub fn item(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMater
 
 #[macro_export]
 macro_rules! single_texture_item {
-    ($name:ident = $background:expr, $( $layers:expr ),* ) => {
-        $crate::single_texture_material!($name = "item", $background, $($layers),*);
+    ($name:ident = $( $layers:expr ),* ) => {
+        $crate::single_texture_material!($name = "item",
+            $crate::image_tasks::color::ComparableColor::TRANSPARENT,
+            $($layers),*);
     }
 }
 
@@ -174,11 +177,15 @@ macro_rules! single_texture_block {
 
 #[macro_export]
 macro_rules! single_layer_block {
-    ($name:ident = $($layer_name_and_maybe_color:expr),+ ) => {
-        $crate::single_layer_material!($name = "block", $($layer_name_and_maybe_color),+);
-    }
+    ($name:ident = $layer_name:expr, $color:expr ) => {
+        $crate::single_layer_material!($name = "block", $layer_name, $color);
+    };
+    ($name:ident = $layer_name:expr) => {
+        $crate::single_layer_material!($name = "block", $layer_name);
+    };
 }
 
+#[allow(dead_code)]
 pub fn particle(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMaterial {
     SingleTextureMaterial {
         name, directory: "particle", texture
