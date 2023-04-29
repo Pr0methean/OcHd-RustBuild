@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::ops::Mul;
@@ -9,12 +10,37 @@ use tiny_skia::PremultipliedColorU8;
 
 /// Wrapper around [ColorU8] that implements important missing traits such as [Eq], [Hash], [Copy],
 /// [Clone] and [Ord]. Represents a 24-bit sRGB color + 8-bit alpha value (not premultiplied).
-#[derive(Eq, Debug, Copy, Clone, Ord, PartialOrd)]
+#[derive(Eq, Debug, Copy, Clone)]
 pub struct ComparableColor {
     red: u8,
     green: u8,
     blue: u8,
     alpha: u8,
+}
+
+impl PartialOrd for ComparableColor {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ComparableColor {
+    fn cmp(&self, other: &Self) -> Ordering {
+        if self.alpha == 0 && other.alpha == 0 {
+            Ordering::Equal
+        }
+        let mut ordering = self.alpha.cmp(*(other.alpha));
+        if ordering == Ordering::Equal {
+            ordering = self.blue.cmp(*(other.blue));
+            if ordering == Ordering::Equal {
+                ordering = self.green.cmp(*(other.green));
+                if ordering == Ordering::Equal {
+                    ordering = self.red.cmp(*(other.red));
+                }
+            }
+        }
+        ordering
+    }
 }
 
 impl ComparableColor {
