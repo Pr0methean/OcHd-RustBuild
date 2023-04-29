@@ -11,7 +11,7 @@ tiny-skia-path = "0.9.0"
 resvg = "0.32.0"
 fn_graph = { version = "0.8.2" }
 usvg = "0.32.0"
-anyhow = "1.0.70"
+anyhow = "1.0.71"
 cached = "0.43.0"
 ordered-float = "3.7.0"
 lazy_static = "1.4.0"
@@ -27,4 +27,4 @@ lockfree-object-pool = "0.1.4"
 png = "0.17.8"
 include_dir = "0.7.3"
 tikv-jemallocator = "0.5.0"
-zip_next = {version = "0.6.7"}
+zip_next = {version = "0.6.8"}
