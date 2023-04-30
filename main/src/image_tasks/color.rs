@@ -27,15 +27,15 @@ impl PartialOrd for ComparableColor {
 impl Ord for ComparableColor {
     fn cmp(&self, other: &Self) -> Ordering {
         if self.alpha == 0 && other.alpha == 0 {
-            Ordering::Equal
+            return Ordering::Equal;
         }
-        let mut ordering = self.alpha.cmp(*(other.alpha));
+        let mut ordering = self.alpha.cmp(&other.alpha);
         if ordering == Ordering::Equal {
-            ordering = self.blue.cmp(*(other.blue));
+            ordering = self.blue.cmp(&other.blue);
             if ordering == Ordering::Equal {
-                ordering = self.green.cmp(*(other.green));
+                ordering = self.green.cmp(&other.green);
                 if ordering == Ordering::Equal {
-                    ordering = self.red.cmp(*(other.red));
+                    ordering = self.red.cmp(&other.red);
                 }
             }
         }

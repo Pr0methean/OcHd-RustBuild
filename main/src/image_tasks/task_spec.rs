@@ -20,7 +20,7 @@ use ordered_float::OrderedFloat;
 use petgraph::graph::{IndexType, NodeIndex};
 use replace_with::replace_with_and_return;
 
-use tiny_skia::{Mask, Pixmap};
+use tiny_skia::{Color, Mask, Pixmap};
 
 use crate::image_tasks::animate::animate;
 use crate::image_tasks::color::ComparableColor;
@@ -76,7 +76,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                 if *background == ComparableColor::TRANSPARENT {
                     return foreground.add_to(ctx);
                 }
-                let background = background.to_owned();
+                let background: Color = (*background).into();
                 let (fg_index, fg_future) = foreground.add_to(ctx);
                 (vec![fg_index],
                 Box::new(move || {
@@ -120,8 +120,8 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                         && base_of_base.is_all_black() {
                     return base_of_base.add_to(ctx);
                 }
-                let color = color.to_owned();
                 let (base_index, base_future) = base.add_to(ctx);
+                let color: Color = (*color).into();
                 (vec![base_index],
                 Box::new(move || {
                     let base_image: Arc<Box<MaybeFromPool<Mask>>> = base_future.into_result()?;

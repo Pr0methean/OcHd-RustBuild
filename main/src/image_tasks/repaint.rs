@@ -2,12 +2,11 @@ use std::sync::Arc;
 use lazy_static::lazy_static;
 use lockfree_object_pool::LinearObjectPool;
 use log::info;
-use tiny_skia::{Mask, Paint, Pixmap};
+use tiny_skia::{Color, Mask, Paint, Pixmap};
 use tiny_skia_path::{Rect, Transform};
 use crate::{anyhoo, TILE_SIZE};
 
 use crate::image_tasks::{allocate_pixmap_empty, MaybeFromPool};
-use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::MaybeFromPool::NotFromPool;
 use crate::image_tasks::task_spec::{CloneableError};
 
@@ -49,16 +48,16 @@ pub fn pixmap_to_mask(value: &Pixmap) -> MaybeFromPool<Mask> {
 }
 
 /// Applies the given [color] to the given [input](alpha channel).
-pub fn paint(input: &Mask, color: ComparableColor) -> Result<Box<MaybeFromPool<Pixmap>>, CloneableError> {
-    info!("Starting task: paint with color {}", color);
+pub fn paint(input: &Mask, color: Color) -> Result<Box<MaybeFromPool<Pixmap>>, CloneableError> {
+    info!("Starting task: paint with color {:?}", color);
     let mut output = allocate_pixmap_empty(input.width(), input.height());
     let mut paint = Paint::default();
-    paint.set_color(color.into());
+    paint.set_color(color);
     output.fill_rect(Rect::from_ltrb(0.0, 0.0, input.width() as f32, input.height() as f32)
                          .ok_or(anyhoo!("Failed to create rectangle for paint()"))?,
                      &paint, Transform::default(),
                      Some(input));
-    info!("Finishing task: paint with color {}", color);
+    info!("Finishing task: paint with color {:?}", color);
     Ok(Box::new(output))
 }
 

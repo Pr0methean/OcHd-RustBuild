@@ -1,8 +1,6 @@
 use log::info;
-use tiny_skia::{BlendMode, Mask, Paint, Pixmap, PixmapPaint};
+use tiny_skia::{BlendMode, Color, Mask, Paint, Pixmap, PixmapPaint};
 use tiny_skia_path::{Rect, Transform};
-
-use crate::image_tasks::color::ComparableColor;
 
 pub fn stack_layer_on_layer(background: &mut Pixmap, foreground: &Pixmap) {
     info!("Starting task: stack_layer_on_layer");
@@ -11,14 +9,14 @@ pub fn stack_layer_on_layer(background: &mut Pixmap, foreground: &Pixmap) {
     info!("Finishing task: stack_layer_on_layer");
 }
 
-pub fn stack_layer_on_background(background: ComparableColor, foreground: &mut Pixmap) {
-    info!("Starting task: stack_layer_on_background (background: {})", background);
+pub fn stack_layer_on_background(background: Color, foreground: &mut Pixmap) {
+    info!("Starting task: stack_layer_on_background (background: {:?})", background);
     let mut paint = Paint::default();
-    paint.set_color(background.into());
+    paint.set_color(background);
     paint.blend_mode = BlendMode::DestinationOver;
     foreground.fill_rect(Rect::from_xywh(0.0, 0.0, foreground.width() as f32, foreground.height() as f32).unwrap(),
                          &paint, Transform::default(), None);
-    info!("Finishing task: stack_layer_on_background (background: {})", background);
+    info!("Finishing task: stack_layer_on_background (background: {:?})", background);
 }
 
 pub(crate) fn stack_alpha_on_alpha(background: &mut Mask, foreground: &Mask) {
