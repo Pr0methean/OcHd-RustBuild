@@ -81,7 +81,7 @@ fn test_alpha_channel() {
 
 #[test]
 fn test_paint() {
-    use tiny_skia::{ColorU8, FillRule, Paint};
+    use tiny_skia::{FillRule, Paint};
     use tiny_skia_path::{PathBuilder, Transform};
     use crate::image_tasks::MaybeFromPool::NotFromPool;
 
@@ -92,9 +92,10 @@ fn test_paint() {
                      FillRule::EvenOdd, Transform::default(), None);
     let alpha_channel = pixmap_to_mask(pixmap);
     let repainted_alpha: u8 = 0xcf;
-    let red = ColorU8::from_rgba(0xff, 0, 0, repainted_alpha);
+    let red = Color::from_rgba(1.0, 0.0, 0.0,
+                               (repainted_alpha as f32)/(u8::MAX as f32)).unwrap();
     let repainted_red: Box<MaybeFromPool<Pixmap>>
-        = paint(&alpha_channel, ComparableColor::from(red)).unwrap();
+        = paint(&alpha_channel, red).unwrap();
     let pixmap_pixels = pixmap.pixels();
     let repainted_pixels = repainted_red.pixels();
     for index in 0usize..((side_length * side_length) as usize) {
