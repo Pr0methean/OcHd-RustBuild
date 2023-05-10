@@ -19,7 +19,7 @@ pub mod make_semitransparent;
 
 lazy_static! {
 static ref PIXMAP_POOL: Arc<LinearObjectPool<Pixmap>> = Arc::new(LinearObjectPool::new(
-    || Pixmap::new(*TILE_SIZE, *TILE_SIZE).unwrap(),
+    || Pixmap::new(*TILE_SIZE, *TILE_SIZE).expect("Failed to allocate a Pixmap for pool"),
     |_| {} // no reset needed if using allocate_pixmap_for_overwrite
 ));
 }
@@ -108,6 +108,7 @@ pub fn allocate_pixmap_empty(width: u32, height: u32) -> MaybeFromPool<Pixmap> {
         reusable.fill(Color::TRANSPARENT);
         MaybeFromPool::FromPool { reusable }
     } else {
-        MaybeFromPool::NotFromPool(Pixmap::new(width, height).unwrap())
+        MaybeFromPool::NotFromPool(Pixmap::new(width, height)
+            .expect("Failed to allocate a Pixmap outside pool"))
     }
 }

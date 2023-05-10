@@ -115,7 +115,8 @@ fn main() -> Result<(), CloneableError> {
             let representative = vertex_sets.find(index);
             let (_, future) = match task {
                 TaskSpec::FileOutput(sink_task_spec) => {
-                    ctx.output_task_to_future_map.get(&sink_task_spec).unwrap()
+                    ctx.output_task_to_future_map.get(&sink_task_spec)
+                        .expect(&format!("Missing output_task_to_future_map entry for {}", sink_task_spec))
                 }
                 _ => continue
             };
