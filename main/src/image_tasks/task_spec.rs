@@ -82,7 +82,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                 Box::new(move || {
                     let fg_image: Arc<Box<MaybeFromPool<Pixmap>>> = fg_future.into_result()?;
                     let mut fg_image = Arc::unwrap_or_clone(fg_image);
-                    stack_layer_on_background(background, &mut fg_image);
+                    stack_layer_on_background(background, &mut fg_image)?;
                     Ok(fg_image)
                 }))
             },
@@ -188,7 +188,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                 (layer_indices,
                 Box::new(move || {
                     let mut iter = layer_tasks.into_iter();
-                    let bg = iter.next().unwrap();
+                    let bg = iter.next().ok_or(anyhoo!("layer_tasks is empty"))?;
                     let bg_arc: Arc<Box<MaybeFromPool<Mask>>> = bg.into_result()?;
                     let mut out_image = Arc::unwrap_or_clone(bg_arc);
                     for layer in iter {

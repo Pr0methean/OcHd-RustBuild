@@ -30,7 +30,7 @@ use petgraph::graph::{DefaultIx, NodeIndex};
 use texture_base::material::Material;
 use rayon::prelude::*;
 
-use crate::image_tasks::task_spec::{CloneableLazyTask, TaskGraphBuildingContext, TaskSpec, TaskSpecTraits, METADATA_DIR};
+use crate::image_tasks::task_spec::{CloneableLazyTask, TaskGraphBuildingContext, TaskSpec, TaskSpecTraits, METADATA_DIR, CloneableError};
 
 mod image_tasks;
 mod texture_base;
@@ -78,12 +78,12 @@ fn copy_metadata(source_dir: &Dir) {
     );
 }
 
-fn main() {
+fn main() -> Result<(), CloneableError> {
     simple_logging::log_to_file("./log.txt", LevelFilter::Trace).expect("Failed to configure file logging");
     ALLOCATOR.enable_logging();
     let out_dir = PathBuf::from("./out");
     let out_file = out_dir.join(format!("OcHD-{}x{}.zip", *TILE_SIZE, *TILE_SIZE));
-    info!("Writing output to {}", absolute(&out_file).unwrap().to_string_lossy());
+    info!("Writing output to {}", absolute(&out_file)?.to_string_lossy());
     let tile_size: u32 = *TILE_SIZE;
     info!("Using {:?} pixels per tile", tile_size);
     let start_time = Instant::now();
@@ -146,12 +146,13 @@ fn main() {
                 result.expect("Error running a task");
             });
     });
-    let mut zip = ZIP.lock().expect("Failed to lock ZIP buffer");
+    let mut zip = ZIP.lock()?;
     let zip_writer = zip.deref_mut();
     let zip_contents = zip_writer.finish()
         .expect("Failed to finalize ZIP file").into_inner();
     info!("ZIP file size is {} bytes", zip_contents.len());
-    fs::write(out_file.as_path(), zip_contents).expect("Failed to write ZIP file");
+    fs::write(out_file.as_path(), zip_contents)?;
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     ALLOCATOR.disable_logging();
+    Ok(())
 }
