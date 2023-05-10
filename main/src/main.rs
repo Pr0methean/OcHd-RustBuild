@@ -154,6 +154,5 @@ fn main() -> Result<(), CloneableError> {
     info!("ZIP file size is {} bytes", zip_contents.len());
     fs::write(out_file.as_path(), zip_contents)?;
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
-    ALLOCATOR.disable_logging();
     Ok(())
 }
