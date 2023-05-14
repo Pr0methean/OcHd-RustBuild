@@ -6,8 +6,8 @@ use tiny_skia::{Mask};
 #[cached(sync_writes = true)]
 pub(crate) fn create_alpha_array(out_alpha: OrderedFloat<f32>) -> [u8; 256] {
     let mut alpha_array = [0u8; 256];
-    for in_alpha in 1..256 {
-        alpha_array[in_alpha] = (out_alpha.0 * f32::from(in_alpha) + 0.5) as u8
+    for in_alpha in 1..256u16 {
+        alpha_array[in_alpha as usize] = (out_alpha.0 * f32::from(in_alpha) + 0.5) as u8
     }
     alpha_array
 }
