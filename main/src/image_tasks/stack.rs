@@ -15,7 +15,8 @@ pub fn stack_layer_on_background(background: Color, foreground: &mut Pixmap) -> 
     let mut paint = Paint::default();
     paint.set_color(background);
     paint.blend_mode = BlendMode::DestinationOver;
-    foreground.fill_rect(Rect::from_xywh(0.0, 0.0, foreground.width() as f32, foreground.height() as f32)?,
+    foreground.fill_rect(Rect::from_xywh(0.0, 0.0, foreground.width() as f32, foreground.height() as f32)
+                             .ok_or(anyhoo!("Failed to allocate a rectangle"))?,
                          &paint, Transform::default(), None);
     info!("Finishing task: stack_layer_on_background (background: {:?})", background);
     Ok(())
