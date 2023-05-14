@@ -1,6 +1,7 @@
 use log::info;
 use tiny_skia::{BlendMode, Color, Mask, Paint, Pixmap, PixmapPaint};
 use tiny_skia_path::{Rect, Transform};
+use crate::anyhoo;
 use crate::image_tasks::task_spec::CloneableError;
 
 pub fn stack_layer_on_layer(background: &mut Pixmap, foreground: &Pixmap) {
