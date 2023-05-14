@@ -37,7 +37,7 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, file: &Path) -> Result<(),Clonea
     let data = into_png(image)?;
     let mut zip = ZIP.lock()?;
     let writer = zip.deref_mut();
-    writer.start_file(file.to_string_lossy(), *ZIP_OPTIONS)?;
+    writer.start_file(file.to_string_lossy(), ZIP_OPTIONS.to_owned())?;
     writer.write_all(&data)?;
     drop(zip);
     info!("Finishing task: write {}", file_string);
@@ -51,17 +51,17 @@ pub fn copy_out_to_out(source: &Path, dest: &Path) -> Result<(),CloneableError> 
     let mut zip = ZIP.lock()?;
     zip.deep_copy_file(&source_string, &dest_string)?;
     drop(zip);
-    info!("Finishing task: copy {} to {}", &source_string, &dest_string);
+    info!("Finishing task: copy {} to {}", source_string, dest_string);
     Ok(())
 }
 
 pub fn copy_in_to_out(source: &File, dest: &Path) -> Result<(),CloneableError> {
     let source_string = source.path().to_string_lossy();
     let dest_string = dest.to_string_lossy();
-    info!("Starting task: copy {} to {}", source_string, dest_string);
+    info!("Starting task: copy {} to {}", &source_string, &dest_string);
     let mut zip = ZIP.lock()?;
     let writer = zip.deref_mut();
-    writer.start_file(dest_string.clone(), *ZIP_OPTIONS)?;
+    writer.start_file(&dest_string, ZIP_OPTIONS.to_owned())?;
     writer.write_all(source.contents())?;
     drop(zip);
     info!("Finishing task: copy {} to {}", source_string, dest_string);
