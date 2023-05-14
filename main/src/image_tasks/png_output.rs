@@ -61,7 +61,7 @@ pub fn copy_in_to_out(source: &File, dest: &Path) -> Result<(),CloneableError> {
     info!("Starting task: copy {} to {}", &source_string, &dest_string);
     let mut zip = ZIP.lock()?;
     let writer = zip.deref_mut();
-    writer.start_file(&dest_string, ZIP_OPTIONS.to_owned())?;
+    writer.start_file(dest_string.as_ref(), ZIP_OPTIONS.to_owned())?;
     writer.write_all(source.contents())?;
     drop(zip);
     info!("Finishing task: copy {} to {}", source_string, dest_string);
