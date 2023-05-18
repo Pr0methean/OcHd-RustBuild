@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use log::info;
 
-use resvg::{FitTo, render};
 use tiny_skia::{Pixmap};
 use tiny_skia_path::Transform;
 use usvg::{Options, Tree, TreeParsing};
@@ -43,12 +42,9 @@ pub fn from_svg(path: &PathBuf, width: u32) -> Result<MaybeFromPool<Pixmap>,Clon
     let view_box = svg_tree.view_box;
     let height = f64::from(width) * view_box.rect.height() / view_box.rect.width();
     let mut out = allocate_pixmap_empty(width, height as u32);
-    render(
-        &svg_tree,
-        FitTo::Width(width),
+    resvg::Tree::from_usvg(&svg_tree).render(
         Transform::default(),
-        out.as_mut())
-        .ok_or(anyhoo!("Failed to render output Pixmap"))?;
+        &mut out.as_mut());
     info!("Finishing task: from_svg({})", path_str);
     Ok(out)
 }
