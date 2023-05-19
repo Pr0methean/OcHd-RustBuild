@@ -2,14 +2,18 @@ use log::info;
 use resvg::tiny_skia::{Pixmap, PixmapPaint, Transform};
 
 use crate::image_tasks::task_spec::{CloneableError, CloneableLazyTask, CloneableResult};
-use crate::image_tasks::{allocate_pixmap_empty, MaybeFromPool};
+use crate::image_tasks::{allocate_pixmap_empty, allocate_pixmap_for_overwrite, MaybeFromPool};
 
-pub fn animate(background: &Pixmap, frames: Vec<CloneableLazyTask<MaybeFromPool<Pixmap>>>)
-                     -> Result<Box<MaybeFromPool<Pixmap>>, CloneableError> {
+pub fn animate(background: &Pixmap, frames: Vec<CloneableLazyTask<MaybeFromPool<Pixmap>>>, clear_output: bool)
+               -> Result<Box<MaybeFromPool<Pixmap>>, CloneableError> {
     info!("Starting task: Animate");
     let frame_height = background.height();
-    let mut out = allocate_pixmap_empty(background.width(),
-                              frame_height * (frames.len() as u32));
+    let total_height = frame_height * (frames.len() as u32);
+    let mut out = if clear_output {
+        allocate_pixmap_empty(background.width(), total_height)
+    } else {
+        allocate_pixmap_for_overwrite(background.width(), total_height)
+    };
     for (index, frame) in frames.into_iter().enumerate() {
         let background = (*background).as_ref();
         out.draw_pixmap(0, (index as i32) * (frame_height as i32),

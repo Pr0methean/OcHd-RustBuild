@@ -51,6 +51,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
         let (dependencies, function): (Vec<NodeIndex<Ix>>, LazyTaskFunction<MaybeFromPool<Pixmap>>) = match self {
             ToPixmapTaskSpec::None { .. } => panic!("Tried to add None task to graph"),
             ToPixmapTaskSpec::Animate { background, frames } => {
+                let background_opaque = background.is_necessarily_opaque();
                 let (background_index, background_future) = background.add_to(ctx);
                 let mut dependencies = Vec::with_capacity(frames.len() + 1);
                 dependencies.push(background_index);
@@ -63,7 +64,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                 }
                 (dependencies, Box::new(move || {
                     let background: Arc<Box<MaybeFromPool<Pixmap>>> = background_future.into_result()?;
-                    animate(&background, frame_futures)
+                    animate(&background, frame_futures, !background_opaque)
                 }))
             },
             ToPixmapTaskSpec::FromSvg { source } => {
