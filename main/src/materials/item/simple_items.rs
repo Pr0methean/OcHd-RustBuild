@@ -1,4 +1,4 @@
-use crate::{group, single_layer_item, single_texture_item};
+use crate::{group, single_layer_item, single_texture_item, paint_stack};
 use crate::image_tasks::color::c;
 use crate::image_tasks::task_spec::paint_svg_task;
 use crate::materials::block::bare_hand::simple_bare_hand_block::{HONEYCOMB_BORDER, HONEYCOMB_CELLS};
@@ -16,6 +16,29 @@ single_texture_item!(HONEYCOMB =
 single_texture_item!(AMETHYST_SHARD =
     paint_svg_task("trianglesSmallCenter1", AMETHYST_BLOCK.highlight()),
     paint_svg_task("trianglesSmallCenter2", AMETHYST_BLOCK.color())
+);
+
+single_texture_item!(SALMON =
+    paint_stack!(c(0xbd928b), "fishTail", "fishFins"),
+    paint_svg_task("fishBody", c(0xbe4644))
+);
+
+single_texture_item!(COOKED_SALMON =
+    paint_stack!(c(0xd39c74), "fishTail", "fishFins"),
+    paint_svg_task("fishBody", c(0xba4f23)),
+    paint_svg_task("fishStripe", c(0xdf7d53))
+);
+
+single_texture_item!(COD =
+    paint_stack!(c(0xd6c5ad), "fishTail", "fishFins"),
+    paint_svg_task("fishBody", c(0xc6a271))
+);
+
+single_texture_item!(COOKED_COD =
+    // Cod loses its fins when cooked, somehow
+    paint_svg_task("fishTail", c(0xd6c5ad)),
+    paint_svg_task("fishBody", c(0xe2e5c6)),
+    paint_svg_task("fishStripe", c(0xae8b67))
 );
 
 // TODO: Rotten flesh

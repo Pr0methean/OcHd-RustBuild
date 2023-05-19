@@ -1,6 +1,6 @@
 use lazy_static::lazy_static;
 use crate::image_tasks::color::{ComparableColor, c};
-use crate::image_tasks::task_spec::{from_svg_task, paint_svg_task, stack, ToPixmapTaskSpec};
+use crate::image_tasks::task_spec::{from_svg_task, paint_svg_task, ToPixmapTaskSpec};
 use crate::materials::block::pickaxe::ore_base::DEEPSLATE;
 use crate::{block_with_colors, group, make_tricolor_block_macro, paint_stack, single_texture_block, stack_on};
 use crate::materials::block::pickaxe::ore::{QUARTZ, COPPER};
@@ -450,7 +450,8 @@ block_with_colors!(PINK_GLAZED_TERRACOTTA = c(0xff8baa), c(0xd6658f), c(0xffb5cb
     shadow!(),
     paint_svg_task("strokeTopLeftBottomRight4", highlight!()),
     paint_stack!(shadow!(), "cornersTri", "fishTail", "fishFins"),
-    paint_svg_task("fishBody", color!())
+    paint_svg_task("fishBody", color!()),
+    paint_svg_task("fishStripe", highlight!())
 );
 
 block_with_colors!(MAGENTA_GLAZED_TERRACOTTA = c(0xdc68dc), c(0xae33ae), c(0xffa5bf),
