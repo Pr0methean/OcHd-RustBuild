@@ -99,7 +99,7 @@ single_texture_block!(BEE_NEST_FRONT_HONEY = HONEYCOMB_BORDER,
 );
 single_texture_block!(BEE_NEST_TOP = HONEYCOMB_BORDER,
     paint_svg_task("honeycomb", c(0x624831)),
-    paint_svg_task("ringsCentralBullseye", HONEYCOMB_BORDER * 0.5)
+    paint_svg_task("ringsCentralBullseye", HONEYCOMB_CELLS * 0.5)
 );
 single_texture_block!(BEE_NEST_BOTTOM = BIRCH.color,
     paint_svg_task("honeycomb", BIRCH.shadow),
