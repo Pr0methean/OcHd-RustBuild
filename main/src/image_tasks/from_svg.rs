@@ -4,6 +4,7 @@ use log::info;
 
 use resvg::tiny_skia::{Pixmap, Transform};
 use resvg::usvg::{Options, Tree, TreeParsing};
+use tiny_skia::Rect;
 
 use crate::anyhoo;
 use crate::image_tasks::{allocate_pixmap_empty, MaybeFromPool};
@@ -40,9 +41,10 @@ pub fn from_svg(path: &PathBuf, width: u32) -> Result<MaybeFromPool<Pixmap>,Clon
     let svg_tree = Tree::from_data(svg.contents(), &Options::default())?;
     let view_box = svg_tree.view_box;
     let height = f64::from(width) * view_box.rect.height() / view_box.rect.width();
+    let scale = (width as f64 / view_box.rect.width()) as f32;
     let mut out = allocate_pixmap_empty(width, height as u32);
     resvg::Tree::from_usvg(&svg_tree).render(
-        Transform::default(),
+        Transform::from_scale(scale, scale),
         &mut out.as_mut());
     info!("Finishing task: from_svg({})", path_str);
     Ok(out)
