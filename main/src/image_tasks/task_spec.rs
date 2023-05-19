@@ -577,17 +577,12 @@ pub fn paint_task(base: ToAlphaChannelTaskSpec, color: ComparableColor) -> ToPix
 }
 
 pub fn paint_svg_task(name: &str, color: ComparableColor) -> ToPixmapTaskSpec {
-    paint_task(ToAlphaChannelTaskSpec::FromPixmap { base: Box::new(from_svg_task(name)) },
-               color)
-}
-
-#[allow(dead_code)]
-pub fn semitrans_svg_task(name: &str, alpha: f32) -> ToAlphaChannelTaskSpec {
-    ToAlphaChannelTaskSpec::MakeSemitransparent {
-        base: Box::new(ToAlphaChannelTaskSpec::FromPixmap {
-            base: Box::new(from_svg_task(name))
-        }),
-        alpha: alpha.into()}
+    if color == ComparableColor::BLACK && !COLOR_SVGS.contains(&name) {
+        from_svg_task(name)
+    } else {
+        paint_task(ToAlphaChannelTaskSpec::FromPixmap { base: Box::new(from_svg_task(name)) },
+                   color)
+    }
 }
 
 pub fn out_task(name: &str, base: ToPixmapTaskSpec) -> FileOutputTaskSpec {
@@ -711,9 +706,13 @@ impl Mul<f32> for ToAlphaChannelTaskSpec {
     type Output = ToAlphaChannelTaskSpec;
 
     fn mul(self, rhs: f32) -> Self::Output {
-        ToAlphaChannelTaskSpec::MakeSemitransparent {
-            base: Box::new(self),
-            alpha: OrderedFloat::from(rhs)
+        if rhs == 1.0 {
+            self
+        } else {
+            ToAlphaChannelTaskSpec::MakeSemitransparent {
+                base: Box::new(self),
+                alpha: OrderedFloat::from(rhs)
+            }
         }
     }
 }
