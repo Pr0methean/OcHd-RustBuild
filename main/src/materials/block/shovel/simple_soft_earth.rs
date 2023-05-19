@@ -40,6 +40,8 @@ block_with_colors!(MOSS_BLOCK = c(0x647233),c(0x42552d),c(0x70922d),
 );
 block_with_colors!(SOUL_SAND = c(0x624033), c(0x3F2D23), c(0x915431),
     color!(),
+    from_svg_task("borderSolid"),
+    paint_svg_task("borderSolidTopLeftBottomRight", color!()),
     paint_svg_task("checksSmall", highlight!()),
     paint_svg_task("bigDotsTopLeftBottomRight", shadow!()),
     paint_svg_task("soulFaces", highlight!())
@@ -47,6 +49,7 @@ block_with_colors!(SOUL_SAND = c(0x624033), c(0x3F2D23), c(0x915431),
 block_with_colors!(SOUL_SOIL = c(0x3F2D23), ComparableColor::BLACK, c(0x915431),
     shadow!(),
     paint_svg_task("borderSolid", color!()),
+    paint_svg_task("borderSolidTopLeftBottomRight", shadow!()),
     paint_stack!(highlight!(), "strokeBottomLeftTopRight4xorBorder", "bigDotsTopLeftBottomRight"),
     paint_svg_task("soulFaces", color!())
 );

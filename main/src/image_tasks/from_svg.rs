@@ -10,6 +10,7 @@ use crate::image_tasks::{allocate_pixmap_empty, MaybeFromPool};
 use crate::image_tasks::task_spec::{CloneableError, SVG_DIR};
 
 pub const COLOR_SVGS: &[&str] = &[
+    "barrelSlats.svg",
     "bed.svg",
     "blastFurnaceHolesLit.svg",
     "blastFurnaceHolesLit1.svg",
