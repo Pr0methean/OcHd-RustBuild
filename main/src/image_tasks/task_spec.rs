@@ -630,6 +630,17 @@ pub fn stack(background: ToPixmapTaskSpec, foreground: ToPixmapTaskSpec) -> ToPi
                     color: fg_color.to_owned()
                 })
             };
+        } else if let ToPixmapTaskSpec::PaintAlphaChannel {base: bg_base, color: bg_color} = &background
+                && let ToPixmapTaskSpec::StackLayerOnLayer {background: fg_bg, foreground: fg_fg} = &foreground
+                && let ToPixmapTaskSpec::PaintAlphaChannel {base: fg_bg_base, color: fg_bg_color} = &**fg_bg
+                && fg_bg_color == bg_color {
+            return ToPixmapTaskSpec::StackLayerOnLayer {
+                background: Box::new(ToPixmapTaskSpec::PaintAlphaChannel {
+                    base: Box::new(stack_alpha!(*bg_base.to_owned(), *fg_bg_base.to_owned())),
+                    color: fg_color.to_owned()
+                }),
+                foreground: fg_fg.to_owned()
+            };
         } else if let ToPixmapTaskSpec::StackLayerOnColor {background: bg_bg, foreground: bg_fg} = &background
                 && let ToPixmapTaskSpec::PaintAlphaChannel {base: bg_fg_base, color: bg_fg_color} = &**bg_fg
                 && fg_color == bg_fg_color {
