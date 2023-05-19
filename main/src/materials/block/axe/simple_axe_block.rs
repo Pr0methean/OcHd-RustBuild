@@ -106,7 +106,7 @@ single_texture_block!(BEE_NEST_BOTTOM = BIRCH.color,
     paint_svg_task("ringsCentralBullseye", BIRCH.highlight * 0.5)
 );
 single_texture_block!(BARREL_SIDE = SPRUCE.color,
-    paint_svg_task("planksBorderVertical", SPRUCE.shadow),
+    paint_svg_task("planksTopBorderVertical", SPRUCE.shadow),
     from_svg_task("barrelSlats")
 );
 single_texture_block!(BARREL_BOTTOM = ComparableColor::TRANSPARENT,
