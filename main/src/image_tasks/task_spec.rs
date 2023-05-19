@@ -515,6 +515,18 @@ impl ToPixmapTaskSpec {
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => background.is_all_black() && foreground.is_all_black(),
         }
     }
+
+    fn is_necessarily_opaque(&self) -> bool {
+        match self {
+            ToPixmapTaskSpec::Animate { background, .. }
+                => background.is_necessarily_opaque(),
+            ToPixmapTaskSpec::FromSvg { .. } => false,
+            ToPixmapTaskSpec::PaintAlphaChannel { .. } => false,
+            ToPixmapTaskSpec::StackLayerOnColor { background, .. } => background.alpha() == u8::MAX,
+            ToPixmapTaskSpec::StackLayerOnLayer { background, .. } => background.is_necessarily_opaque(),
+            ToPixmapTaskSpec::None { .. } => panic!("is_necessarily_opaque() called on None task"),
+        }
+    }
 }
 
 impl From<ToPixmapTaskSpec> for ToAlphaChannelTaskSpec {
@@ -607,6 +619,9 @@ pub fn stack_alpha(layers: Vec<ToAlphaChannelTaskSpec>) -> ToAlphaChannelTaskSpe
 }
 
 pub fn stack(background: ToPixmapTaskSpec, foreground: ToPixmapTaskSpec) -> ToPixmapTaskSpec {
+    if foreground.is_necessarily_opaque() {
+        panic!("{} would completely occlude {}", foreground, background);
+    }
     if let ToPixmapTaskSpec::PaintAlphaChannel {base: fg_base, color: fg_color} = &foreground {
         if let ToPixmapTaskSpec::PaintAlphaChannel {base: bg_base, color: bg_color} = &background
                 && fg_color == bg_color {
