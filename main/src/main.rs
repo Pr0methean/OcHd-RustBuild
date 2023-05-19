@@ -21,7 +21,7 @@ use std::collections::{HashMap};
 use std::path::{absolute, PathBuf};
 use std::time::Instant;
 
-
+use itertools::Itertools;
 use petgraph::visit::{EdgeRef, IntoNodeReferences, IntoEdgeReferences, NodeIndexable};
 use fn_graph::daggy::petgraph::unionfind::UnionFind;
 use log::{info, LevelFilter};
@@ -136,6 +136,7 @@ fn main() -> Result<(), CloneableError> {
         // Run small WCCs first so that their data can leave the heap before the big WCCs run
         let mut components: Vec<Vec<CloneableLazyTask<()>>> = component_map.into_values().collect();
         components.sort_by_key(Vec::len);
+        info!("Connected component sizes: {}", components.iter().map(Vec::len).join(","));
         let components: Vec<CloneableLazyTask<()>> = components.into_iter().flatten().collect();
         info!("Starting tasks");
         components.into_par_iter()
