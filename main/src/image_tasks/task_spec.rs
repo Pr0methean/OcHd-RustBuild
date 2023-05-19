@@ -373,7 +373,7 @@ impl Display for ToPixmapTaskSpec {
                 write!(f, "{}@{}", *base, color)
             }
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
-                write!(f, "{}+{}", background, foreground)
+                write!(f, "({}+{})", background, foreground)
             }
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
                 write!(f, "{}+{}", background, foreground)
@@ -408,10 +408,10 @@ impl Display for ToAlphaChannelTaskSpec {
                 write!(f, "alpha({})", base)
             }
             ToAlphaChannelTaskSpec::StackAlphaOnAlpha {layers} => {
-                f.write_str(&layers.iter().join("+"))
+                write!(f, "({})", &layers.iter().join("+"))
             }
             ToAlphaChannelTaskSpec::StackAlphaOnBackground {background, foreground} => {
-                write!(f, "{}+{}", background, foreground)
+                write!(f, "({}+{})", background, foreground)
             }
         }
     }
