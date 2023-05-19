@@ -373,10 +373,10 @@ impl Display for ToPixmapTaskSpec {
                 write!(f, "{}@{}", *base, color)
             }
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
-                write!(f, "{},{}", background, foreground)
+                write!(f, "{}+{}", background, foreground)
             }
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
-                write!(f, "{},{}", background, foreground)
+                write!(f, "{}+{}", background, foreground)
             }
             ToPixmapTaskSpec::None {} => {
                 write!(f, "None")
@@ -402,16 +402,16 @@ impl Display for ToAlphaChannelTaskSpec {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             ToAlphaChannelTaskSpec::MakeSemitransparent { base, alpha } => {
-                write!(f, "{:?}@{:?}", base, alpha)
+                write!(f, "{}@{}", base, alpha)
             }
             ToAlphaChannelTaskSpec::FromPixmap {base} => {
-                write!(f, "Alpha({:?})", base)
+                write!(f, "alpha({})", base)
             }
             ToAlphaChannelTaskSpec::StackAlphaOnAlpha {layers} => {
-                f.write_str(&layers.iter().join(","))
+                f.write_str(&layers.iter().join("+"))
             }
             ToAlphaChannelTaskSpec::StackAlphaOnBackground {background, foreground} => {
-                write!(f, "{},{}", background, foreground)
+                write!(f, "{}+{}", background, foreground)
             }
         }
     }
