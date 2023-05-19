@@ -3,10 +3,10 @@ use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::ops::Mul;
 
-use tiny_skia::Color;
-use tiny_skia::ColorU8;
-use tiny_skia::PremultipliedColor;
-use tiny_skia::PremultipliedColorU8;
+use resvg::tiny_skia::Color;
+use resvg::tiny_skia::ColorU8;
+use resvg::tiny_skia::PremultipliedColor;
+use resvg::tiny_skia::PremultipliedColorU8;
 
 /// Wrapper around [ColorU8] that implements important missing traits such as [Eq], [Hash], [Copy],
 /// [Clone] and [Ord]. Represents a 24-bit sRGB color + 8-bit alpha value (not premultiplied).

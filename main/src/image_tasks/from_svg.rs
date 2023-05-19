@@ -2,8 +2,7 @@ use std::path::PathBuf;
 
 use log::info;
 
-use tiny_skia::{Pixmap};
-use tiny_skia_path::Transform;
+use resvg::tiny_skia::{Pixmap, Transform};
 use resvg::usvg::{Options, Tree, TreeParsing};
 
 use crate::anyhoo;

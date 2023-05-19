@@ -1,7 +1,7 @@
 use cached::proc_macro::cached;
 use log::info;
 use ordered_float::OrderedFloat;
-use tiny_skia::{Mask};
+use resvg::tiny_skia::{Mask};
 
 #[cached(sync_writes = true)]
 pub(crate) fn create_alpha_array(out_alpha: OrderedFloat<f32>) -> [u8; 256] {
@@ -26,7 +26,7 @@ pub fn make_semitransparent(input: &mut Mask, alpha: f32) {
 
 #[test]
 fn test_make_semitransparent() {
-    use tiny_skia::{Color, FillRule, Paint, Pixmap};
+    use resvg::tiny_skia::{Color, FillRule, Paint, Pixmap};
     use tiny_skia_path::{PathBuilder, Transform};
     use crate::image_tasks::MaybeFromPool;
     use crate::image_tasks::repaint::paint;

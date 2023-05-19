@@ -1,6 +1,5 @@
 use log::info;
-use tiny_skia::{Pixmap, PixmapPaint};
-use tiny_skia_path::Transform;
+use resvg::tiny_skia::{Pixmap, PixmapPaint, Transform};
 
 use crate::image_tasks::task_spec::{CloneableError, CloneableLazyTask, CloneableResult};
 use crate::image_tasks::{allocate_pixmap_empty, MaybeFromPool};

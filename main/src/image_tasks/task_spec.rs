@@ -20,7 +20,7 @@ use ordered_float::OrderedFloat;
 use petgraph::graph::{IndexType, NodeIndex};
 use replace_with::replace_with_and_return;
 
-use tiny_skia::{Color, Mask, Pixmap};
+use resvg::tiny_skia::{Color, Mask, Pixmap};
 
 use crate::image_tasks::animate::animate;
 use crate::image_tasks::color::ComparableColor;

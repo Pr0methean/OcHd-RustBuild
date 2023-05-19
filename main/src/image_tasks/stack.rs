@@ -1,6 +1,5 @@
 use log::info;
-use tiny_skia::{BlendMode, Color, Mask, Paint, Pixmap, PixmapPaint};
-use tiny_skia_path::{Rect, Transform};
+use resvg::tiny_skia::{BlendMode, Color, Mask, Paint, Pixmap, PixmapPaint, Rect, Transform};
 use crate::anyhoo;
 use crate::image_tasks::task_spec::CloneableError;
 

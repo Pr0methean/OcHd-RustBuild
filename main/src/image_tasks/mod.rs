@@ -5,7 +5,7 @@ use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use lazy_static::lazy_static;
 use lockfree_object_pool::{LinearObjectPool, LinearOwnedReusable};
-use tiny_skia::{Color, Pixmap};
+use resvg::tiny_skia::{Color, Pixmap};
 use crate::TILE_SIZE;
 
 pub mod color;

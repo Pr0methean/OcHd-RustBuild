@@ -2,8 +2,7 @@ use std::sync::Arc;
 use lazy_static::lazy_static;
 use lockfree_object_pool::LinearObjectPool;
 use log::info;
-use tiny_skia::{Color, Mask, Paint, Pixmap};
-use tiny_skia_path::{Rect, Transform};
+use resvg::tiny_skia::{Color, Mask, Paint, Pixmap, Rect, Transform};
 use crate::{anyhoo, TILE_SIZE};
 
 use crate::image_tasks::{allocate_pixmap_empty, MaybeFromPool};
@@ -63,7 +62,7 @@ pub fn paint(input: &Mask, color: Color) -> Result<Box<MaybeFromPool<Pixmap>>, C
 
 #[test]
 fn test_alpha_channel() {
-    use tiny_skia::FillRule;
+    use resvg::tiny_skia::FillRule;
     use tiny_skia_path::PathBuilder;
 
     let side_length = 128;
@@ -81,7 +80,7 @@ fn test_alpha_channel() {
 
 #[test]
 fn test_paint() {
-    use tiny_skia::{FillRule, Paint};
+    use resvg::tiny_skia::{FillRule, Paint};
     use tiny_skia_path::{PathBuilder, Transform};
     use crate::image_tasks::MaybeFromPool::NotFromPool;
 

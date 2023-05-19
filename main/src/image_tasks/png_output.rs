@@ -8,7 +8,7 @@ use lazy_static::lazy_static;
 use lockfree_object_pool::{LinearObjectPool, LinearOwnedReusable};
 use log::info;
 
-use tiny_skia::{Pixmap};
+use resvg::tiny_skia::{Pixmap};
 use zip_next::CompressionMethod::Deflated;
 use zip_next::write::FileOptions;
 use zip_next::{ZipWriter};
