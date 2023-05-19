@@ -589,9 +589,9 @@ fn stack_alpha_presorted(layers: &[ToAlphaChannelTaskSpec]) -> ToAlphaChannelTas
     match layers.len() {
         0 => panic!("Attempt to create empty stack of alpha channels"),
         1 => layers[0].to_owned(),
-        _ => ToAlphaChannelTaskSpec::StackAlphaOnAlpha {
-            background: layers[0].to_owned().into(),
-            foreground: stack_alpha_presorted(&layers[1..]).into()
+        x => ToAlphaChannelTaskSpec::StackAlphaOnAlpha {
+            background: stack_alpha_presorted(&layers[0..x-1]).into(),
+            foreground: layers[x-1].to_owned().into()
         }
     }
 }
