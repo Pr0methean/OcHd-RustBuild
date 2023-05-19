@@ -367,7 +367,7 @@ impl Display for ToPixmapTaskSpec {
                 }
             }
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
-                write!(f, "({}+{})", background, foreground)
+                write!(f, "{}+{}", background, foreground)
             }
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
                 write!(f, "({}+{})", background, foreground)
