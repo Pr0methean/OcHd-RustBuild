@@ -179,6 +179,9 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                 }))
             },
             ToAlphaChannelTaskSpec::StackAlphaOnAlpha { layers } => {
+                if layers.len() == 1 {
+                    return layers[0].add_to(ctx);
+                }
                 let mut layer_indices = Vec::with_capacity(layers.len());
                 let mut layer_tasks: Vec<CloneableLazyTask<MaybeFromPool<Mask>>> = Vec::with_capacity(layers.len());
                 for layer in layers {
