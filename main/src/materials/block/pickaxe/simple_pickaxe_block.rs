@@ -200,7 +200,8 @@ basalt!(POLISHED_BASALT_TOP =
     paint_svg_task("ringsCentralBullseye", shadow!()),
     paint_svg_task("rings", highlight!()),
     paint_svg_task("borderSolid", shadow!()),
-    paint_stack!(highlight!(), "borderSolidTopLeft", "cross"),
+    paint_svg_task("borderSolidTopLeft", highlight!()),
+    paint_svg_task("cross", color!()),
     paint_svg_task("crossDotted", shadow!())
 );
 
