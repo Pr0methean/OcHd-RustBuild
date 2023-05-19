@@ -10,7 +10,6 @@ tiny-skia = "0.9.1"
 tiny-skia-path = "0.9.0"
 resvg = "0.33.0"
 fn_graph = { version = "0.8.2" }
-usvg = "0.33.0"
 anyhow = "1.0.71"
 cached = "0.43.0"
 ordered-float = "3.7.0"

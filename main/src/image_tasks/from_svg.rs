@@ -4,7 +4,7 @@ use log::info;
 
 use tiny_skia::{Pixmap};
 use tiny_skia_path::Transform;
-use usvg::{Options, Tree, TreeParsing};
+use resvg::usvg::{Options, Tree, TreeParsing};
 
 use crate::anyhoo;
 use crate::image_tasks::{allocate_pixmap_empty, MaybeFromPool};
