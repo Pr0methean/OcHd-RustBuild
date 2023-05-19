@@ -699,13 +699,17 @@ macro_rules! paint_stack {
 
 #[macro_export]
 macro_rules! stack_alpha {
-    ( $( $layers:expr ),* ) => {
+    ( $first_layer:expr, $second_layer:expr ) => {
         $crate::image_tasks::task_spec::stack_alpha(vec![
-            $(
-                $crate::image_tasks::task_spec::svg_alpha_task($layers)
-            ),*
+            $crate::image_tasks::task_spec::svg_alpha_task($first_layer.into()),
+            $crate::image_tasks::task_spec::svg_alpha_task($second_layer.into())
         ])
     };
+    ( $first_layer:expr, $second_layer:expr, $( $more_layers:expr ),+ ) => {{
+        let mut layers_so_far = $crate::stack_alpha!($first_layer, $second_layer);
+        $( layers_so_far = $crate::stack_alpha!(layers_so_far, $more_layers); )+
+        layers_so_far
+    }};
 }
 
 impl FromStr for ToPixmapTaskSpec {
