@@ -1,5 +1,5 @@
 use crate::image_tasks::color::ComparableColor;
-use crate::{paint_stack, single_texture_block, stack_alpha, group};
+use crate::{single_texture_block, stack_alpha, group};
 use crate::image_tasks::task_spec::{paint_svg_task, paint_task};
 
 single_texture_block!(COBWEB = ComparableColor::TRANSPARENT,
