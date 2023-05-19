@@ -135,6 +135,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
         }
         let task = CloneableLazyTask::new(function);
         ctx.pixmap_task_to_future_map.insert(self, (self_id, task.to_owned()));
+        info!("Added node: {}", name);
         (self_id, task)
     }
 }
@@ -218,6 +219,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
         }
         let task = CloneableLazyTask::new(function);
         ctx.alpha_task_to_future_map.insert(self, (self_id, task.to_owned()));
+        info!("Added node: {}", name);
         (self_id, task)
     }
 }
@@ -258,6 +260,7 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
         }
         let wrapped_future = CloneableLazyTask::new(function);
         ctx.output_task_to_future_map.insert(self, (self_id, wrapped_future.to_owned()));
+        info!("Added node: {}", name);
         (self_id, wrapped_future)
     }
 }

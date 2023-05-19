@@ -11,7 +11,10 @@ use crate::image_tasks::task_spec::{CloneableError};
 
 lazy_static!{
     static ref ALPHA_CHANNEL_POOL: Arc<LinearObjectPool<Mask>> = Arc::new(LinearObjectPool::new(
-        || Mask::new(*TILE_SIZE, *TILE_SIZE).expect("Failed to allocate a Mask for pool"),
+        || {
+            info!("Allocating a Mask for pool");
+            Mask::new(*TILE_SIZE, *TILE_SIZE).expect("Failed to allocate a Mask for pool")
+        },
         |_alpha_channel| {} // don't need to reset
     ));
 }
@@ -26,11 +29,13 @@ impl Clone for MaybeFromPool<Mask> {
 
 fn allocate_mask_for_overwrite(width: u32, height: u32) -> MaybeFromPool<Mask> {
     if width == *TILE_SIZE && height == *TILE_SIZE {
+        info!("Borrowing a Mask from pool");
         let pool: &Arc<LinearObjectPool<Mask>> = &ALPHA_CHANNEL_POOL;
         MaybeFromPool::FromPool {
             reusable: pool.pull_owned(),
         }
     } else {
+        info!("Allocating a Mask outside pool for unusual size {}x{}", width, height);
         NotFromPool(Mask::new(width, height).expect("Failed to allocate a Mask outside pool"))
     }
 }

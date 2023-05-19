@@ -26,7 +26,10 @@ lazy_static!{
         Vec::with_capacity(1024 * 1024)
     )));
     static ref PNG_BUFFER_POOL: Arc<LinearObjectPool<Vec<u8>>> = Arc::new(LinearObjectPool::new(
-        || Vec::with_capacity(1024 * 1024),
+        || {
+            info!("Allocating a PNG buffer for pool");
+            Vec::with_capacity(1024 * 1024)
+        },
         |vec| vec.clear()
 ));
 }
@@ -40,6 +43,7 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, file: &Path) -> Result<(),Clonea
     writer.start_file(file.to_string_lossy(), ZIP_OPTIONS.to_owned())?;
     writer.write_all(&data)?;
     drop(zip);
+    drop(data);
     info!("Finishing task: write {}", file_string);
     Ok(())
 }
