@@ -318,12 +318,11 @@ pub enum TaskSpec {
 
 impl Display for TaskSpec {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let inner: Box<&dyn Display> = Box::new(match self {
-            TaskSpec::ToPixmap(inner) => inner,
-            TaskSpec::ToAlphaChannel(inner) => inner,
-            TaskSpec::FileOutput(inner) => inner
-        });
-        <Box<&dyn Display> as Display>::fmt(&inner, f)
+        match self {
+            TaskSpec::ToPixmap(inner) => (inner as &dyn Display).fmt(f),
+            TaskSpec::ToAlphaChannel(inner) => (inner as &dyn Display).fmt(f),
+            TaskSpec::FileOutput(inner) => (inner as &dyn Display).fmt(f),
+        }
     }
 }
 
@@ -367,7 +366,7 @@ impl Display for ToPixmapTaskSpec {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             ToPixmapTaskSpec::Animate { background, frames } => {
-                write!(f, "Animate({};{})", background, frames.iter().join(";"))
+                write!(f, "animate({};{})", background, frames.iter().join(";"))
             }
             ToPixmapTaskSpec::FromSvg { source } => {
                 write!(f, "{}", source.to_string_lossy())
@@ -379,7 +378,7 @@ impl Display for ToPixmapTaskSpec {
                 write!(f, "({}+{})", background, foreground)
             }
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
-                write!(f, "{}+{}", background, foreground)
+                write!(f, "({}+{})", background, foreground)
             }
             ToPixmapTaskSpec::None {} => {
                 write!(f, "None")
@@ -395,7 +394,7 @@ impl Display for FileOutputTaskSpec {
                 destination.to_string_lossy().to_string()
             },
             FileOutputTaskSpec::Copy { original, link } => {
-                format!("Symlink {} -> {}", link.to_string_lossy(), original.to_string())
+                format!("symlink({} -> {})", link.to_string_lossy(), original.to_string())
             }
         })
     }
