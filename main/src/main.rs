@@ -25,7 +25,6 @@ use std::time::Instant;
 use petgraph::visit::{EdgeRef, IntoNodeReferences, IntoEdgeReferences, NodeIndexable};
 use fn_graph::daggy::petgraph::unionfind::UnionFind;
 use log::{info, LevelFilter};
-use logging_allocator::LoggingAllocator;
 use petgraph::graph::{DefaultIx, NodeIndex};
 use texture_base::material::Material;
 use rayon::prelude::*;
@@ -60,8 +59,7 @@ lazy_static! {
 }
 
 #[global_allocator]
-static ALLOCATOR: LoggingAllocator<Jemalloc>
-    = LoggingAllocator::with_allocator(Jemalloc);
+static ALLOCATOR: Jemalloc = Jemalloc;
 
 fn copy_metadata(source_dir: &Dir) {
     source_dir.entries().iter().for_each(
