@@ -3,7 +3,7 @@ use lazy_static::lazy_static;
 use crate::{copy_block, group};
 use crate::image_tasks::color::{ComparableColor, c};
 use crate::image_tasks::task_spec::{from_svg_task, paint_svg_task};
-use crate::materials::block::axe::wood::{BIRCH, DARK_OAK, OAK};
+use crate::materials::block::axe::wood::{BIRCH, DARK_OAK, JUNGLE, OAK, SPRUCE};
 use crate::materials::block::bare_hand::simple_bare_hand_block::{HONEYCOMB_BORDER, HONEYCOMB_CELLS};
 use crate::paint_stack;
 use crate::single_texture_block;
@@ -105,10 +105,28 @@ single_texture_block!(BEE_NEST_BOTTOM = BIRCH.color,
     paint_svg_task("honeycomb", BIRCH.shadow),
     paint_svg_task("ringsCentralBullseye", BIRCH.highlight * 0.5)
 );
+single_texture_block!(BARREL_SIDE = SPRUCE.color,
+    paint_svg_task("planksBorderVertical", SPRUCE.shadow),
+    from_svg_task("barrelSlats")
+);
+single_texture_block!(BARREL_BOTTOM = ComparableColor::TRANSPARENT,
+    JUNGLE.planks(),
+    paint_svg_task("borderSolidExtraThick", SPRUCE.shadow),
+    paint_svg_task("borderSolid", SPRUCE.color)
+);
+single_texture_block!(BARREL_TOP = ComparableColor::TRANSPARENT,
+    BARREL_BOTTOM.texture(),
+    paint_svg_task("bigCircle", SPRUCE.highlight * 0.5)
+);
+single_texture_block!(BARREL_TOP_OPEN = ComparableColor::TRANSPARENT,
+    BARREL_BOTTOM.texture(),
+    from_svg_task("bigCircle")
+);
 
 group!(SIMPLE_AXE_BLOCK = CRAFTING_TABLE_SIDE, CRAFTING_TABLE_TOP, CRAFTING_TABLE_FRONT,
     LADDER, BOOKSHELF, CHISELED_BOOKSHELF_EMPTY, CHISELED_BOOKSHELF,
     JUKEBOX_TOP, JUKEBOX_SIDE, NOTE_BLOCK,
     COMPOSTER_BOTTOM, COMPOSTER_TOP, COMPOSTER_SIDE,
     BEEHIVE_END, BEEHIVE_SIDE, BEEHIVE_FRONT, BEEHIVE_FRONT_HONEY,
-    BEE_NEST_SIDE, BEE_NEST_FRONT, BEE_NEST_FRONT_HONEY, BEE_NEST_TOP, BEE_NEST_BOTTOM);
+    BEE_NEST_SIDE, BEE_NEST_FRONT, BEE_NEST_FRONT_HONEY, BEE_NEST_TOP, BEE_NEST_BOTTOM,
+    BARREL_SIDE, BARREL_BOTTOM, BARREL_TOP, BARREL_TOP_OPEN);
