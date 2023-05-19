@@ -415,8 +415,8 @@ block_with_colors!(BLUE_GLAZED_TERRACOTTA = c(0x4040aa), c(0x2d2d8f), c(0x4577d3
 block_with_colors!(PURPLE_GLAZED_TERRACOTTA = c(0x8900b8), c(0x5f0093), c(0xa254e0),
     color!(),
     paint_svg_task("borderSolidThick", shadow!()),
-    stack(from_svg_task("asymmetricalQuarterCircles"),
-        from_svg_task("asymmetricalQuarterCircles")),
+    from_svg_task("asymmetricalQuarterCircles"),
+    from_svg_task("strokeTopLeftBottomRightThick"),
     paint_stack!(highlight!(), "cornerRingTopLeft", "strokeTopLeftBottomRight2")
 );
 
