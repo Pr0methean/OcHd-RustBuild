@@ -591,42 +591,29 @@ pub fn out_task(name: &str, base: ToPixmapTaskSpec) -> FileOutputTaskSpec {
     FileOutputTaskSpec::PngOutput {base, destination: name_to_out_path(name) }
 }
 
-#[macro_export]
-macro_rules! stack_alpha {
-    ( $( $layers:expr ),+ ) => {
-        {
-            let layers: Vec<$crate::image_tasks::task_spec::ToAlphaChannelTaskSpec> = vec![$($layers.into()),+];
-            let mut layers: Vec<$crate::image_tasks::task_spec::ToAlphaChannelTaskSpec> = layers
-                    .into_iter()
-                    .flat_map(|layer|
-                        if let $crate::image_tasks::task_spec::ToAlphaChannelTaskSpec::StackAlphaOnAlpha {layers: sub_layers } = layer {
-                            sub_layers.to_owned()
-                        } else {
-                            vec![layer]
-                        }
-                    )
-                    .collect();
-            layers.sort();
-            $crate::image_tasks::task_spec::ToAlphaChannelTaskSpec::StackAlphaOnAlpha {layers}
-        }
-    }
+pub fn stack_alpha(layers: Vec<ToAlphaChannelTaskSpec>) -> ToAlphaChannelTaskSpec {
+    let mut layers: Vec<ToAlphaChannelTaskSpec> = layers;
+    layers.sort();
+    ToAlphaChannelTaskSpec::StackAlphaOnAlpha {layers}
 }
 
 pub fn stack(background: ToPixmapTaskSpec, foreground: ToPixmapTaskSpec) -> ToPixmapTaskSpec {
     if let ToPixmapTaskSpec::PaintAlphaChannel {base: fg_base, color: fg_color} = &foreground {
         if let ToPixmapTaskSpec::PaintAlphaChannel {base: bg_base, color: bg_color} = &background
                 && fg_color == bg_color {
+            // Simplify: merge two adjacent PaintAlphaChannel tasks using same color
             return ToPixmapTaskSpec::PaintAlphaChannel {
-                base: Box::new(stack_alpha!(*bg_base.to_owned(), *fg_base.to_owned())),
+                base: Box::new(stack_alpha(vec![*bg_base.to_owned(), *fg_base.to_owned()])),
                 color: fg_color.to_owned()
             };
         } else if let ToPixmapTaskSpec::StackLayerOnLayer {background: bg_bg, foreground: bg_fg} = &background
                 && let ToPixmapTaskSpec::PaintAlphaChannel {base: bg_fg_base, color: bg_fg_color} = &**bg_fg
                 && fg_color == bg_fg_color {
+            // Simplify: merge top two layers
             return ToPixmapTaskSpec::StackLayerOnLayer {
                 background: bg_bg.to_owned(),
                 foreground: Box::new(ToPixmapTaskSpec::PaintAlphaChannel {
-                    base: Box::new(stack_alpha!(*bg_fg_base.to_owned(), *fg_base.to_owned())),
+                    base: Box::new(stack_alpha(vec![*bg_fg_base.to_owned(), *fg_base.to_owned()])),
                     color: fg_color.to_owned()
                 })
             };
@@ -634,9 +621,10 @@ pub fn stack(background: ToPixmapTaskSpec, foreground: ToPixmapTaskSpec) -> ToPi
                 && let ToPixmapTaskSpec::StackLayerOnLayer {background: fg_bg, foreground: fg_fg} = &foreground
                 && let ToPixmapTaskSpec::PaintAlphaChannel {base: fg_bg_base, color: fg_bg_color} = &**fg_bg
                 && fg_bg_color == bg_color {
+            // Simplify: merge bottom two layers
             return ToPixmapTaskSpec::StackLayerOnLayer {
                 background: Box::new(ToPixmapTaskSpec::PaintAlphaChannel {
-                    base: Box::new(stack_alpha!(*bg_base.to_owned(), *fg_bg_base.to_owned())),
+                    base: Box::new(stack_alpha(vec![*bg_base.to_owned(), *fg_bg_base.to_owned()])),
                     color: fg_color.to_owned()
                 }),
                 foreground: fg_fg.to_owned()
@@ -644,10 +632,11 @@ pub fn stack(background: ToPixmapTaskSpec, foreground: ToPixmapTaskSpec) -> ToPi
         } else if let ToPixmapTaskSpec::StackLayerOnColor {background: bg_bg, foreground: bg_fg} = &background
                 && let ToPixmapTaskSpec::PaintAlphaChannel {base: bg_fg_base, color: bg_fg_color} = &**bg_fg
                 && fg_color == bg_fg_color {
+            // Simplify: merge top two of three layers
             return ToPixmapTaskSpec::StackLayerOnColor {
                 background: bg_bg.to_owned(),
                 foreground: Box::new(ToPixmapTaskSpec::PaintAlphaChannel {
-                    base: Box::new(stack_alpha!(*bg_fg_base.to_owned(), *fg_base.to_owned())),
+                    base: Box::new(stack_alpha(vec![*bg_fg_base.to_owned(), *fg_base.to_owned()])),
                     color: fg_color.to_owned()
                 })
             };
@@ -697,10 +686,11 @@ macro_rules! stack_on {
 macro_rules! paint_stack {
     ( $color:expr, $( $layers:expr ),* ) => {
         $crate::image_tasks::task_spec::paint_task(
-            $crate::stack_alpha!(
+            $crate::image_tasks::task_spec::stack_alpha(vec![
                 $(
                     $crate::image_tasks::task_spec::svg_alpha_task($layers)
-                ),*).into(),
+                ),*
+            ]).into(),
             $color)
     }
 }
