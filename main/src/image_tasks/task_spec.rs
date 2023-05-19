@@ -677,11 +677,7 @@ macro_rules! stack_on {
         }
     };
     ( $background:expr, $first_layer:expr, $( $more_layers:expr ),+ ) => {{
-        if $background == $crate::image_tasks::color::ComparableColor::TRANSPARENT {
-            $crate::stack!($first_layer, $($more_layers),+)
-        } else {
-            $crate::stack_on!($background, $crate::stack!($first_layer, $($more_layers),+))
-        }
+        $crate::stack_on!($background, $crate::stack!($first_layer, $($more_layers),+))
     }};
 }
 
