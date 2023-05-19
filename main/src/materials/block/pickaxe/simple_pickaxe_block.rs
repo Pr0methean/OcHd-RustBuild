@@ -458,7 +458,7 @@ block_with_colors!(MAGENTA_GLAZED_TERRACOTTA = c(0xdc68dc), c(0xae33ae), c(0xffa
     paint_svg_task("arrowUpExpanded", highlight!()),
     paint_svg_task("arrowUp", shadow!())
 );
-block_with_colors!(CYAN_GLAZED_TERRACOTTA = c(0x828282), c(0x3a3a3a), c(0x009c9c),
+block_with_colors!(CYAN_GLAZED_TERRACOTTA = c(0x828282), c(0x333333), c(0x009c9c),
     color!(),
     paint_svg_task("strokeBottomLeftTopRight4", highlight!()),
     paint_svg_task("strokeBottomLeftTopRight2", shadow!()),
