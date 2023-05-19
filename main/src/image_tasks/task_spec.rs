@@ -692,13 +692,20 @@ macro_rules! stack_on {
 macro_rules! paint_stack {
     ( $color:expr, $( $layers:expr ),* ) => {
         $crate::image_tasks::task_spec::paint_task(
-            $crate::image_tasks::task_spec::stack_alpha(vec![
-                $(
-                    $crate::image_tasks::task_spec::svg_alpha_task($layers)
-                ),*
-            ]).into(),
+            $crate::stack_alpha!($($layers),*).into(),
             $color)
     }
+}
+
+#[macro_export]
+macro_rules! stack_alpha {
+    ( $( $layers:expr ),* ) => {
+        $crate::image_tasks::task_spec::stack_alpha(vec![
+            $(
+                $crate::image_tasks::task_spec::svg_alpha_task($layers)
+            ),*
+        ])
+    };
 }
 
 impl FromStr for ToPixmapTaskSpec {

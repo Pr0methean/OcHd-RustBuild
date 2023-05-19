@@ -1,8 +1,8 @@
 use lazy_static::lazy_static;
 use crate::image_tasks::color::{ComparableColor, c};
-use crate::image_tasks::task_spec::{from_svg_task, paint_svg_task, ToPixmapTaskSpec};
+use crate::image_tasks::task_spec::{from_svg_task, paint_svg_task, paint_task, stack_alpha, svg_alpha_task, ToPixmapTaskSpec};
 use crate::materials::block::pickaxe::ore_base::DEEPSLATE;
-use crate::{block_with_colors, group, make_tricolor_block_macro, paint_stack, single_texture_block, stack_on};
+use crate::{block_with_colors, group, make_tricolor_block_macro, paint_stack, single_texture_block, stack_alpha, stack_on};
 use crate::materials::block::pickaxe::ore::{QUARTZ, COPPER};
 use crate::materials::block::pickaxe::polishable::BLACKSTONE;
 use crate::materials::block::shovel::simple_soft_earth::{MOSS_BLOCK, SAND, RED_SAND, MUD, PACKED_MUD};
@@ -185,8 +185,8 @@ basalt!(BASALT_TOP =
     paint_svg_task("borderLongDashes", shadow!()),
     paint_svg_task("bigRingsBottomLeftTopRight", highlight!()),
     paint_svg_task("bigRingsTopLeftBottomRight", shadow!()),
-    paint_stack!(color!(), "strokeBottomLeftTopRight",
-        "strokeTopLeftBottomRight", "bigDiamond")
+    paint_task(stack_alpha!("strokeBottomLeftTopRight",
+        "strokeTopLeftBottomRight", "bigDiamond"), color!())
 );
 
 basalt!(BASALT_SIDE =
@@ -449,7 +449,12 @@ block_with_colors!(RED_GLAZED_TERRACOTTA = c(0xb82b2b), c(0x8e2020), c(0xce4848)
 block_with_colors!(PINK_GLAZED_TERRACOTTA = c(0xff8baa), c(0xd6658f), c(0xffb5cb),
     shadow!(),
     paint_svg_task("strokeTopLeftBottomRight4", highlight!()),
-    paint_stack!(shadow!(), "cornersTri", "fishTail", "fishFins"),
+    paint_task(
+        stack_alpha(vec![
+            svg_alpha_task("cornersTri"),
+            stack_alpha!("fishTail", "fishFins")
+        ]),
+        shadow!()),
     paint_svg_task("fishBody", color!()),
     paint_svg_task("fishStripe", highlight!())
 );
