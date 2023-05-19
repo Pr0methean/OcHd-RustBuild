@@ -334,12 +334,12 @@ lazy_static! {pub static ref DARK_OAK: Wood = overworld_wood(
 lazy_static!{pub static ref JUNGLE: Wood = {
     let mut base = overworld_wood(
         "jungle",
-        c(0x915431),
-        c(0x795b4b),
-        c(0x8A593A),
+        c(0x9f714a),
+        c(0x7b5c39),
+        c(0xbf8e6b),
         c(0x483800),
         c(0x2B2000),
-        c(0x8A593A),
+        c(0x7b5c39),
         Box::new(/*door_common_layers*/ |_wood| stack!(
             paint_svg_task("doorHingesBig", ComparableColor::STONE_SHADOW),
             paint_svg_task("doorHinges", ComparableColor::STONE)
