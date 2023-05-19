@@ -675,9 +675,9 @@ macro_rules! stack_on {
         if $background == $crate::image_tasks::color::ComparableColor::TRANSPARENT {
             $crate::stack!($first_layer, $($more_layers),+)
         } else {
-            let mut layers_so_far = $crate::stack_on!($background, $first_layer);
+            let mut layers_so_far = $first_layer;
             $( layers_so_far = $crate::stack!(layers_so_far, $more_layers); )+
-            layers_so_far
+            $crate::stack_on!($background, layers_so_far)
         }
     }};
 }
