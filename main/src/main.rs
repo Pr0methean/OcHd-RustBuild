@@ -106,24 +106,24 @@ fn main() -> Result<(), CloneableError> {
             // union the two vertices of the edge
             vertex_sets.union(a, b);
         }
-        let mut component_map: HashMap<NodeIndex<DefaultIx>, Vec<CloneableLazyTask<()>>>
+        let mut component_map: HashMap<NodeIndex<DefaultIx>, Vec<Option<CloneableLazyTask<()>>>>
             = HashMap::with_capacity(ctx.graph.node_bound());
         for (index, task) in ctx.graph.node_references() {
             let representative = vertex_sets.find(index);
-            let (_, future) = match task {
-                TaskSpec::FileOutput(sink_task_spec) => {
-                    ctx.output_task_to_future_map.get(&sink_task_spec)
-                        .expect(&format!("Missing output_task_to_future_map entry for {}", sink_task_spec))
-                }
-                _ => continue
+            let future_if_output = if let TaskSpec::FileOutput(sink_task_spec) = task {
+                let (_, future) = ctx.output_task_to_future_map.get(&sink_task_spec)
+                        .expect(&format!("Missing output_task_to_future_map entry for {}", sink_task_spec));
+                Some(future)
+            } else {
+                None
             };
             match component_map.get_mut(&representative) {
                 Some(existing) => {
-                    existing.push(future.to_owned());
+                    existing.push(future_if_output.map(CloneableLazyTask::to_owned));
                 },
                 None => {
                     let mut vec = Vec::with_capacity(1024);
-                    vec.push(future.to_owned());
+                    vec.push(future_if_output.map(CloneableLazyTask::to_owned));
                     component_map.insert(representative, vec);
                 }
             };
@@ -134,10 +134,11 @@ fn main() -> Result<(), CloneableError> {
         drop(output_tasks);
 
         // Run small WCCs first so that their data can leave the heap before the big WCCs run
-        let mut components: Vec<Vec<CloneableLazyTask<()>>> = component_map.into_values().collect();
+        let mut components: Vec<Vec<Option<CloneableLazyTask<()>>>> = component_map.into_values().collect();
         components.sort_by_key(Vec::len);
         info!("Connected component sizes: {}", components.iter().map(Vec::len).join(","));
-        let components: Vec<CloneableLazyTask<()>> = components.into_iter().flatten().collect();
+        let components: Vec<CloneableLazyTask<()>>
+            = components.into_iter().flatten().flatten().collect();
         info!("Starting tasks");
         components.into_par_iter()
             .map(|task| task.into_result())
