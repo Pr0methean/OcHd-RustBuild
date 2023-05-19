@@ -178,27 +178,15 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                     Ok(Box::new(pixmap_to_mask(&base_image)))
                 }))
             },
-            ToAlphaChannelTaskSpec::StackAlphaOnAlpha { layers } => {
-                if layers.len() == 1 {
-                    return layers[0].add_to(ctx);
-                }
-                let mut layer_indices = Vec::with_capacity(layers.len());
-                let mut layer_tasks: Vec<CloneableLazyTask<MaybeFromPool<Mask>>> = Vec::with_capacity(layers.len());
-                for layer in layers {
-                    let (layer_index, layer_task) = layer.add_to(ctx);
-                    layer_indices.push(layer_index);
-                    layer_tasks.push(layer_task);
-                }
-                (layer_indices,
-                Box::new(move || {
-                    let mut iter = layer_tasks.into_iter();
-                    let bg = iter.next().ok_or(anyhoo!("layer_tasks is empty"))?;
-                    let bg_arc: Arc<Box<MaybeFromPool<Mask>>> = bg.into_result()?;
-                    let mut out_image = Arc::unwrap_or_clone(bg_arc);
-                    for layer in iter {
-                        stack_alpha_on_alpha(&mut out_image, &*(layer.into_result()?));
-                    }
-                    Ok(out_image)
+            ToAlphaChannelTaskSpec::StackAlphaOnAlpha { background, foreground } => {
+                let (bg_index, bg_future) = background.add_to(ctx);
+                let (fg_index, fg_future) = foreground.add_to(ctx);
+                (vec![bg_index, fg_index], Box::new(move || {
+                    let bg_mask: Arc<Box<MaybeFromPool<Mask>>> = bg_future.into_result()?;
+                    let mut out_mask = Arc::unwrap_or_clone(bg_mask);
+                    let fg_mask: Arc<Box<MaybeFromPool<Mask>>> = fg_future.into_result()?;
+                    stack_alpha_on_alpha(&mut out_mask, fg_mask.deref());
+                    Ok(out_mask)
                 }))
             },
             ToAlphaChannelTaskSpec::StackAlphaOnBackground { background, foreground } => {
@@ -286,7 +274,7 @@ pub enum ToPixmapTaskSpec {
 pub enum ToAlphaChannelTaskSpec {
     MakeSemitransparent {base: Box<ToAlphaChannelTaskSpec>, alpha: OrderedFloat<f32>},
     FromPixmap {base: Box<ToPixmapTaskSpec>},
-    StackAlphaOnAlpha {layers: Vec<ToAlphaChannelTaskSpec>},
+    StackAlphaOnAlpha {background: Box<ToAlphaChannelTaskSpec>, foreground: Box<ToAlphaChannelTaskSpec>},
     StackAlphaOnBackground {background: OrderedFloat<f32>, foreground: Box<ToAlphaChannelTaskSpec>}
 }
 
@@ -409,8 +397,8 @@ impl Display for ToAlphaChannelTaskSpec {
             ToAlphaChannelTaskSpec::FromPixmap {base} => {
                 write!(f, "alpha({})", base)
             }
-            ToAlphaChannelTaskSpec::StackAlphaOnAlpha {layers} => {
-                write!(f, "({})", &layers.iter().join("+"))
+            ToAlphaChannelTaskSpec::StackAlphaOnAlpha {background, foreground} => {
+                write!(f, "({}+{})", background, foreground)
             }
             ToAlphaChannelTaskSpec::StackAlphaOnBackground {background, foreground} => {
                 write!(f, "({}+{})", background, foreground)
@@ -597,10 +585,21 @@ pub fn out_task(name: &str, base: ToPixmapTaskSpec) -> FileOutputTaskSpec {
     FileOutputTaskSpec::PngOutput {base, destination: name_to_out_path(name) }
 }
 
+fn stack_alpha_presorted(layers: &[ToAlphaChannelTaskSpec]) -> ToAlphaChannelTaskSpec {
+    match layers.len() {
+        0 => panic!("Attempt to create empty stack of alpha channels"),
+        1 => layers[0].to_owned(),
+        _ => ToAlphaChannelTaskSpec::StackAlphaOnAlpha {
+            background: layers[0].to_owned().into(),
+            foreground: stack_alpha_presorted(&layers[1..]).into()
+        }
+    }
+}
+
 pub fn stack_alpha(layers: Vec<ToAlphaChannelTaskSpec>) -> ToAlphaChannelTaskSpec {
     let mut layers: Vec<ToAlphaChannelTaskSpec> = layers;
     layers.sort();
-    ToAlphaChannelTaskSpec::StackAlphaOnAlpha {layers}
+    stack_alpha_presorted(layers.as_slice())
 }
 
 pub fn stack(background: ToPixmapTaskSpec, foreground: ToPixmapTaskSpec) -> ToPixmapTaskSpec {
