@@ -360,7 +360,11 @@ impl Display for ToPixmapTaskSpec {
                 write!(f, "{}", source.to_string_lossy())
             }
             ToPixmapTaskSpec::PaintAlphaChannel { base, color } => {
-                write!(f, "{}@{}", *base, color)
+                if let ToAlphaChannelTaskSpec::FromPixmap {base: base_of_base} = &**base {
+                    write!(f, "{}@{}", *base_of_base, color)
+                } else {
+                    write!(f, "{}@{}", *base, color)
+                }
             }
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
                 write!(f, "({}+{})", background, foreground)
