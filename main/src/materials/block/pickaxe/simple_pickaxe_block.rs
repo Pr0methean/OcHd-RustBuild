@@ -176,7 +176,7 @@ red_sandstone!(RED_SANDSTONE =
     paint_svg_task("borderShortDashes", shadow!())
 );
 
-make_tricolor_block_macro!(basalt, ComparableColor::STONE_EXTREME_SHADOW, c(0x003939),
+make_tricolor_block_macro!(basalt, ComparableColor::STONE_EXTREME_SHADOW, ComparableColor::BLACK,
     ComparableColor::STONE_SHADOW);
 
 basalt!(BASALT_TOP =
