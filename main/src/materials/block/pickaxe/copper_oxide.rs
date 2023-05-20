@@ -40,15 +40,15 @@ impl Material for CopperOxide {
 
 lazy_static! {
     static ref EXPOSED_COPPER: CopperOxide = CopperOxide {
-        name: "exposed", texture_name: "copper2OxideOneThird",
+        name: "exposed", texture_name: "copper2oxideOneThird",
         color: c(0xa87762), shadow: c(0x795B4B), highlight: c(0xce8888),
     };
     static ref WEATHERED_COPPER: CopperOxide = CopperOxide {
-        name: "weathered", texture_name: "copper2OxideTwoThirds",
+        name: "weathered", texture_name: "copper2oxideTwoThirds",
         color: c(0x64a077), shadow: c(0x647147), highlight: c(0x74BE9C),
     };
     static ref OXIDIZED_COPPER: CopperOxide = CopperOxide {
-        name: "oxidized", texture_name: "copper2Oxide",
+        name: "oxidized", texture_name: "copper2oxide",
         color: c(0x4fab90), shadow: c(0x3b5c5c), highlight: c(0x74BE9C),
     };
 }
