@@ -23,7 +23,7 @@ lazy_static!{
         stack_on!(
             CRIMSON_NYLIUM_COLOR,
             paint_stack!(CRIMSON_NYLIUM_HIGHLIGHT, "mushroomsTopLeftBottomRight", "borderDotted"),
-            paint_stack!(CRIMSON_NYLIUM_SHADOW, "mushroomsBottomLeftTopRight", "borderDotsRound")
+            paint_stack!(CRIMSON_NYLIUM_SHADOW, "mushroomsBottomLeftTopRight", "borderRoundDots")
         )
     );
 }
