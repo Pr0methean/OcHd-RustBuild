@@ -111,12 +111,11 @@ single_texture_block!(BARREL_SIDE = SPRUCE.color,
 );
 single_texture_block!(BARREL_BOTTOM = ComparableColor::TRANSPARENT,
     SPRUCE.planks(),
-    paint_svg_task("borderSolidExtraThick", SPRUCE.shadow)
+    paint_svg_task("borderSolidExtraThick", SPRUCE.shadow),
+    paint_svg_task("borderSolid", SPRUCE.highlight)
 );
 single_texture_block!(BARREL_TOP = ComparableColor::TRANSPARENT,
-    SPRUCE.planks(),
-    paint_svg_task("borderSolidThick", SPRUCE.shadow),
-    paint_svg_task("borderSolid", SPRUCE.color),
+    BARREL_BOTTOM.texture(),
     paint_svg_task("bigCircle", SPRUCE.highlight * 0.5)
 );
 single_texture_block!(BARREL_TOP_OPEN = ComparableColor::TRANSPARENT,
