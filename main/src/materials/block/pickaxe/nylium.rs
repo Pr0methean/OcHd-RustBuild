@@ -17,17 +17,13 @@ lazy_static!{
         CRIMSON_NYLIUM_HIGHLIGHT,
         stack!(
             paint_svg_task("topPart", CRIMSON_NYLIUM_COLOR),
-            paint_svg_task("strokeTopLeftBottomRight2TopPart", CRIMSON_NYLIUM_SHADOW),
-            paint_stack!(CRIMSON_NYLIUM_HIGHLIGHT, "strokeBottomLeftTopRight2TopPart",
-                "mushroomTopLeft"),
+            paint_svg_task("mushroomTopLeft", CRIMSON_NYLIUM_HIGHLIGHT),
             paint_svg_task("mushroomTopRight", CRIMSON_NYLIUM_SHADOW)
         ),
         stack_on!(
             CRIMSON_NYLIUM_COLOR,
-            paint_svg_task("strokeTopLeftBottomRight2", CRIMSON_NYLIUM_SHADOW),
-            paint_stack!(CRIMSON_NYLIUM_HIGHLIGHT, "strokeBottomLeftTopRight2",
-                    "mushroomsTopLeftBottomRight"),
-            paint_svg_task("mushroomsBottomLeftTopRight", CRIMSON_NYLIUM_SHADOW)
+            paint_stack!(CRIMSON_NYLIUM_HIGHLIGHT, "mushroomsTopLeftBottomRight", "borderDotted"),
+            paint_stack!(CRIMSON_NYLIUM_SHADOW, "mushroomsBottomLeftTopRight", "borderDotsRound")
         )
     );
 }
@@ -49,7 +45,7 @@ lazy_static!{
         ),
         stack_on!(
             WARPED_NYLIUM_COLOR,
-            paint_svg_task("strokeTopLeftBottomRight2", WARPED_NYLIUM_HIGHLIGHT),
+            paint_svg_task("strokeTopLeftBottomRight4", WARPED_NYLIUM_HIGHLIGHT),
             paint_svg_task("mushroomsBottomLeftTopRight", WARPED_NYLIUM_SHADOW)
         )
     );
