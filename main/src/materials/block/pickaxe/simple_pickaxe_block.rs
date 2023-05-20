@@ -410,13 +410,12 @@ block_with_colors!(BLUE_GLAZED_TERRACOTTA = c(0x4040aa), c(0x2d2d8f), c(0x4577d3
     paint_svg_task("checksQuarterCircles", color!()),
     from_svg_task("bigDotsTopLeftBottomRight"),
     paint_svg_task("bigRingsTopLeftBottomRight", color!()),
-    paint_stack!(highlight!(), "checksLargeOutline", "cornerRingTopLeft")
+    paint_stack!(highlight!(), "checksLargeOutline", "cornerRingTopLeft", "railCornerInverted")
 );
 
 block_with_colors!(PURPLE_GLAZED_TERRACOTTA = c(0x8900b8), c(0x5f0093), c(0xa254e0),
     color!(),
-    paint_svg_task("borderSolidThick", shadow!()),
-    from_svg_task("asymmetricalQuarterCircles"),
+    paint_stack!(shadow!(), "asymmetricalQuarterCircles", "borderRoundDotsVaryingSize"),
     from_svg_task("strokeTopLeftBottomRightThick"),
     paint_stack!(highlight!(), "cornerRingTopLeft", "strokeTopLeftBottomRight2")
 );
