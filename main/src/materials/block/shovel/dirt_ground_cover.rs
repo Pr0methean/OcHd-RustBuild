@@ -67,7 +67,7 @@ lazy_static! {
         stack!(
             paint_svg_task("topPart", MYCELIUM_COLOR),
             paint_svg_task("mushroomTopRight", MYCELIUM_SHADOW),
-            paint_svg_task("mushroomTopLeft", MYCELIUM_HIGHLIGHT)
+            paint_svg_task("mushroomTopLeft", MYCELIUM_HIGHLIGHT),
         ),
         stack_on!(
             MYCELIUM_COLOR,

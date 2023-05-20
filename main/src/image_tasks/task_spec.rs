@@ -346,7 +346,7 @@ impl <T> From<T> for CloneableError where T: ToString {
 
 #[macro_export]
 macro_rules! anyhoo {
-    ($($args:expr),+) => {
+    ($($args:expr),+ $(,)?) => {
         $crate::image_tasks::task_spec::CloneableError::from(anyhow::anyhow!($($args),+))
     }
 }
@@ -674,10 +674,10 @@ pub fn stack(background: ToPixmapTaskSpec, foreground: ToPixmapTaskSpec) -> ToPi
 
 #[macro_export]
 macro_rules! stack {
-    ( $first_layer:expr, $second_layer:expr ) => {
+    ( $first_layer:expr, $second_layer:expr $(,)? ) => {
         $crate::image_tasks::task_spec::stack($first_layer.into(), $second_layer.into())
     };
-    ( $first_layer:expr, $second_layer:expr, $( $more_layers:expr ),+ ) => {{
+    ( $first_layer:expr, $second_layer:expr, $( $more_layers:expr ),+ $(,)? ) => {{
         let mut layers_so_far = $crate::stack!($first_layer, $second_layer);
         $( layers_so_far = $crate::stack!(layers_so_far, $more_layers); )+
         layers_so_far
@@ -686,7 +686,7 @@ macro_rules! stack {
 
 #[macro_export]
 macro_rules! stack_on {
-    ( $background:expr, $foreground:expr ) => {
+    ( $background:expr, $foreground:expr $(,)? ) => {
         if $background == $crate::image_tasks::color::ComparableColor::TRANSPARENT {
             $foreground
         } else {
@@ -703,7 +703,7 @@ macro_rules! stack_on {
 
 #[macro_export]
 macro_rules! paint_stack {
-    ( $color:expr, $( $layers:expr ),* ) => {
+    ( $color:expr, $( $layers:expr ),* $(,)? ) => {
         $crate::image_tasks::task_spec::paint_task(
             $crate::stack_alpha!($($layers),*).into(),
             $color)
@@ -712,7 +712,7 @@ macro_rules! paint_stack {
 
 #[macro_export]
 macro_rules! stack_alpha {
-    ( $( $layers:expr ),* ) => {
+    ( $( $layers:expr ),* $(,)? ) => {
         $crate::image_tasks::task_spec::stack_alpha(vec![
             $(
                 $crate::image_tasks::task_spec::svg_alpha_task($layers)
