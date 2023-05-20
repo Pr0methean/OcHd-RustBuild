@@ -6,6 +6,7 @@ use crate::texture_base::material::Material;
 
 struct CopperOxide {
     name: &'static str,
+    texture_name: &'static str,
     color: ComparableColor,
     shadow: ComparableColor,
     highlight: ComparableColor
@@ -22,7 +23,7 @@ impl Material for CopperOxide {
                 &format!("block/{}_copper", self.name),
                 stack!(
                     shared_layers.to_owned(),
-                    paint_svg_task("copper2oxide", self.shadow)
+                    paint_svg_task(self.texture_name, self.shadow)
                 )
             ),
             out_task(
@@ -39,13 +40,16 @@ impl Material for CopperOxide {
 
 lazy_static! {
     static ref EXPOSED_COPPER: CopperOxide = CopperOxide {
-        name: "exposed", color: c(0xa87762), shadow: c(0x795B4B), highlight: c(0xce8888),
+        name: "exposed", texture_name: "copper2OxideOneThird",
+        color: c(0xa87762), shadow: c(0x795B4B), highlight: c(0xce8888),
     };
     static ref WEATHERED_COPPER: CopperOxide = CopperOxide {
-        name: "weathered", color: c(0x64a077), shadow: c(0x647147), highlight: c(0x74BE9C),
+        name: "weathered", texture_name: "copper2OxideTwoThirds",
+        color: c(0x64a077), shadow: c(0x647147), highlight: c(0x74BE9C),
     };
     static ref OXIDIZED_COPPER: CopperOxide = CopperOxide {
-        name: "oxidized", color: c(0x4fab90), shadow: c(0x3b5c5c), highlight: c(0x74BE9C),
+        name: "oxidized", texture_name: "copper2Oxide",
+        color: c(0x4fab90), shadow: c(0x3b5c5c), highlight: c(0x74BE9C),
     };
 }
 
