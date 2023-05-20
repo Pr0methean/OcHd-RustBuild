@@ -1,22 +1,9 @@
-#![feature(const_trait_impl)]
-#![feature(const_type_id)]
-#![feature(fn_traits)]
-#![feature(unboxed_closures)]
-#![feature(ptr_metadata)]
-#![feature(async_closure)]
-#![feature(try_trait_v2_residual)]
-#![feature(try_trait_v2)]
 #![feature(absolute_path)]
-#![feature(result_option_inspect)]
-#![feature(let_chains)]
-#![feature(hash_set_entry)]
-#![feature(allocator_api)]
-#![feature(poll_ready)]
 #![feature(arc_unwrap_or_clone)]
-#![feature(lazy_cell)]
-#![feature(concat_idents)]
+#![feature(const_type_id)]
+#![feature(let_chains)]
 #![feature(macro_metavar_expr)]
-#![feature(const_io_structs)]
+
 use std::collections::{HashMap};
 use std::path::{absolute, PathBuf};
 use std::time::Instant;
