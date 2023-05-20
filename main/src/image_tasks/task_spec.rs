@@ -590,7 +590,7 @@ pub fn paint_task(base: ToAlphaChannelTaskSpec, color: ComparableColor) -> ToPix
 }
 
 pub fn paint_svg_task(name: &str, color: ComparableColor) -> ToPixmapTaskSpec {
-    if color == ComparableColor::BLACK && !COLOR_SVGS.contains(&name) {
+    if color == ComparableColor::BLACK && !COLOR_SVGS.contains(&&*name_to_svg_path(name).to_string_lossy()) {
         from_svg_task(name)
     } else {
         paint_task(ToAlphaChannelTaskSpec::FromPixmap { base: Box::new(from_svg_task(name)) },
