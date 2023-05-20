@@ -66,17 +66,13 @@ lazy_static! {
         "mycelium", "_top", &DIRT.material, MYCELIUM_COLOR, MYCELIUM_SHADOW, MYCELIUM_HIGHLIGHT,
         stack!(
             paint_svg_task("topPart", MYCELIUM_COLOR),
-            paint_svg_task("diagonalChecksTopLeft", MYCELIUM_SHADOW),
-            paint_stack!(MYCELIUM_HIGHLIGHT, "diagonalChecksTopRight",
-                "diagonalChecksFillTopLeft"),
-            paint_svg_task("diagonalChecksFillTopRight", MYCELIUM_SHADOW)
+            paint_svg_task("mushroomTopRight", MYCELIUM_SHADOW),
+            paint_svg_task("mushroomTopLeft", MYCELIUM_HIGHLIGHT)
         ),
         stack_on!(
             MYCELIUM_COLOR,
-            paint_svg_task("diagonalChecksTopLeftBottomRight", MYCELIUM_SHADOW),
-            paint_stack!(MYCELIUM_HIGHLIGHT, "diagonalChecksBottomLeftTopRight",
-                "diagonalChecksFillTopLeftBottomRight"),
-            paint_svg_task("diagonalChecksFillBottomLeftTopRight", MYCELIUM_SHADOW)
+            paint_svg_task("mushroomsBottomLeftTopRight", MYCELIUM_SHADOW),
+            paint_svg_task("mushroomsTopLeftBottomRight", MYCELIUM_HIGHLIGHT)
         )
     );
 }

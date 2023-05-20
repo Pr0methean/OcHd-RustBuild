@@ -18,13 +18,16 @@ lazy_static!{
         stack!(
             paint_svg_task("topPart", CRIMSON_NYLIUM_COLOR),
             paint_svg_task("strokeTopLeftBottomRight2TopPart", CRIMSON_NYLIUM_SHADOW),
-            paint_svg_task("strokeBottomLeftTopRight2TopPart", CRIMSON_NYLIUM_HIGHLIGHT)
+            paint_stack!(CRIMSON_NYLIUM_HIGHLIGHT, "strokeBottomLeftTopRight2TopPart",
+                "mushroomTopLeft"),
+            paint_svg_task("mushroomTopRight", CRIMSON_NYLIUM_SHADOW)
         ),
         stack_on!(
             CRIMSON_NYLIUM_COLOR,
             paint_svg_task("strokeTopLeftBottomRight2", CRIMSON_NYLIUM_SHADOW),
             paint_stack!(CRIMSON_NYLIUM_HIGHLIGHT, "strokeBottomLeftTopRight2",
-                    "borderLongDashes")
+                    "mushroomsTopLeftBottomRight"),
+            paint_svg_task("mushroomsBottomLeftTopRight", CRIMSON_NYLIUM_SHADOW)
         )
     );
 }
@@ -42,13 +45,12 @@ lazy_static!{
         stack!(
             paint_svg_task("topPart", WARPED_NYLIUM_COLOR),
             paint_svg_task("strokeTopLeftBottomRight2TopPart", WARPED_NYLIUM_HIGHLIGHT),
-            paint_svg_task("strokeBottomLeftTopRight2TopPart", WARPED_NYLIUM_SHADOW)
+            paint_svg_task("mushroomTopRight", WARPED_NYLIUM_SHADOW)
         ),
         stack_on!(
             WARPED_NYLIUM_COLOR,
             paint_svg_task("strokeTopLeftBottomRight2", WARPED_NYLIUM_HIGHLIGHT),
-            paint_stack!(WARPED_NYLIUM_SHADOW, "strokeBottomLeftTopRight2",
-                    "borderLongDashes")
+            paint_svg_task("mushroomsBottomLeftTopRight", WARPED_NYLIUM_SHADOW)
         )
     );
 }
