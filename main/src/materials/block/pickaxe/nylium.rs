@@ -49,7 +49,7 @@ lazy_static!{
             WARPED_NYLIUM_COLOR,
             paint_svg_task("strokeTopLeftBottomRight2", WARPED_NYLIUM_HIGHLIGHT),
             paint_stack!(WARPED_NYLIUM_SHADOW, "strokeBottomLeftTopRight2",
-                    "borderLongDashes")
+                    "borderLongDashes"),
             paint_svg_task("mushroomsTopLeftBottomRight", WARPED_NYLIUM_COLOR),
         )
     );
