@@ -1,6 +1,6 @@
 use crate::{block_with_colors, group, paint_stack};
 use crate::image_tasks::color::{c, ComparableColor};
-use crate::image_tasks::task_spec::paint_svg_task;
+use crate::image_tasks::task_spec::{from_svg_task, paint_svg_task};
 use crate::texture_base::material::TricolorMaterial;
 
 block_with_colors!(SAND = c(0xdfd5aa), c(0xd1ba8a), c(0xeaead0),

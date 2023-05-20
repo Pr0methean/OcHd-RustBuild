@@ -3,7 +3,7 @@ use lazy_static::lazy_static;
 use crate::{copy_block, group};
 use crate::image_tasks::color::{ComparableColor, c};
 use crate::image_tasks::task_spec::{from_svg_task, paint_svg_task};
-use crate::materials::block::axe::wood::{BIRCH, DARK_OAK, JUNGLE, OAK, SPRUCE};
+use crate::materials::block::axe::wood::{BIRCH, DARK_OAK, OAK, SPRUCE};
 use crate::materials::block::bare_hand::simple_bare_hand_block::{HONEYCOMB_BORDER, HONEYCOMB_CELLS};
 use crate::paint_stack;
 use crate::single_texture_block;
