@@ -108,7 +108,10 @@ impl <T> Ord for MaybeFromPool<T> where T: Ord {
 
 impl Clone for MaybeFromPool<Pixmap> {
     fn clone(&self) -> Self {
-        let mut clone = allocate_pixmap_for_overwrite(self.width(), self.height());
+        let width = self.width();
+        let height = self.height();
+        info!("Copying a Pixmap of size {}x{}", width, height);
+        let mut clone = allocate_pixmap_for_overwrite(width, height);
         clone.data_mut().copy_from_slice(self.data());
         clone
     }

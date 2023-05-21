@@ -21,7 +21,10 @@ lazy_static!{
 
 impl Clone for MaybeFromPool<Mask> {
     fn clone(&self) -> Self {
-        let mut clone = allocate_mask_for_overwrite(self.width(), self.height());
+        let width = self.width();
+        let height = self.height();
+        info!("Copying a Mask of size {}x{}", width, height);
+        let mut clone = allocate_mask_for_overwrite(width, height);
         clone.data_mut().copy_from_slice(self.data());
         clone
     }
