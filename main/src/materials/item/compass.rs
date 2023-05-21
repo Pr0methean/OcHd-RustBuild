@@ -46,7 +46,7 @@ lazy_static!(
         rim_color: ComparableColor::CYAN,
         dial_color: ComparableColor::BLACK,
         needle_color: ComparableColor::CYAN,
-        base_name: "compass"
+        base_name: "recovery_compass"
     };
 );
 
