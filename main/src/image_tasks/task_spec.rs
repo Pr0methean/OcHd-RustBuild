@@ -571,6 +571,7 @@ pub fn paint_task(base: ToAlphaChannelTaskSpec, color: ComparableColor) -> ToPix
     if color == ComparableColor::BLACK
             && let ToAlphaChannelTaskSpec::FromPixmap {base: base_base} = &base
             && base_base.is_all_black() {
+        info!("Simplified {}@{} -> {}", base, color, base_base);
         *(base_base.to_owned())
     } else {
         ToPixmapTaskSpec::PaintAlphaChannel { base: Box::new(base), color }
@@ -579,6 +580,7 @@ pub fn paint_task(base: ToAlphaChannelTaskSpec, color: ComparableColor) -> ToPix
 
 pub fn paint_svg_task(name: &str, color: ComparableColor) -> ToPixmapTaskSpec {
     if color == ComparableColor::BLACK && !COLOR_SVGS.contains(&&*name_to_svg_path(name).to_string_lossy()) {
+        info!("Simplified {}@{} -> {}", name, color, name);
         from_svg_task(name)
     } else {
         paint_task(ToAlphaChannelTaskSpec::FromPixmap { base: Box::new(from_svg_task(name)) },
