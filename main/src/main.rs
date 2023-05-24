@@ -94,12 +94,10 @@ fn main() -> Result<(), CloneableError> {
 
 fn build_task_vector() -> Vec<CloneableLazyTask<()>> {
     let output_tasks = materials::ALL_MATERIALS.get_output_tasks();
-    let mut output_task_ids = Vec::with_capacity(output_tasks.len());
     let mut ctx: TaskGraphBuildingContext<(), DefaultIx>
         = TaskGraphBuildingContext::new();
-    for task in output_tasks.iter() {
-        let (output_task_id, _) = task.add_to(&mut ctx);
-        output_task_ids.push(output_task_id);
+    for task in output_tasks {
+        task.add_to(&mut ctx);
     }
     // Split the graph into weakly-connected components (WCCs, groups that don't share any subtasks).
     // Used to save memory by minimizing the number of WCCs caching their subtasks at once.
@@ -117,8 +115,8 @@ fn build_task_vector() -> Vec<CloneableLazyTask<()>> {
     for (index, task) in ctx.graph.node_references() {
         let representative = labeling[index.index()];
         let future_if_output = if let TaskSpec::FileOutput(sink_task_spec) = task {
-            let (_, future) = ctx.output_task_to_future_map.get(&sink_task_spec)
-                .expect(&format!("Missing output_task_to_future_map entry for {}", sink_task_spec));
+            let (_, future) = ctx.output_task_to_future_map.get(sink_task_spec)
+                .unwrap_or_else(|| panic!("Missing output_task_to_future_map entry for {}", sink_task_spec));
             Some(future)
         } else {
             None
