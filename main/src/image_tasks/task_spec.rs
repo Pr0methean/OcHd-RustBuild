@@ -468,21 +468,26 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
                 // mutable.
                 let lock_result = arc.lock();
                 match lock_result {
-                    Ok(mut guard) => replace_with_and_return(
-                        guard.deref_mut(),
-                        || CloneableLazyTaskState::Finished {result: Err(anyhoo!("replace_with failed")) },
-                        |state| -> (CloneableResult<T>, CloneableLazyTaskState<T>) {
-                            match state {
-                                CloneableLazyTaskState::Upcoming { function } => {
-                                    let result = function().map(Arc::new);
-                                    (result.to_owned(), CloneableLazyTaskState::Finished { result })
-                                },
-                                CloneableLazyTaskState::Finished { result } => {
-                                    (result.to_owned(), CloneableLazyTaskState::Finished { result })
+                    Ok(mut guard) => {
+                        if let CloneableLazyTaskState::Finished {result} = guard.deref() {
+                            return result.to_owned();
+                        }
+                        replace_with_and_return(
+                            guard.deref_mut(),
+                            || CloneableLazyTaskState::Finished {result: Err(anyhoo!("replace_with failed")) },
+                            |state| -> (CloneableResult<T>, CloneableLazyTaskState<T>) {
+                                match state {
+                                    CloneableLazyTaskState::Upcoming { function } => {
+                                        let result = function().map(Arc::new);
+                                        (result.to_owned(), CloneableLazyTaskState::Finished { result })
+                                    },
+                                    CloneableLazyTaskState::Finished { result } => {
+                                        (result.to_owned(), CloneableLazyTaskState::Finished { result })
+                                    }
                                 }
                             }
-                        }
-                    ),
+                        )
+                    },
                     Err(e) => Err(e.into())
                 }
             }
