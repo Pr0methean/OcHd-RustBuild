@@ -118,7 +118,7 @@ fn build_task_vector() -> Vec<CloneableLazyTask<()>> {
         let representative = labeling[index.index()];
         let future_if_output = if let TaskSpec::FileOutput(sink_task_spec) = task {
             let (_, future) = ctx.output_task_to_future_map.get(&sink_task_spec)
-                .expect(&format!("Missing output_task_to_future_map entry for {}", sink_task_spec));
+                .unwrap_or_else(|| panic!("Missing output_task_to_future_map entry for {}", sink_task_spec));
             Some(future)
         } else {
             None
