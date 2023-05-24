@@ -16,8 +16,7 @@ lazy_static!{
         CRIMSON_NYLIUM_SHADOW,
         CRIMSON_NYLIUM_HIGHLIGHT,
         stack!(
-            paint_svg_task("topPart", CRIMSON_NYLIUM_COLOR),
-            paint_svg_task("bigDotsTop", CRIMSON_NYLIUM_COLOR),
+            paint_stack!(CRIMSON_NYLIUM_COLOR, "topPart", "bigDotsTop"),
             paint_svg_task("mushroomTopLeft", CRIMSON_NYLIUM_HIGHLIGHT),
             paint_svg_task("mushroomTopRight", CRIMSON_NYLIUM_SHADOW)
         ),
