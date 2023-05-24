@@ -6,7 +6,7 @@ use std::hash::Hash;
 use std::ops::{Deref, DerefMut, Mul};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 use cached::lazy_static::lazy_static;
 use crate::anyhoo;
@@ -395,7 +395,7 @@ impl Display for ToAlphaChannelTaskSpec {
     }
 }
 
-pub type LazyTaskFunction<T> = Box<dyn FnOnce() -> Result<Box<T>, CloneableError> + Send>;
+pub type LazyTaskFunction<T> = Box<dyn FnOnce() -> Result<Box<T>, CloneableError> + Send + Sync>;
 
 pub enum CloneableLazyTaskState<T> where T: ?Sized {
     Upcoming {
@@ -409,7 +409,7 @@ pub enum CloneableLazyTaskState<T> where T: ?Sized {
 #[derive(Clone,Debug)]
 pub struct CloneableLazyTask<T> where T: ?Sized {
     name: String,
-    state: Arc<Mutex<CloneableLazyTaskState<T>>>
+    state: Arc<RwLock<CloneableLazyTaskState<T>>>
 }
 
 impl <T> Debug for CloneableLazyTaskState<T> where T: ?Sized {
@@ -433,7 +433,7 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
     pub fn new(name: String, base: LazyTaskFunction<T>) -> CloneableLazyTask<T> {
         CloneableLazyTask {
             name,
-            state: Arc::new(Mutex::new(CloneableLazyTaskState::Upcoming {
+            state: Arc::new(RwLock::new(CloneableLazyTaskState::Upcoming {
                 function: base
             }))
         }
@@ -466,32 +466,28 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
                 // We're not the last referent to this Lazy, so we need to make at least a shallow
                 // copy, which will become deep (via Arc::clone_or_unwrap) if it needs to be
                 // mutable.
-                let lock_result = arc.lock();
-                match lock_result {
-                    Ok(mut guard) => {
-                        if let CloneableLazyTaskState::Finished {result} = guard.deref() {
-                            return result.to_owned();
-                        }
-                        replace_with_and_return(
-                            guard.deref_mut(),
-                            || CloneableLazyTaskState::Finished {result: Err(anyhoo!("replace_with failed")) },
-                            |state| -> (CloneableResult<T>, CloneableLazyTaskState<T>) {
-                                match state {
-                                    CloneableLazyTaskState::Upcoming { function } => {
-                                        info!("Starting task {}", self.name);
-                                        let result = function().map(Arc::new);
-                                        info!("Finished task {}", self.name);
-                                        (result.to_owned(), CloneableLazyTaskState::Finished { result })
-                                    },
-                                    CloneableLazyTaskState::Finished { result } => {
-                                        (result.to_owned(), CloneableLazyTaskState::Finished { result })
-                                    }
-                                }
-                            }
-                        )
-                    },
-                    Err(e) => Err(e.into())
+                if let CloneableLazyTaskState::Finished { result }
+                        = arc.read()?.deref() {
+                    return result.to_owned();
                 }
+                let mut write_guard = arc.write()?;
+                replace_with_and_return(
+                    write_guard.deref_mut(),
+                    || CloneableLazyTaskState::Finished {result: Err(anyhoo!("replace_with failed")) },
+                    |state| -> (CloneableResult<T>, CloneableLazyTaskState<T>) {
+                        match state {
+                            CloneableLazyTaskState::Upcoming { function } => {
+                                info!("Starting task {}", self.name);
+                                let result = function().map(Arc::new);
+                                info!("Finished task {}", self.name);
+                                (result.to_owned(), CloneableLazyTaskState::Finished { result })
+                            },
+                            CloneableLazyTaskState::Finished { result } => {
+                                (result.to_owned(), CloneableLazyTaskState::Finished { result })
+                            }
+                        }
+                    }
+                )
             }
         }
     }
