@@ -12,13 +12,15 @@ pub fn animate(background: &Pixmap, frames: Vec<CloneableLazyTask<MaybeFromPool<
     } else {
         allocate_pixmap_for_overwrite(background.width(), total_height)
     };
-    for (index, frame) in frames.into_iter().enumerate() {
-        let background = (*background).as_ref();
+    let background = (*background).as_ref();
+    for index in 0..frames.len() {
         out.draw_pixmap(0, (index as i32) * (frame_height as i32),
                         background,
                         &PixmapPaint::default(),
                         Transform::default(),
                         None);
+    }
+    for (index, frame) in frames.into_iter().enumerate() {
         let frame_result: CloneableResult<MaybeFromPool<Pixmap>> = frame.into_result();
         let frame_pixmap = &*frame_result?;
         out.draw_pixmap(0, (index as i32) * (frame_height as i32),
