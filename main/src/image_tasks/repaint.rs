@@ -35,7 +35,7 @@ fn allocate_mask_for_overwrite(width: u32, height: u32) -> MaybeFromPool<Mask> {
         info!("Borrowing a Mask from pool");
         let pool: &Arc<LinearObjectPool<Mask>> = &ALPHA_CHANNEL_POOL;
         MaybeFromPool::FromPool {
-            reusable: pool.pull_owned(),
+            reusable: pool.pull(),
         }
     } else {
         info!("Allocating a Mask outside pool for unusual size {}x{}", width, height);

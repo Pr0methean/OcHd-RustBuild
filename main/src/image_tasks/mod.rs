@@ -5,7 +5,7 @@ use std::hash::{Hash, Hasher};
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use lazy_static::lazy_static;
-use lockfree_object_pool::{LinearObjectPool, LinearOwnedReusable};
+use lockfree_object_pool::{LinearObjectPool, LinearReusable};
 use log::info;
 use resvg::tiny_skia::{Color, Mask, Pixmap};
 use crate::TILE_SIZE;
@@ -31,7 +31,7 @@ static ref PIXMAP_POOL: Arc<LinearObjectPool<Pixmap>> = Arc::new(LinearObjectPoo
 
 pub enum MaybeFromPool<T: 'static> {
     FromPool {
-        reusable: LinearOwnedReusable<T>,
+        reusable: LinearReusable<'static, T>,
     },
     NotFromPool(T)
 }
@@ -129,7 +129,7 @@ impl <T> Debug for MaybeFromPool<T> {
 pub fn allocate_pixmap_for_overwrite(width: u32, height: u32) -> MaybeFromPool<Pixmap> {
     if width == *TILE_SIZE && height == *TILE_SIZE {
         info!("Borrowing a Pixmap from pool");
-        MaybeFromPool::FromPool { reusable: PIXMAP_POOL.pull_owned() }
+        MaybeFromPool::FromPool { reusable: PIXMAP_POOL.pull() }
     } else {
         info!("Allocating a Pixmap outside pool (not required empty) for unusual size {}x{}",
             width, height);
@@ -140,7 +140,7 @@ pub fn allocate_pixmap_for_overwrite(width: u32, height: u32) -> MaybeFromPool<P
 pub fn allocate_pixmap_empty(width: u32, height: u32) -> MaybeFromPool<Pixmap> {
     if width == *TILE_SIZE && height == *TILE_SIZE {
         info!("Borrowing and clearing a Pixmap from pool");
-        let mut reusable = PIXMAP_POOL.pull_owned();
+        let mut reusable = PIXMAP_POOL.pull();
         reusable.fill(Color::TRANSPARENT);
         MaybeFromPool::FromPool { reusable }
     } else {
