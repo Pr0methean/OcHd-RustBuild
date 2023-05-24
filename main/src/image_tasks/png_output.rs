@@ -15,22 +15,26 @@ use zip_next::{ZipWriter};
 
 use crate::image_tasks::MaybeFromPool;
 use crate::image_tasks::task_spec::{CloneableError};
+use crate::TILE_SIZE;
 
 pub type ZipBufferRaw = Cursor<Vec<u8>>;
 
+const PNG_BUFFER_SIZE: usize = 1024 * 1024;
+
 lazy_static!{
+    static ref ZIP_BUFFER_SIZE: usize = (*TILE_SIZE as usize) * 32 * 1024;
     static ref ZIP_OPTIONS: FileOptions = FileOptions::default()
         .compression_method(Deflated)
         .compression_level(Some(9));
     pub static ref ZIP: Mutex<ZipWriter<ZipBufferRaw>> = Mutex::new(ZipWriter::new(Cursor::new(
-        Vec::with_capacity(1024 * 1024)
+        Vec::with_capacity(*ZIP_BUFFER_SIZE)
     )));
     static ref PNG_BUFFER_POOL: Arc<LinearObjectPool<Vec<u8>>> = Arc::new(LinearObjectPool::new(
         || {
             info!("Allocating a PNG buffer for pool");
-            Vec::with_capacity(1024 * 1024)
+            Vec::with_capacity(PNG_BUFFER_SIZE)
         },
-        |vec| vec.clear()
+        Vec::clear
 ));
 }
 
