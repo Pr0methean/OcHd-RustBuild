@@ -40,7 +40,7 @@ pub fn from_svg(path: &PathBuf, width: u32) -> Result<MaybeFromPool<Pixmap>,Clon
     let view_box = svg_tree.view_box;
     let height = f64::from(width) * view_box.rect.height() / view_box.rect.width();
     let scale = (width as f64 / svg_tree.size.width()) as f32;
-    let mut out = allocate_pixmap_empty(width as u32, height as u32);
+    let mut out = allocate_pixmap_empty(width, height as u32);
     svg_tree.render(
         Transform::from_scale(scale, scale),
         &mut out.as_mut());

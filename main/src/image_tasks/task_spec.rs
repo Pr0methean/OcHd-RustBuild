@@ -47,7 +47,6 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
             info!("Matched an existing node: {}", name);
             return (*existing_index, existing_future.to_owned());
         }
-        let self_id = ctx.graph.add_node(TaskSpec::from(self));
         let (dependencies, function): (Vec<NodeIndex<Ix>>, LazyTaskFunction<MaybeFromPool<Pixmap>>) = match self {
             ToPixmapTaskSpec::None { .. } => panic!("Tried to add None task to graph"),
             ToPixmapTaskSpec::Animate { background, frames } => {
@@ -75,6 +74,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
             },
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
                 if *background == ComparableColor::TRANSPARENT {
+                    info!("Simplifying {} to {}", name, foreground);
                     return foreground.add_to(ctx);
                 }
                 let background: Color = (*background).into();
@@ -119,6 +119,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                 if *color == ComparableColor::BLACK
                         && let ToAlphaChannelTaskSpec::FromPixmap {base: base_of_base} = base.deref()
                         && base_of_base.is_all_black() {
+                    info!("Simplifying {} to {}", name, base_of_base);
                     return base_of_base.add_to(ctx);
                 }
                 let (base_index, base_future) = base.add_to(ctx);
@@ -130,6 +131,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                 }))
             },
         };
+        let self_id = ctx.graph.add_node(TaskSpec::from(self));
         for dependency in dependencies {
             ctx.graph.add_edge(dependency, self_id, E::default())
                 .expect("Tried to create a cycle");
@@ -151,11 +153,11 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
             info!("Matched an existing node: {}", name);
             return (*existing_index, existing_future.to_owned());
         }
-        let self_id = ctx.graph.add_node(TaskSpec::from(self));
         let (dependencies, function): (Vec<NodeIndex<Ix>>, LazyTaskFunction<MaybeFromPool<Mask>>)
                 = match self {
             ToAlphaChannelTaskSpec::MakeSemitransparent { base, alpha } => {
                 if *alpha == 1.0 {
+                    info!("Simplifying {} to {}", name, base);
                     return base.add_to(ctx);
                 }
                 let alpha: f32 = (*alpha).into();
@@ -170,6 +172,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
             },
             ToAlphaChannelTaskSpec::FromPixmap { base } => {
                 if let ToPixmapTaskSpec::PaintAlphaChannel {base: base_of_base, ..} = base.deref() {
+                    info!("Simplifying {} to {}", name, base_of_base);
                     return base_of_base.add_to(ctx);
                 }
                 let (base_index, base_future) = base.add_to(ctx);
@@ -192,6 +195,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
             },
             ToAlphaChannelTaskSpec::StackAlphaOnBackground { background, foreground } => {
                 if *background == 0.0 {
+                    info!("Simplifying {} to {}", name, foreground);
                     return foreground.add_to(ctx);
                 }
                 let background = background.0;
@@ -205,6 +209,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                  }))
             }
         };
+        let self_id = ctx.graph.add_node(TaskSpec::from(self));
         for dependency in dependencies {
             ctx.graph.add_edge(dependency, self_id, E::default())
                 .expect("Tried to create a cycle");
@@ -226,7 +231,6 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
             info!("Matched an existing node: {}", name);
             return (*existing_index, existing_future.to_owned());
         }
-        let self_id = ctx.graph.add_node(TaskSpec::from(self));
         let (dependencies, function): (Vec<NodeIndex<Ix>>, LazyTaskFunction<()>) = match self {
             FileOutputTaskSpec::PngOutput {base, destination } => {
                 let destination = destination.to_owned();
@@ -246,6 +250,7 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
                 }))
             }
         };
+        let self_id = ctx.graph.add_node(TaskSpec::from(self));
         for dependency in dependencies {
             ctx.graph.add_edge(dependency, self_id, E::default())
                 .expect("Tried to create a cycle");
