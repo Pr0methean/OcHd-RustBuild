@@ -75,59 +75,7 @@ fn main() -> Result<(), CloneableError> {
         create_dir_all(out_dir).expect("Failed to create output directory");
         copy_metadata(&METADATA_DIR);
     }, || {
-        let output_tasks = materials::ALL_MATERIALS.get_output_tasks();
-        let mut output_task_ids = Vec::with_capacity(output_tasks.len());
-        let mut ctx: TaskGraphBuildingContext<(), DefaultIx>
-            = TaskGraphBuildingContext::new();
-        for task in output_tasks.iter() {
-            let (output_task_id, _) = task.add_to(&mut ctx);
-            output_task_ids.push(output_task_id);
-        }
-        // Split the graph into weakly-connected components (WCCs, groups that don't share any subtasks).
-        // Used to save memory by minimizing the number of WCCs caching their subtasks at once.
-        // Adapted from https://docs.rs/petgraph/latest/src/petgraph/algo/mod.rs.html#87-102.
-        let mut vertex_sets = UnionFind::new(ctx.graph.node_bound());
-        for edge in ctx.graph.edge_references() {
-            let (a, b) = (edge.source(), edge.target());
-
-            // union the two vertices of the edge
-            vertex_sets.union(a, b);
-        }
-        let mut component_map: HashMap<NodeIndex<DefaultIx>, Vec<Option<CloneableLazyTask<()>>>>
-            = HashMap::with_capacity(ctx.graph.node_bound());
-        for (index, task) in ctx.graph.node_references() {
-            let representative = vertex_sets.find(index);
-            let future_if_output = if let TaskSpec::FileOutput(sink_task_spec) = task {
-                let (_, future) = ctx.output_task_to_future_map.get(&sink_task_spec)
-                        .expect(&format!("Missing output_task_to_future_map entry for {}", sink_task_spec));
-                Some(future)
-            } else {
-                None
-            };
-            match component_map.get_mut(&representative) {
-                Some(existing) => {
-                    existing.push(future_if_output.map(CloneableLazyTask::to_owned));
-                },
-                None => {
-                    let mut vec = Vec::with_capacity(1024);
-                    vec.push(future_if_output.map(CloneableLazyTask::to_owned));
-                    component_map.insert(representative, vec);
-                }
-            };
-        }
-        info!("Done with task graph");
-        drop(output_task_ids);
-        drop(ctx);
-        drop(output_tasks);
-        drop(vertex_sets);
-
-        // Run small WCCs first so that their data can leave the heap before the big WCCs run
-        let mut components: Vec<Vec<Option<CloneableLazyTask<()>>>> = component_map.into_values().collect();
-        components.sort_by_key(Vec::len);
-        info!("Connected component sizes: {}", components.iter().map(Vec::len).join(","));
-        let components: Vec<CloneableLazyTask<()>>
-            = components.into_iter().flatten().flatten().collect();
-        info!("Starting tasks");
+        let components = build_task_vector();
         components.into_par_iter()
             .map(|task| task.into_result())
             .for_each(|result| {
@@ -142,4 +90,53 @@ fn main() -> Result<(), CloneableError> {
     fs::write(out_file.as_path(), zip_contents)?;
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     Ok(())
+}
+
+fn build_task_vector() -> Vec<CloneableLazyTask<()>> {
+    let output_tasks = materials::ALL_MATERIALS.get_output_tasks();
+    let mut output_task_ids = Vec::with_capacity(output_tasks.len());
+    let mut ctx: TaskGraphBuildingContext<(), DefaultIx>
+        = TaskGraphBuildingContext::new();
+    for task in output_tasks.iter() {
+        let (output_task_id, _) = task.add_to(&mut ctx);
+        output_task_ids.push(output_task_id);
+    }
+    // Split the graph into weakly-connected components (WCCs, groups that don't share any subtasks).
+    // Used to save memory by minimizing the number of WCCs caching their subtasks at once.
+    // Adapted from https://docs.rs/petgraph/latest/src/petgraph/algo/mod.rs.html#87-102.
+    let mut vertex_sets = UnionFind::new(ctx.graph.node_bound());
+    for edge in ctx.graph.edge_references() {
+        let (a, b) = (edge.source(), edge.target());
+
+        // union the two vertices of the edge
+        vertex_sets.union(a, b);
+    }
+    let mut component_map: HashMap<NodeIndex<DefaultIx>, Vec<Option<CloneableLazyTask<()>>>>
+        = HashMap::with_capacity(ctx.graph.node_bound());
+    let labeling = vertex_sets.into_labeling();
+    for (index, task) in ctx.graph.node_references() {
+        let representative = labeling[index.index()];
+        let future_if_output = if let TaskSpec::FileOutput(sink_task_spec) = task {
+            let (_, future) = ctx.output_task_to_future_map.get(&sink_task_spec)
+                .expect(&format!("Missing output_task_to_future_map entry for {}", sink_task_spec));
+            Some(future)
+        } else {
+            None
+        };
+        match component_map.get_mut(&representative) {
+            Some(existing) => {
+                existing.push(future_if_output.map(CloneableLazyTask::to_owned));
+            },
+            None => {
+                let mut vec = Vec::with_capacity(1024);
+                vec.push(future_if_output.map(CloneableLazyTask::to_owned));
+                component_map.insert(representative, vec);
+            }
+        };
+    }
+    // Run small WCCs first so that their data can leave the heap before the big WCCs run
+    let mut components: Vec<Vec<Option<CloneableLazyTask<()>>>> = component_map.into_values().collect();
+    components.sort_by_key(Vec::len);
+    info!("Connected component sizes: {}", components.iter().map(Vec::len).join(","));
+    components.into_iter().flatten().flatten().collect()
 }
