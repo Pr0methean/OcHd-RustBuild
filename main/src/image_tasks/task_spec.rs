@@ -478,7 +478,9 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
                             |state| -> (CloneableResult<T>, CloneableLazyTaskState<T>) {
                                 match state {
                                     CloneableLazyTaskState::Upcoming { function } => {
+                                        info!("Starting task {}", self.name);
                                         let result = function().map(Arc::new);
+                                        info!("Finished task {}", self.name);
                                         (result.to_owned(), CloneableLazyTaskState::Finished { result })
                                     },
                                     CloneableLazyTaskState::Finished { result } => {
