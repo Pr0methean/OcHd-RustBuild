@@ -119,6 +119,7 @@ fn main() -> Result<(), CloneableError> {
         drop(output_task_ids);
         drop(ctx);
         drop(output_tasks);
+        drop(vertex_sets);
 
         // Run small WCCs first so that their data can leave the heap before the big WCCs run
         let mut components: Vec<Vec<Option<CloneableLazyTask<()>>>> = component_map.into_values().collect();
