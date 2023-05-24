@@ -22,3 +22,5 @@ impl Material for Clock {
         output_tasks
     }
 }
+
+pub const CLOCK: Clock = Clock{};
