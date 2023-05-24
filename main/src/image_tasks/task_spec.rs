@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::{HashMap};
 
 use std::fmt::{Debug, Display, Formatter};
@@ -33,21 +34,21 @@ use crate::image_tasks::stack::{stack_alpha_on_alpha, stack_alpha_on_background,
 use crate::TILE_SIZE;
 
 pub trait TaskSpecTraits <T>: Clone + Debug + Display + Ord + Eq + Hash {
-    fn add_to<'a, 'b, E, Ix>(&'b self, ctx: &mut TaskGraphBuildingContext<'a, E, Ix>)
+    fn add_to<'a, 'b, E, Ix>(&'b self, ctx: &RefCell<TaskGraphBuildingContext<'a, E, Ix>>)
                          -> (NodeIndex<Ix>, CloneableLazyTask<T>)
         where Ix : IndexType, E: Default, 'b: 'a;
 }
 
 impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
-    fn add_to<'a, 'b, E, Ix>(&'b self, ctx: &mut TaskGraphBuildingContext<'a, E, Ix>)
+    fn add_to<'a, 'b, E, Ix>(&'b self, ctx: &RefCell<TaskGraphBuildingContext<'a, E, Ix>>)
                          -> (NodeIndex<Ix>, CloneableLazyTask<MaybeFromPool<Pixmap>>)
                          where Ix : IndexType, E: Default, 'b: 'a {
         let name: String = self.to_string();
-        if let Some((existing_index, existing_future)) = ctx.pixmap_task_to_future_map.get(&self) {
+        if let Some((existing_index, existing_future))
+                = ctx.borrow().pixmap_task_to_future_map.get(&self) {
             info!("Matched an existing node: {}", name);
             return (*existing_index, existing_future.to_owned());
         }
-        let self_id = ctx.graph.add_node(TaskSpec::from(self));
         let (dependencies, function): (Vec<NodeIndex<Ix>>, LazyTaskFunction<MaybeFromPool<Pixmap>>) = match self {
             ToPixmapTaskSpec::None { .. } => panic!("Tried to add None task to graph"),
             ToPixmapTaskSpec::Animate { background, frames } => {
@@ -130,6 +131,8 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                 }))
             },
         };
+        let mut ctx = ctx.borrow_mut();
+        let self_id = ctx.graph.add_node(TaskSpec::from(self));
         for dependency in dependencies {
             ctx.graph.add_edge(dependency, self_id, E::default())
                 .expect("Tried to create a cycle");
@@ -142,16 +145,15 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
 }
 
 impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
-    fn add_to<'a, 'b, E, Ix>(&'b self, ctx: &mut TaskGraphBuildingContext<'a, E, Ix>)
+    fn add_to<'a, 'b, E, Ix>(&'b self, ctx: &RefCell<TaskGraphBuildingContext<'a, E, Ix>>)
                          -> (NodeIndex<Ix>, CloneableLazyTask<MaybeFromPool<Mask>>)
                          where Ix : IndexType, E: Default, 'b: 'a {
         let name: String = self.to_string();
         if let Some((existing_index, existing_future))
-                = ctx.alpha_task_to_future_map.get(&self) {
+                = ctx.borrow().alpha_task_to_future_map.get(&self) {
             info!("Matched an existing node: {}", name);
             return (*existing_index, existing_future.to_owned());
         }
-        let self_id = ctx.graph.add_node(TaskSpec::from(self));
         let (dependencies, function): (Vec<NodeIndex<Ix>>, LazyTaskFunction<MaybeFromPool<Mask>>)
                 = match self {
             ToAlphaChannelTaskSpec::MakeSemitransparent { base, alpha } => {
@@ -205,6 +207,8 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                  }))
             }
         };
+        let mut ctx = ctx.borrow_mut();
+        let self_id = ctx.graph.add_node(TaskSpec::from(self));
         for dependency in dependencies {
             ctx.graph.add_edge(dependency, self_id, E::default())
                 .expect("Tried to create a cycle");
@@ -217,16 +221,15 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
 }
 
 impl TaskSpecTraits<()> for FileOutputTaskSpec {
-    fn add_to<'a, 'b, E, Ix>(&'b self, ctx: &mut TaskGraphBuildingContext<'a, E, Ix>)
+    fn add_to<'a, 'b, E, Ix>(&'b self, ctx: &RefCell<TaskGraphBuildingContext<'a, E, Ix>>)
                          -> (NodeIndex<Ix>, CloneableLazyTask<()>)
                          where Ix : IndexType, E: Default, 'b: 'a {
         let name: String = self.to_string();
         if let Some((existing_index, existing_future))
-                = ctx.output_task_to_future_map.get(&self) {
+                = ctx.borrow().output_task_to_future_map.get(&self) {
             info!("Matched an existing node: {}", name);
             return (*existing_index, existing_future.to_owned());
         }
-        let self_id = ctx.graph.add_node(TaskSpec::from(self));
         let (dependencies, function): (Vec<NodeIndex<Ix>>, LazyTaskFunction<()>) = match self {
             FileOutputTaskSpec::PngOutput {base, destination } => {
                 let destination = destination.to_owned();
@@ -246,6 +249,8 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
                 }))
             }
         };
+        let mut ctx = ctx.borrow_mut();
+        let self_id = ctx.graph.add_node(TaskSpec::from(self));
         for dependency in dependencies {
             ctx.graph.add_edge(dependency, self_id, E::default())
                 .expect("Tried to create a cycle");

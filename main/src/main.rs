@@ -4,6 +4,7 @@
 #![feature(let_chains)]
 #![feature(macro_metavar_expr)]
 
+use std::cell::RefCell;
 use std::collections::{HashMap};
 use std::path::{absolute, PathBuf};
 use std::time::Instant;
@@ -95,30 +96,32 @@ fn main() -> Result<(), CloneableError> {
 fn build_task_vector() -> Vec<CloneableLazyTask<()>> {
     let output_tasks = materials::ALL_MATERIALS.get_output_tasks();
     let mut output_task_ids = Vec::with_capacity(output_tasks.len());
-    let mut ctx: TaskGraphBuildingContext<(), DefaultIx>
-        = TaskGraphBuildingContext::new();
+    let ctx: RefCell<TaskGraphBuildingContext<(), DefaultIx>>
+        = RefCell::new(TaskGraphBuildingContext::new());
     for task in output_tasks.iter() {
-        let (output_task_id, _) = task.add_to(&mut ctx);
+        let (output_task_id, _) = task.add_to(&ctx);
         output_task_ids.push(output_task_id);
     }
     // Split the graph into weakly-connected components (WCCs, groups that don't share any subtasks).
     // Used to save memory by minimizing the number of WCCs caching their subtasks at once.
     // Adapted from https://docs.rs/petgraph/latest/src/petgraph/algo/mod.rs.html#87-102.
-    let mut vertex_sets = UnionFind::new(ctx.graph.node_bound());
-    for edge in ctx.graph.edge_references() {
+    let graph = &ctx.borrow().graph;
+    let mut vertex_sets = UnionFind::new(graph.node_bound());
+    for edge in graph.edge_references() {
         let (a, b) = (edge.source(), edge.target());
 
         // union the two vertices of the edge
         vertex_sets.union(a, b);
     }
     let mut component_map: HashMap<NodeIndex<DefaultIx>, Vec<Option<&CloneableLazyTask<()>>>>
-        = HashMap::with_capacity(ctx.graph.node_bound());
+        = HashMap::with_capacity(graph.node_bound());
+    let task_to_future_map = &ctx.borrow().output_task_to_future_map;
     let labeling = vertex_sets.into_labeling();
-    for (index, task) in ctx.graph.node_references() {
+    for (index, task) in graph.node_references() {
         let representative = labeling[index.index()];
         let future_if_output = if let TaskSpec::FileOutput(sink_task_spec) = task {
-            let (_, future) = ctx.output_task_to_future_map.get(&sink_task_spec)
-                .expect(&format!("Missing output_task_to_future_map entry for {}", sink_task_spec));
+            let (_, future) = task_to_future_map.get(&sink_task_spec)
+                .unwrap_or_else(|| panic!("Missing output_task_to_future_map entry for {}", sink_task_spec));
             Some(future)
         } else {
             None
