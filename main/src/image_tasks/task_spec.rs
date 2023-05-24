@@ -134,9 +134,9 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
             ctx.graph.add_edge(dependency, self_id, E::default())
                 .expect("Tried to create a cycle");
         }
-        let task = CloneableLazyTask::new(function);
+        info!("Adding node: {}", name);
+        let task = CloneableLazyTask::new(name, function);
         ctx.pixmap_task_to_future_map.insert(self, (self_id, task.to_owned()));
-        info!("Added node: {}", name);
         (self_id, task)
     }
 }
@@ -209,9 +209,9 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
             ctx.graph.add_edge(dependency, self_id, E::default())
                 .expect("Tried to create a cycle");
         }
-        let task = CloneableLazyTask::new(function);
+        info!("Adding node: {}", name);
+        let task = CloneableLazyTask::new(name, function);
         ctx.alpha_task_to_future_map.insert(self, (self_id, task.to_owned()));
-        info!("Added node: {}", name);
         (self_id, task)
     }
 }
@@ -250,9 +250,9 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
             ctx.graph.add_edge(dependency, self_id, E::default())
                 .expect("Tried to create a cycle");
         }
-        let wrapped_future = CloneableLazyTask::new(function);
+        info!("Adding node: {}", name);
+        let wrapped_future = CloneableLazyTask::new(name, function);
         ctx.output_task_to_future_map.insert(self, (self_id, wrapped_future.to_owned()));
-        info!("Added node: {}", name);
         (self_id, wrapped_future)
     }
 }
@@ -425,6 +425,7 @@ pub enum CloneableLazyTaskState<T> where T: ?Sized {
 
 #[derive(Clone,Debug)]
 pub struct CloneableLazyTask<T> where T: ?Sized {
+    name: String,
     state: Arc<Mutex<CloneableLazyTaskState<T>>>
 }
 
@@ -436,9 +437,9 @@ impl <T> Debug for CloneableLazyTaskState<T> where T: ?Sized {
             },
             CloneableLazyTaskState::Finished { result } => {
                 match result {
-                    Ok(..) => f.write_str("Finished(Ok)"),
+                    Ok(..) => f.write_str("Ok"),
                     Err(error) => f.write_fmt(
-                        format_args!("Finished(Error({}))", error.message))
+                        format_args!("Error({})", error.message))
                 }
             }
         }
@@ -446,8 +447,9 @@ impl <T> Debug for CloneableLazyTaskState<T> where T: ?Sized {
 }
 
 impl <T> CloneableLazyTask<T> where T: ?Sized {
-    pub fn new(base: LazyTaskFunction<T>) -> CloneableLazyTask<T> {
+    pub fn new(name: String, base: LazyTaskFunction<T>) -> CloneableLazyTask<T> {
         CloneableLazyTask {
+            name,
             state: Arc::new(Mutex::new(CloneableLazyTaskState::Upcoming {
                 function: base
             }))
@@ -465,7 +467,10 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
                     // We're the last referent to this Lazy, so we don't need to clone anything.
                     match state {
                         CloneableLazyTaskState::Upcoming { function } => {
-                            function().map(Arc::new)
+                            info!("Starting task {}", self.name);
+                            let result = function().map(Arc::new);
+                            info!("Finished task {}", self.name);
+                            result
                         },
                         CloneableLazyTaskState::Finished { result } => {
                             result

@@ -1,7 +1,5 @@
 use std::path::PathBuf;
 
-use log::info;
-
 use resvg::tiny_skia::{Pixmap, Transform};
 use resvg::usvg::{Options, Tree, TreeParsing};
 
@@ -36,7 +34,6 @@ pub const COLOR_SVGS: &[&str] = &[
 
 pub fn from_svg(path: &PathBuf, width: u32) -> Result<MaybeFromPool<Pixmap>,CloneableError> {
     let path_str = path.to_string_lossy();
-    info!("Starting task: from_svg({})", path_str);
     let svg = SVG_DIR.get_file(path).ok_or(anyhoo!(format!("File not found: {}", path_str)))?;
     let svg_tree = resvg::Tree::from_usvg(
         &Tree::from_data(svg.contents(), &Options::default())?);
@@ -47,6 +44,5 @@ pub fn from_svg(path: &PathBuf, width: u32) -> Result<MaybeFromPool<Pixmap>,Clon
     svg_tree.render(
         Transform::from_scale(scale, scale),
         &mut out.as_mut());
-    info!("Finishing task: from_svg({})", path_str);
     Ok(out)
 }

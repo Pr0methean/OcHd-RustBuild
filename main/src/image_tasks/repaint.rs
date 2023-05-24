@@ -44,19 +44,16 @@ fn allocate_mask_for_overwrite(width: u32, height: u32) -> MaybeFromPool<Mask> {
 }
 
 pub fn pixmap_to_mask(value: &Pixmap) -> MaybeFromPool<Mask> {
-    info!("Starting task: pixmap_to_mask");
     let mut mask = allocate_mask_for_overwrite(value.width(), value.height());
     let mask_pixels = mask.data_mut();
     for (index, pixel) in value.pixels().iter().enumerate() {
         mask_pixels[index] = pixel.alpha();
     }
-    info!("Finishing task: pixmap_to_mask");
     mask
 }
 
 /// Applies the given [color] to the given [input](alpha channel).
 pub fn paint(input: &Mask, color: Color) -> Result<Box<MaybeFromPool<Pixmap>>, CloneableError> {
-    info!("Starting task: paint with color {:?}", color);
     let mut output = allocate_pixmap_empty(input.width(), input.height());
     let mut paint = Paint::default();
     paint.set_color(color);
@@ -64,7 +61,6 @@ pub fn paint(input: &Mask, color: Color) -> Result<Box<MaybeFromPool<Pixmap>>, C
                          .ok_or(anyhoo!("Failed to create rectangle for paint()"))?,
                      &paint, Transform::default(),
                      Some(input));
-    info!("Finishing task: paint with color {:?}", color);
     Ok(Box::new(output))
 }
 

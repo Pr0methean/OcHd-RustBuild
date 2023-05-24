@@ -1,5 +1,4 @@
 use cached::proc_macro::cached;
-use log::info;
 use ordered_float::OrderedFloat;
 use resvg::tiny_skia::{Mask};
 
@@ -15,13 +14,11 @@ pub(crate) fn create_alpha_array(out_alpha: OrderedFloat<f32>) -> [u8; 256] {
 /// Multiplies the opacity of all pixels in the [input](given pixmap) by a given [alpha].
 pub fn make_semitransparent(input: &mut Mask, alpha: f32) {
 
-    info!("Starting task: make semitransparent with alpha {}", alpha);
     let alpha_array = create_alpha_array(alpha.into());
     let pixels = input.data_mut();
     for pixel in pixels {
         *pixel = alpha_array[*pixel as usize];
     }
-    info!("Finishing task: make semitransparent with alpha {}", alpha);
 }
 
 #[test]
