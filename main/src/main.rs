@@ -4,15 +4,12 @@
 #![feature(let_chains)]
 #![feature(macro_metavar_expr)]
 
-use std::collections::{HashMap};
 use std::path::{absolute, PathBuf};
 use std::time::Instant;
 
-use itertools::Itertools;
-use daggy::petgraph::visit::{EdgeRef, IntoNodeReferences, IntoEdgeReferences, NodeIndexable};
-use daggy::petgraph::unionfind::UnionFind;
+use petgraph::visit::{IntoNodeReferences};
 use log::{info, LevelFilter};
-use daggy::petgraph::graph::{DefaultIx, NodeIndex};
+use daggy::petgraph::graph::{DefaultIx};
 use texture_base::material::Material;
 use rayon::prelude::*;
 
@@ -106,49 +103,19 @@ fn build_task_vector() -> Vec<CloneableLazyTask<()>> {
         let (output_task_id, _) = task.add_to(&mut ctx);
         output_task_ids.push(output_task_id);
     }
-    // Split the graph into weakly-connected components (WCCs, groups that don't share any subtasks).
-    // Used to save memory by minimizing the number of WCCs caching their subtasks at once.
-    let mut vertex_sets = UnionFind::new(ctx.graph.node_bound());
-    for edge in ctx.graph.edge_references() {
-        let (a, b) = (edge.source(), edge.target());
-
-        // union the two vertices of the edge
-        vertex_sets.union(a, b);
-    }
-    let mut component_map: HashMap<NodeIndex<DefaultIx>, ConnectedComponent>
-        = HashMap::with_capacity(ctx.graph.node_bound());
-    let labeling = vertex_sets.into_labeling();
-    for (index, task) in ctx.graph.node_references() {
-        let representative = labeling[index.index()];
-        let ref_count = ctx.get_ref_count(task).unwrap();
-        let component = match component_map.get_mut(&representative) {
-            Some(existing) => existing,
-            None => {
-                let new_component = ConnectedComponent {
-                    output_tasks: Vec::new(),
-                    total_tasks: 0,
-                    max_ref_count: 0,
-                };
-                component_map.insert(representative, new_component);
-                component_map.get_mut(&representative).unwrap()
+    ctx.graph.node_references()
+        .map(|(_, task)| {
+            match task {
+                TaskSpec::FileOutput(output_task) => {
+                    match ctx.output_task_to_future_map.get(output_task) {
+                        Some((_, future)) => Some(future),
+                        None => None
+                    }
+                },
+                _ => None
             }
-        };
-        component.total_tasks += 1;
-        component.max_ref_count = component.max_ref_count.max(ref_count);
-        if let TaskSpec::FileOutput(output_task) = task {
-            let (_, output_future) = ctx.output_task_to_future_map.get(output_task).unwrap();
-            component.output_tasks.push(output_future);
-        }
-    }
-    let mut components: Vec<ConnectedComponent> = component_map.into_values().collect();
-    // Run connected components with widely-used tasks first, so that cloning their result
-    // doesn't become a bottleneck. Also favor running small ones first, to free up memory for
-    // the large ones.
-    components.sort_unstable_by_key(|component| (usize::MAX - component.max_ref_count, component.total_tasks));
-    info!("Connected component sizes: {}", components.iter().map(|component| component.total_tasks).join(","));
-    components
-        .into_iter()
-        .flat_map(|component| component.output_tasks)
+        })
+        .flatten()
         .map(CloneableLazyTask::to_owned)
         .collect()
 }
