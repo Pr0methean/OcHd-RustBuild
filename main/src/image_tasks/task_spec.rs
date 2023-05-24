@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::{HashMap};
 
 use std::fmt::{Debug, Display, Formatter};
@@ -33,17 +34,18 @@ use crate::image_tasks::stack::{stack_alpha_on_alpha, stack_alpha_on_background,
 use crate::TILE_SIZE;
 
 pub trait TaskSpecTraits <T>: Clone + Debug + Display + Ord + Eq + Hash {
-    fn add_to<'a, 'b, E, Ix>(self, ctx: &mut TaskGraphBuildingContext<E, Ix>)
+    fn add_to<'a, 'b, E, Ix>(self, ctx: &RefCell<TaskGraphBuildingContext<E, Ix>>)
                          -> (NodeIndex<Ix>, CloneableLazyTask<T>)
         where Ix : IndexType, E: Default, 'b: 'a;
 }
 
 impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
-    fn add_to<'a, 'b, E, Ix>(self, ctx: &mut TaskGraphBuildingContext<E, Ix>)
+    fn add_to<'a, 'b, E, Ix>(self, ctx: &RefCell<TaskGraphBuildingContext<E, Ix>>)
                          -> (NodeIndex<Ix>, CloneableLazyTask<MaybeFromPool<Pixmap>>)
                          where Ix : IndexType, E: Default, 'b: 'a {
         let name: String = self.to_string();
-        if let Some((existing_index, existing_future)) = ctx.pixmap_task_to_future_map.get(&self) {
+        if let Some((existing_index, existing_future))
+                = ctx.borrow().pixmap_task_to_future_map.get(&self) {
             info!("Matched an existing node: {}", name);
             return (*existing_index, existing_future.to_owned());
         }
@@ -118,6 +120,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
             },
         };
         let self_as_map_key = self.to_owned();
+        let mut ctx = ctx.borrow_mut();
         let self_id = ctx.graph.add_node(TaskSpec::from(self));
         for dependency in dependencies {
             ctx.graph.add_edge(dependency, self_id, E::default())
@@ -131,12 +134,12 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
 }
 
 impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
-    fn add_to<'a, 'b, E, Ix>(self, ctx: &mut TaskGraphBuildingContext<E, Ix>)
+    fn add_to<'a, 'b, E, Ix>(self, ctx: &RefCell<TaskGraphBuildingContext<E, Ix>>)
                          -> (NodeIndex<Ix>, CloneableLazyTask<MaybeFromPool<Mask>>)
                          where Ix : IndexType, E: Default, 'b: 'a {
         let name: String = self.to_string();
         if let Some((existing_index, existing_future))
-                = ctx.alpha_task_to_future_map.get(&self) {
+                = ctx.borrow().alpha_task_to_future_map.get(&self) {
             info!("Matched an existing node: {}", name);
             return (*existing_index, existing_future.to_owned());
         }
@@ -194,6 +197,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
             }
         };
         let self_as_map_key = self.to_owned();
+        let mut ctx = ctx.borrow_mut();
         let self_id = ctx.graph.add_node(TaskSpec::from(self));
         for dependency in dependencies {
             ctx.graph.add_edge(dependency, self_id, E::default())
@@ -207,12 +211,12 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
 }
 
 impl TaskSpecTraits<()> for FileOutputTaskSpec {
-    fn add_to<'a, 'b, E, Ix>(self, ctx: &mut TaskGraphBuildingContext<E, Ix>)
+    fn add_to<'a, 'b, E, Ix>(self, ctx: &RefCell<TaskGraphBuildingContext<E, Ix>>)
                          -> (NodeIndex<Ix>, CloneableLazyTask<()>)
                          where Ix : IndexType, E: Default, 'b: 'a {
         let name: String = self.to_string();
         if let Some((existing_index, existing_future))
-                = ctx.output_task_to_future_map.get(&self) {
+                = ctx.borrow().output_task_to_future_map.get(&self) {
             info!("Matched an existing node: {}", name);
             return (*existing_index, existing_future.to_owned());
         }
@@ -237,6 +241,7 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
             }
         };
         let self_as_map_key = self.to_owned();
+        let mut ctx = ctx.borrow_mut();
         let self_id = ctx.graph.add_node(TaskSpec::from(self));
         for dependency in dependencies {
             ctx.graph.add_edge(dependency, self_id, E::default())
