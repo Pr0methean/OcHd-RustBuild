@@ -111,7 +111,7 @@ fn build_task_vector() -> Vec<CloneableLazyTask<()>> {
         // union the two vertices of the edge
         vertex_sets.union(a, b);
     }
-    let mut component_map: HashMap<NodeIndex<DefaultIx>, Vec<Option<CloneableLazyTask<()>>>>
+    let mut component_map: HashMap<NodeIndex<DefaultIx>, Vec<Option<&CloneableLazyTask<()>>>>
         = HashMap::with_capacity(ctx.graph.node_bound());
     let labeling = vertex_sets.into_labeling();
     for (index, task) in ctx.graph.node_references() {
@@ -125,18 +125,18 @@ fn build_task_vector() -> Vec<CloneableLazyTask<()>> {
         };
         match component_map.get_mut(&representative) {
             Some(existing) => {
-                existing.push(future_if_output.map(CloneableLazyTask::to_owned));
+                existing.push(future_if_output);
             },
             None => {
                 let mut vec = Vec::with_capacity(1024);
-                vec.push(future_if_output.map(CloneableLazyTask::to_owned));
+                vec.push(future_if_output);
                 component_map.insert(representative, vec);
             }
         };
     }
     // Run small WCCs first so that their data can leave the heap before the big WCCs run
-    let mut components: Vec<Vec<Option<CloneableLazyTask<()>>>> = component_map.into_values().collect();
+    let mut components: Vec<Vec<Option<&CloneableLazyTask<()>>>> = component_map.into_values().collect();
     components.sort_by_key(Vec::len);
     info!("Connected component sizes: {}", components.iter().map(Vec::len).join(","));
-    components.into_iter().flatten().flatten().collect()
+    components.into_iter().flatten().flatten().map(CloneableLazyTask::to_owned).collect()
 }
