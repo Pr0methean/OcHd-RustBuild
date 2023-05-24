@@ -125,10 +125,9 @@ fn main() -> Result<(), CloneableError> {
         let mut components: Vec<Vec<Option<CloneableLazyTask<()>>>> = component_map.into_values().collect();
         components.sort_by_key(Vec::len);
         info!("Connected component sizes: {}", components.iter().map(Vec::len).join(","));
-        let components: Vec<CloneableLazyTask<()>>
-            = components.into_iter().flatten().flatten().collect();
-        info!("Starting tasks");
         components.into_par_iter()
+            .flatten()
+            .flatten()
             .map(|task| task.into_result())
             .for_each(|result| {
                 result.expect("Error running a task");
