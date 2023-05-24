@@ -592,13 +592,16 @@ pub fn out_task(name: &str, base: ToPixmapTaskSpec) -> FileOutputTaskSpec {
     FileOutputTaskSpec::PngOutput {base, destination: name_to_out_path(name) }
 }
 
-fn stack_alpha_presorted(layers: &[ToAlphaChannelTaskSpec]) -> ToAlphaChannelTaskSpec {
+fn stack_alpha_presorted(mut layers: Vec<ToAlphaChannelTaskSpec>) -> ToAlphaChannelTaskSpec {
     match layers.len() {
         0 => panic!("Attempt to create empty stack of alpha channels"),
         1 => layers[0].to_owned(),
-        x => ToAlphaChannelTaskSpec::StackAlphaOnAlpha {
-            background: stack_alpha_presorted(&layers[0..x-1]).into(),
-            foreground: layers[x-1].to_owned().into()
+        x => {
+            let last = layers.remove(x - 1);
+            ToAlphaChannelTaskSpec::StackAlphaOnAlpha {
+                background: stack_alpha_presorted(layers).into(),
+                foreground: Box::new(last)
+            }
         }
     }
 }
@@ -606,7 +609,7 @@ fn stack_alpha_presorted(layers: &[ToAlphaChannelTaskSpec]) -> ToAlphaChannelTas
 pub fn stack_alpha(layers: Vec<ToAlphaChannelTaskSpec>) -> ToAlphaChannelTaskSpec {
     let mut layers: Vec<ToAlphaChannelTaskSpec> = layers;
     layers.sort();
-    stack_alpha_presorted(layers.as_slice())
+    stack_alpha_presorted(layers)
 }
 
 pub fn stack(background: ToPixmapTaskSpec, foreground: ToPixmapTaskSpec) -> ToPixmapTaskSpec {
