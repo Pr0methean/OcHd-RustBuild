@@ -84,23 +84,6 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                 }))
             },
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
-                if let ToPixmapTaskSpec::PaintAlphaChannel {base: base_of_bg, color: color_of_bg} = background.deref()
-                        && let ToPixmapTaskSpec::PaintAlphaChannel {base: base_of_fg, color: color_of_fg} = foreground.deref()
-                        && color_of_bg == color_of_fg {
-                    error!("Wanted to rebuild {} by merging {} and {}, but the borrow checker \
-                    doesn't allow this!", self, base_of_bg, base_of_fg);
-                    /*
-                    FIXME: Fails borrow checker:
-                    let simplified = ToPixmapTaskSpec::PaintAlphaChannel {
-                        base: Box::new(ToAlphaChannelTaskSpec::StackAlphaOnAlpha {
-                            background: base_of_bg.to_owned(),
-                            foreground: base_of_fg.to_owned()
-                        }),
-                        color: color_of_fg.to_owned()
-                    };
-                    return simplified.add_to(ctx);
-                     */
-                }
                 let (bg_index, bg_future) = background.add_to(ctx);
                 let (fg_index, fg_future) = foreground.add_to(ctx);
                 (vec![bg_index, fg_index], Box::new(move || {
