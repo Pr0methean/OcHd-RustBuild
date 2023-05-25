@@ -75,8 +75,7 @@ fn main() -> Result<(), CloneableError> {
         create_dir_all(out_dir).expect("Failed to create output directory");
         copy_metadata(&METADATA_DIR);
     }, || {
-        let components = build_task_vector();
-        components.into_par_iter()
+        build_task_vector().into_par_iter()
             .map(|task| task.into_result())
             .for_each(|result| {
                 result.expect("Error running a task");
