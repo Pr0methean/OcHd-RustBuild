@@ -11,7 +11,7 @@ use log::{info, LevelFilter};
 use texture_base::material::Material;
 use rayon::prelude::*;
 
-use crate::image_tasks::task_spec::{CloneableLazyTask, TaskGraphBuildingContext, TaskSpecTraits, METADATA_DIR, CloneableError};
+use crate::image_tasks::task_spec::{TaskGraphBuildingContext, TaskSpecTraits, METADATA_DIR, CloneableError};
 
 mod image_tasks;
 mod texture_base;
@@ -70,7 +70,9 @@ fn main() -> Result<(), CloneableError> {
         create_dir_all(out_dir).expect("Failed to create output directory");
         copy_metadata(&METADATA_DIR);
     }, || {
-        build_task_vector().into_par_iter()
+        let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
+        materials::ALL_MATERIALS.get_output_tasks().into_iter()
+            .map(|task| task.add_to(&mut ctx))
             .map(|task| task.into_result())
             .for_each(|result| {
                 result.expect("Error running a task");
