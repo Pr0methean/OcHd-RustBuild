@@ -69,7 +69,7 @@ fn main() -> Result<(), CloneableError> {
     let out_file = out_dir.join(format!("OcHD-{}x{}.zip", *TILE_SIZE, *TILE_SIZE));
     info!("Writing output to {}", absolute(&out_file)?.to_string_lossy());
     let tile_size: u32 = *TILE_SIZE;
-    info!("Using {:?} pixels per tile", tile_size);
+    info!("Using {} pixels per tile", tile_size);
     let start_time = Instant::now();
     rayon::join(|| {
         create_dir_all(out_dir).expect("Failed to create output directory");
