@@ -475,17 +475,18 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
                     write_guard.deref_mut(),
                     || CloneableLazyTaskState::Finished {result: Err(anyhoo!("replace_with failed")) },
                     |state| -> (CloneableResult<T>, CloneableLazyTaskState<T>) {
-                        match state {
+                        let result = match state {
                             CloneableLazyTaskState::Upcoming { function } => {
                                 info!("Starting task {}", self.name);
                                 let result = function().map(Arc::new);
                                 info!("Finished task {}", self.name);
-                                (result.to_owned(), CloneableLazyTaskState::Finished { result })
+                                result
                             },
                             CloneableLazyTaskState::Finished { result } => {
-                                (result.to_owned(), CloneableLazyTaskState::Finished { result })
+                                result
                             }
-                        }
+                        };
+                        (result.to_owned(), CloneableLazyTaskState::Finished { result })
                     }
                 )
             }
