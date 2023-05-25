@@ -15,7 +15,7 @@ use include_dir::{Dir, include_dir};
 use itertools::{Itertools};
 
 
-use log::{error, info};
+use log::info;
 use ordered_float::OrderedFloat;
 use petgraph::graph::{IndexType, NodeIndex};
 use replace_with::replace_with_and_return;
