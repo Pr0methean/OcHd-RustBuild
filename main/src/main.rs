@@ -71,8 +71,12 @@ fn main() -> Result<(), CloneableError> {
         copy_metadata(&METADATA_DIR);
     }, || {
         let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
-        materials::ALL_MATERIALS.get_output_tasks().into_par_iter()
-            .map(|task| task.add_to(&mut ctx))
+        let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
+        let mut planned_tasks = Vec::with_capacity(out_tasks.len());
+        for task in out_tasks {
+            planned_tasks.push(task.add_to(&mut ctx));
+        }
+        planned_tasks.into_par_iter()
             .map(|task| task.into_result())
             .for_each(|result| {
                 result.expect("Error running a task");
