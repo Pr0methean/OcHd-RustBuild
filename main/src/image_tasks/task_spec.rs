@@ -10,14 +10,14 @@ use std::sync::{Arc, Mutex};
 
 use cached::lazy_static::lazy_static;
 use crate::anyhoo;
-use fn_graph::daggy::Dag;
+use daggy::Dag;
 use include_dir::{Dir, include_dir};
 use itertools::{Itertools};
 
 
 use log::info;
 use ordered_float::OrderedFloat;
-use petgraph::graph::{IndexType, NodeIndex};
+use daggy::petgraph::graph::{IndexType, NodeIndex};
 use replace_with::replace_with_and_return;
 
 use resvg::tiny_skia::{Color, Mask, Pixmap};

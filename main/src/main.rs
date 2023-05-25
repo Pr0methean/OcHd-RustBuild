@@ -9,10 +9,10 @@ use std::path::{absolute, PathBuf};
 use std::time::Instant;
 
 use itertools::Itertools;
-use petgraph::visit::{EdgeRef, IntoNodeReferences, IntoEdgeReferences, NodeIndexable};
-use fn_graph::daggy::petgraph::unionfind::UnionFind;
+use daggy::petgraph::visit::{EdgeRef, IntoNodeReferences, IntoEdgeReferences, NodeIndexable};
+use daggy::petgraph::unionfind::UnionFind;
 use log::{info, LevelFilter};
-use petgraph::graph::{DefaultIx, NodeIndex};
+use daggy::petgraph::graph::{DefaultIx, NodeIndex};
 use texture_base::material::Material;
 use rayon::prelude::*;
 

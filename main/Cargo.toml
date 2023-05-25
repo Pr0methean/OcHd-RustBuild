@@ -7,14 +7,13 @@ edition = "2021"
 
 [dependencies]
 resvg = "0.33.0"
-fn_graph = { version = "0.8.2" }
+daggy = "0.8.0"
 anyhow = "1.0.71"
 cached = "0.43.0"
 ordered-float = "3.7.0"
 lazy_static = "1.4.0"
 const_format = {version = "0.2.30", features = ["fmt", "rust_1_64"]}
 rayon = "1.7.0"
-petgraph = "0.6.3"
 simple-logging = "2.0.2"
 log = "0.4.17"
 itertools = "0.10.5"
