@@ -71,7 +71,7 @@ fn main() -> Result<(), CloneableError> {
         copy_metadata(&METADATA_DIR);
     }, || {
         let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
-        materials::ALL_MATERIALS.get_output_tasks().into_iter()
+        materials::ALL_MATERIALS.get_output_tasks().into_par_iter()
             .map(|task| task.add_to(&mut ctx))
             .map(|task| task.into_result())
             .for_each(|result| {
