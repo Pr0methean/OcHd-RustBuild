@@ -10,14 +10,11 @@ use std::sync::{Arc, Mutex};
 
 use cached::lazy_static::lazy_static;
 use crate::anyhoo;
-use daggy::Dag;
 use include_dir::{Dir, include_dir};
-use itertools::{Itertools};
-
+use itertools::Itertools;
 
 use log::info;
 use ordered_float::OrderedFloat;
-use daggy::petgraph::graph::{IndexType, NodeIndex};
 use replace_with::replace_with_and_return;
 
 use resvg::tiny_skia::{Color, Mask, Pixmap};
@@ -33,194 +30,170 @@ use crate::image_tasks::stack::{stack_alpha_on_alpha, stack_alpha_on_background,
 use crate::TILE_SIZE;
 
 pub trait TaskSpecTraits <T>: Clone + Debug + Display + Ord + Eq + Hash {
-    fn add_to<'a, 'b, E, Ix>(&'b self, ctx: &mut TaskGraphBuildingContext<'a, E, Ix>)
-                         -> (NodeIndex<Ix>, CloneableLazyTask<T>)
-        where Ix : IndexType, E: Default, 'b: 'a;
+    fn add_to<'a, 'b>(&'b self, ctx: &mut TaskGraphBuildingContext)
+                         -> CloneableLazyTask<T>
+        where 'b: 'a;
 }
 
 impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
-    fn add_to<'a, 'b, E, Ix>(&'b self, ctx: &mut TaskGraphBuildingContext<'a, E, Ix>)
-                         -> (NodeIndex<Ix>, CloneableLazyTask<MaybeFromPool<Pixmap>>)
-                         where Ix : IndexType, E: Default, 'b: 'a {
+    fn add_to<'a, 'b>(&'b self, ctx: &mut TaskGraphBuildingContext)
+                         -> CloneableLazyTask<MaybeFromPool<Pixmap>>
+                         where 'b: 'a {
         let name: String = self.to_string();
-        if let Some((existing_index, existing_future)) = ctx.pixmap_task_to_future_map.get(&self) {
+        if let Some(existing_future) = ctx.pixmap_task_to_future_map.get(&self) {
             info!("Matched an existing node: {}", name);
-            return (*existing_index, existing_future.to_owned());
+            return existing_future.to_owned();
         }
-        let (dependencies, function): (Vec<NodeIndex<Ix>>, LazyTaskFunction<MaybeFromPool<Pixmap>>) = match self {
+        let function: LazyTaskFunction<MaybeFromPool<Pixmap>> = match self {
             ToPixmapTaskSpec::None { .. } => panic!("Tried to add None task to graph"),
             ToPixmapTaskSpec::Animate { background, frames } => {
                 let background_opaque = background.is_necessarily_opaque();
-                let (background_index, background_future) = background.add_to(ctx);
-                let mut dependencies = Vec::with_capacity(frames.len() + 1);
-                dependencies.push(background_index);
+                let background_future = background.add_to(ctx);
                 let mut frame_futures: Vec<CloneableLazyTask<MaybeFromPool<Pixmap>>>
                     = Vec::with_capacity(frames.len());
                 for frame in frames {
-                    let (frame_index, frame_future) = frame.add_to(ctx);
+                    let frame_future = frame.add_to(ctx);
                     frame_futures.push(frame_future);
-                    dependencies.push(frame_index);
                 }
-                (dependencies, Box::new(move || {
+                Box::new(move || {
                     let background: Arc<Box<MaybeFromPool<Pixmap>>> = background_future.into_result()?;
                     animate(&background, frame_futures, !background_opaque)
-                }))
+                })
             },
             ToPixmapTaskSpec::FromSvg { source } => {
                 let source = source.to_owned();
-                (vec![], Box::new(move || {
+                Box::new(move || {
                     Ok(Box::new(from_svg(&source, *TILE_SIZE)?))
-                }))
+                })
             },
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
                 let background: Color = (*background).into();
-                let (fg_index, fg_future) = foreground.add_to(ctx);
-                (vec![fg_index],
+                let fg_future = foreground.add_to(ctx);
                 Box::new(move || {
                     let fg_image: Arc<Box<MaybeFromPool<Pixmap>>> = fg_future.into_result()?;
                     let mut fg_image = Arc::unwrap_or_clone(fg_image);
                     stack_layer_on_background(background, &mut fg_image)?;
                     Ok(fg_image)
-                }))
+                })
             },
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
-                let (bg_index, bg_future) = background.add_to(ctx);
-                let (fg_index, fg_future) = foreground.add_to(ctx);
-                (vec![bg_index, fg_index], Box::new(move || {
+                let bg_future = background.add_to(ctx);
+                let fg_future = foreground.add_to(ctx);
+                Box::new(move || {
                     let bg_image: Arc<Box<MaybeFromPool<Pixmap>>> = bg_future.into_result()?;
                     let mut out_image = Arc::unwrap_or_clone(bg_image);
                     let fg_image: Arc<Box<MaybeFromPool<Pixmap>>> = fg_future.into_result()?;
                     stack_layer_on_layer(&mut out_image, fg_image.deref());
                     Ok(out_image)
-                }))
+                })
             },
             ToPixmapTaskSpec::PaintAlphaChannel { base, color } => {
-                let (base_index, base_future) = base.add_to(ctx);
+                let base_future = base.add_to(ctx);
                 let color: Color = (*color).into();
-                (vec![base_index],
                 Box::new(move || {
                     let base_image: Arc<Box<MaybeFromPool<Mask>>> = base_future.into_result()?;
                     paint(Arc::unwrap_or_clone(base_image).as_ref(), color)
-                }))
+                })
             },
         };
-        let self_id = ctx.graph.add_node(TaskSpec::from(self));
-        for dependency in dependencies {
-            ctx.graph.add_edge(dependency, self_id, E::default())
-                .expect("Tried to create a cycle");
-        }
         info!("Adding node: {}", name);
         let task = CloneableLazyTask::new(name, function);
-        ctx.pixmap_task_to_future_map.insert(self, (self_id, task.to_owned()));
-        (self_id, task)
+        ctx.pixmap_task_to_future_map.insert(self.to_owned(), task.to_owned());
+        task
     }
 }
 
 impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
-    fn add_to<'a, 'b, E, Ix>(&'b self, ctx: &mut TaskGraphBuildingContext<'a, E, Ix>)
-                         -> (NodeIndex<Ix>, CloneableLazyTask<MaybeFromPool<Mask>>)
-                         where Ix : IndexType, E: Default, 'b: 'a {
+    fn add_to<'a, 'b>(&'b self, ctx: &mut TaskGraphBuildingContext)
+                         -> CloneableLazyTask<MaybeFromPool<Mask>>
+                         where 'b: 'a {
         let name: String = self.to_string();
-        if let Some((existing_index, existing_future))
+        if let Some(existing_future)
                 = ctx.alpha_task_to_future_map.get(&self) {
             info!("Matched an existing node: {}", name);
-            return (*existing_index, existing_future.to_owned());
+            return existing_future.to_owned();
         }
-        let (dependencies, function): (Vec<NodeIndex<Ix>>, LazyTaskFunction<MaybeFromPool<Mask>>)
-                = match self {
+        let function: LazyTaskFunction<MaybeFromPool<Mask>> = match self {
             ToAlphaChannelTaskSpec::MakeSemitransparent { base, alpha } => {
                 let alpha: f32 = (*alpha).into();
-                let (base_index, base_future) = base.add_to(ctx);
-                (vec![base_index],
+                let base_future = base.add_to(ctx);
                 Box::new(move || {
                     let base_result: Arc<Box<MaybeFromPool<Mask>>> = base_future.into_result()?;
                     let mut channel = Arc::unwrap_or_clone(base_result);
                     make_semitransparent(&mut channel, alpha);
                     Ok(channel)
-                }))
+                })
             },
             ToAlphaChannelTaskSpec::FromPixmap { base } => {
-                let (base_index, base_future) = base.add_to(ctx);
-                (vec![base_index],
+                let base_future = base.add_to(ctx);
                 Box::new(move || {
                     let base_image: Arc<Box<MaybeFromPool<Pixmap>>> = base_future.into_result()?;
                     Ok(Box::new(pixmap_to_mask(&base_image)))
-                }))
+                })
             },
             ToAlphaChannelTaskSpec::StackAlphaOnAlpha { background, foreground } => {
-                let (bg_index, bg_future) = background.add_to(ctx);
-                let (fg_index, fg_future) = foreground.add_to(ctx);
-                (vec![bg_index, fg_index], Box::new(move || {
+                let bg_future = background.add_to(ctx);
+                let fg_future = foreground.add_to(ctx);
+                Box::new(move || {
                     let bg_mask: Arc<Box<MaybeFromPool<Mask>>> = bg_future.into_result()?;
                     let mut out_mask = Arc::unwrap_or_clone(bg_mask);
                     let fg_mask: Arc<Box<MaybeFromPool<Mask>>> = fg_future.into_result()?;
                     stack_alpha_on_alpha(&mut out_mask, fg_mask.deref());
                     Ok(out_mask)
-                }))
+                })
             },
             ToAlphaChannelTaskSpec::StackAlphaOnBackground { background, foreground } => {
                 let background = background.0;
-                let (fg_index, fg_future) = foreground.add_to(ctx);
-                (vec![fg_index],
-                 Box::new(move || {
-                     let fg_arc: Arc<Box<MaybeFromPool<Mask>>> = fg_future.into_result()?;
-                     let mut fg_image = Arc::unwrap_or_clone(fg_arc);
-                     stack_alpha_on_background(background, &mut fg_image);
-                     Ok(fg_image)
-                 }))
+                let fg_future = foreground.add_to(ctx);
+                Box::new(move || {
+                    let fg_arc: Arc<Box<MaybeFromPool<Mask>>> = fg_future.into_result()?;
+                    let mut fg_image = Arc::unwrap_or_clone(fg_arc);
+                    stack_alpha_on_background(background, &mut fg_image);
+                    Ok(fg_image)
+                })
             }
         };
-        let self_id = ctx.graph.add_node(TaskSpec::from(self));
-        for dependency in dependencies {
-            ctx.graph.add_edge(dependency, self_id, E::default())
-                .expect("Tried to create a cycle");
-        }
         info!("Adding node: {}", name);
         let task = CloneableLazyTask::new(name, function);
-        ctx.alpha_task_to_future_map.insert(self, (self_id, task.to_owned()));
-        (self_id, task)
+        ctx.alpha_task_to_future_map.insert(self.to_owned(), task.to_owned());
+        task
     }
 }
 
 impl TaskSpecTraits<()> for FileOutputTaskSpec {
-    fn add_to<'a, 'b, E, Ix>(&'b self, ctx: &mut TaskGraphBuildingContext<'a, E, Ix>)
-                         -> (NodeIndex<Ix>, CloneableLazyTask<()>)
-                         where Ix : IndexType, E: Default, 'b: 'a {
+    fn add_to<'a, 'b>(&'b self, ctx: &mut TaskGraphBuildingContext)
+                         -> CloneableLazyTask<()>
+                         where 'b: 'a {
         let name: String = self.to_string();
-        if let Some((existing_index, existing_future))
+        if let Some(existing_future)
                 = ctx.output_task_to_future_map.get(&self) {
             info!("Matched an existing node: {}", name);
-            return (*existing_index, existing_future.to_owned());
+            return existing_future.to_owned();
         }
-        let (dependencies, function): (Vec<NodeIndex<Ix>>, LazyTaskFunction<()>) = match self {
+        let function: LazyTaskFunction<()> = match self {
             FileOutputTaskSpec::PngOutput {base, destination } => {
                 let destination = destination.to_owned();
-                let (base_index, base_future) = base.add_to(ctx);
-                (vec![base_index], Box::new(move || {
+                let base_future = base.add_to(ctx);
+                Box::new(move || {
                     let base_result = base_future.into_result()?;
                     Ok(Box::new(png_output(*Arc::unwrap_or_clone(base_result),
                                            &destination)?))
-                }))
+                })
             }
             FileOutputTaskSpec::Copy {original, link} => {
                 let link = link.to_owned();
                 let original_path = original.get_path();
-                let (base_index, base_future) = original.add_to(ctx);
-                (vec![base_index], Box::new(move || {
+                let base_future = original.add_to(ctx);
+                Box::new(move || {
                     base_future.into_result()?;
                     Ok(Box::new(copy_out_to_out(&original_path, &link)?))
-                }))
+                })
             }
         };
-        let self_id = ctx.graph.add_node(TaskSpec::from(self));
-        for dependency in dependencies {
-            ctx.graph.add_edge(dependency, self_id, E::default())
-                .expect("Tried to create a cycle");
-        }
         info!("Adding node: {}", name);
         let wrapped_future = CloneableLazyTask::new(name, function);
-        ctx.output_task_to_future_map.insert(self, (self_id, wrapped_future.to_owned()));
-        (self_id, wrapped_future)
+        ctx.output_task_to_future_map.insert(self.to_owned(), wrapped_future.to_owned());
+        wrapped_future
     }
 }
 
@@ -518,18 +491,15 @@ impl From<ToPixmapTaskSpec> for ToAlphaChannelTaskSpec {
     }
 }
 
-pub type TaskGraph<E, Ix> = Dag<TaskSpec, E, Ix>;
-pub struct TaskGraphBuildingContext<'a, E, Ix> where Ix: IndexType {
-    pub graph: TaskGraph<E, Ix>,
-    pixmap_task_to_future_map: HashMap<&'a ToPixmapTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<MaybeFromPool<Pixmap>>)>,
-    alpha_task_to_future_map: HashMap<&'a ToAlphaChannelTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<MaybeFromPool<Mask>>)>,
-    pub output_task_to_future_map: HashMap<&'a FileOutputTaskSpec, (NodeIndex<Ix>, CloneableLazyTask<()>)>
+pub struct TaskGraphBuildingContext {
+    pixmap_task_to_future_map: HashMap<ToPixmapTaskSpec, CloneableLazyTask<MaybeFromPool<Pixmap>>>,
+    alpha_task_to_future_map: HashMap<ToAlphaChannelTaskSpec, CloneableLazyTask<MaybeFromPool<Mask>>>,
+    pub output_task_to_future_map: HashMap<FileOutputTaskSpec, CloneableLazyTask<()>>
 }
 
-impl <'a,E,Ix> TaskGraphBuildingContext<'a,E,Ix> where Ix: IndexType {
+impl TaskGraphBuildingContext {
     pub(crate) fn new() -> Self {
         TaskGraphBuildingContext {
-            graph: TaskGraph::new(),
             pixmap_task_to_future_map: HashMap::new(),
             alpha_task_to_future_map: HashMap::new(),
             output_task_to_future_map: HashMap::new()

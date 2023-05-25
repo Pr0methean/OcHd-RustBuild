@@ -7,13 +7,11 @@
 use std::path::{absolute, PathBuf};
 use std::time::Instant;
 
-use petgraph::visit::{IntoNodeReferences};
 use log::{info, LevelFilter};
-use daggy::petgraph::graph::{DefaultIx};
 use texture_base::material::Material;
 use rayon::prelude::*;
 
-use crate::image_tasks::task_spec::{CloneableLazyTask, TaskGraphBuildingContext, TaskSpec, TaskSpecTraits, METADATA_DIR, CloneableError};
+use crate::image_tasks::task_spec::{CloneableLazyTask, TaskGraphBuildingContext, TaskSpecTraits, METADATA_DIR, CloneableError};
 
 mod image_tasks;
 mod texture_base;
@@ -86,12 +84,6 @@ fn main() -> Result<(), CloneableError> {
     fs::write(out_file.as_path(), zip_contents)?;
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     Ok(())
-}
-
-struct ConnectedComponent<'a> {
-    output_tasks: Vec<&'a CloneableLazyTask<()>>,
-    total_tasks: usize,
-    max_ref_count: usize
 }
 
 fn build_task_vector() -> Vec<CloneableLazyTask<()>> {

@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 resvg = "0.34.0"
-daggy = "0.8.0"
 anyhow = "1.0.71"
 cached = "0.43.0"
 ordered-float = "3.7.0"
