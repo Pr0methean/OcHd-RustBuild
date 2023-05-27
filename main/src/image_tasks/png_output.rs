@@ -28,7 +28,7 @@ lazy_static!{
         .compression_level(Some(9));
     pub static ref ZIP: Mutex<ZipWriter<ZipBufferRaw>> = Mutex::new(ZipWriter::new(Cursor::new(
         Vec::with_capacity(*ZIP_BUFFER_SIZE)
-    )));
+    ), false));
     static ref PNG_BUFFER_POOL: Arc<LinearObjectPool<Vec<u8>>> = Arc::new(LinearObjectPool::new(
         || {
             info!("Allocating a PNG buffer for pool");

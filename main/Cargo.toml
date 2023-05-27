@@ -22,7 +22,7 @@ lockfree-object-pool = "0.1.4"
 png = "0.17.8"
 include_dir = "0.7.3"
 tikv-jemallocator = "0.5.0"
-zip_next = {version = "0.8.3"}
+zip_next = {version = "0.9.0"}
 
 [dev-dependencies]
 tiny-skia-path = "0.9.0"
