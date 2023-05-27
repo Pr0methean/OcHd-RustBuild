@@ -61,11 +61,14 @@ const MASK_TYPE_ID: TypeId = TypeId::of::<Mask>();
 const VEC_U8_TYPE_ID: TypeId = TypeId::of::<Vec<u8>>();
 
 fn type_name_for_id(id: TypeId) -> &'static str {
-    match id {
-        PIXMAP_TYPE_ID => "Pixmap",
-        MASK_TYPE_ID => "Mask",
-        VEC_U8_TYPE_ID => "Vec<u8>",
-        _ => "Unknown"
+    if id == PIXMAP_TYPE_ID {
+        "Pixmap"
+    } else if id == MASK_TYPE_ID {
+        "Mask"
+    } else if id == VEC_U8_TYPE_ID {
+        "Vec<u8>"
+    } else {
+        "Unknown"
     }
 }
 
