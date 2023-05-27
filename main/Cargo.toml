@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-resvg = "0.33.0"
+resvg = "0.34.0"
 daggy = "0.8.0"
 anyhow = "1.0.71"
 cached = "0.43.0"
@@ -25,4 +25,4 @@ tikv-jemallocator = "0.5.0"
 zip_next = {version = "0.9.0"}
 
 [dev-dependencies]
-tiny-skia-path = "0.9.0"
+tiny-skia-path = "0.10.0"
