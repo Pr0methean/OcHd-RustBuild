@@ -4,7 +4,6 @@
 #![feature(let_chains)]
 #![feature(macro_metavar_expr)]
 
-use std::cmp::Ordering;
 use std::collections::{HashMap};
 use std::path::{absolute, PathBuf};
 use std::time::Instant;
@@ -98,33 +97,6 @@ struct ConnectedComponent<'a> {
     max_ref_count: usize
 }
 
-impl <'a> PartialEq<Self> for ConnectedComponent<'a> {
-    fn eq(&self, _other: &Self) -> bool {
-        false
-    }
-}
-
-impl <'a> Eq for ConnectedComponent<'a> {}
-
-impl <'a> PartialOrd<Self> for ConnectedComponent<'a> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl <'a> Ord for ConnectedComponent<'a> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        // Run connected components with widely-used tasks first, so that cloning their result
-        // doesn't become a bottleneck. Also favor running small ones first, to free up memory for
-        // the large ones.
-        match self.max_ref_count.cmp(&other.max_ref_count) {
-            Ordering::Less => Ordering::Less,
-            Ordering::Greater => Ordering::Greater,
-            Ordering::Equal => self.total_tasks.cmp(&other.total_tasks)
-        }
-    }
-}
-
 fn build_task_vector() -> Vec<CloneableLazyTask<()>> {
     let output_tasks = materials::ALL_MATERIALS.get_output_tasks();
     let mut output_task_ids = Vec::with_capacity(output_tasks.len());
@@ -169,7 +141,10 @@ fn build_task_vector() -> Vec<CloneableLazyTask<()>> {
         }
     }
     let mut components: Vec<ConnectedComponent> = component_map.into_values().collect();
-    components.sort();
+    // Run connected components with widely-used tasks first, so that cloning their result
+    // doesn't become a bottleneck. Also favor running small ones first, to free up memory for
+    // the large ones.
+    components.sort_unstable_by_key(|component| (usize::MAX - component.max_ref_count, component.total_tasks));
     info!("Connected component sizes: {}", components.iter().map(|component| component.total_tasks).join(","));
     components
         .into_iter()
