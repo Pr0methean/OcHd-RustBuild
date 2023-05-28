@@ -31,10 +31,8 @@ lazy_static!{
         .compression_method(Deflated)
         .compression_level(Some(if *TILE_SIZE < 64 {
         264
-    } else if *TILE_SIZE < 256 {
+    } else if *TILE_SIZE < 128 {
         24
-    } else if *TILE_SIZE < 512 {
-        14
     } else if *TILE_SIZE < 1024 {
         9
     } else if *TILE_SIZE < 2048 {
