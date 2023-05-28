@@ -23,11 +23,12 @@ pub type ZipBufferRaw = Cursor<Vec<u8>>;
 const PNG_BUFFER_SIZE: usize = 1024 * 1024;
 
 lazy_static!{
+
     static ref ZIP_BUFFER_SIZE: usize = (*TILE_SIZE as usize) * 32 * 1024;
-    // PNGs are already Zopfli compressed by oxipng.
+    // PNGs are already deflated by oxipng, so only the metadata is likely to be compressible.
     static ref PNG_ZIP_OPTIONS: FileOptions = FileOptions::default()
-        .compression_method(Stored)
-        .compression_level(None);
+        .compression_method(Deflated)
+        .compression_level(Some(1));
     static ref METADATA_ZIP_OPTIONS: FileOptions = FileOptions::default()
         .compression_method(Deflated)
         .compression_level(Some(264));
@@ -43,7 +44,17 @@ lazy_static!{
     ));
     static ref OXIPNG_OPTIONS: Options = {
         let mut options = Options::from_preset(4);
-        options.deflate = Deflaters::Zopfli {iterations: *ZOPFLI_ITERATIONS};
+        options.deflate = if *TILE_SIZE < 64 {
+            Deflaters::Zopfli {iterations: u8::MAX.try_into().unwrap() }
+        } else if *TILE_SIZE < 128 {
+            Deflaters::Zopfli {iterations: 30.try_into().unwrap() }
+        } else if *TILE_SIZE < 256 {
+            Deflaters::Zopfli {iterations: 10.try_into().unwrap() }
+        } else if *TILE_SIZE < 512 {
+            Deflaters::Zopfli {iterations: 5.try_into().unwrap() }
+        } else {
+            Deflaters::Libdeflater {compression: 12}
+        };
         options.optimize_alpha = true;
         options
     };

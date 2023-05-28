@@ -39,26 +39,11 @@ lazy_static! {
         ARGS.get(1).expect("Usage: OcHd-RustBuild <tile-size>").parse::<u32>()
             .expect("Tile size (first command-line argument) must be an integer")
     };
-    static ref ZOPFLI_ITERATIONS: NonZeroU8 = {
-        if *TILE_SIZE < 64 {
-            u8::MAX
-        } else if *TILE_SIZE < 128 {
-            30
-        } else if *TILE_SIZE < 256 {
-            15
-        } else if *TILE_SIZE < 512 {
-            10
-        } else {
-            5
-        }
-    }
-    .try_into().unwrap();
 }
 
 #[cfg(any(test,clippy))]
 lazy_static! {
     static ref TILE_SIZE: u32 = 128;
-    static ref ZOPFLI_ITERATIONS: NonZeroU8 = 15.try_into().unwrap();
 }
 
 #[global_allocator]
