@@ -4,6 +4,7 @@
 #![feature(let_chains)]
 #![feature(macro_metavar_expr)]
 
+use std::cmp::Ordering;
 use std::collections::{HashMap};
 use std::path::{absolute, PathBuf};
 use std::time::Instant;
@@ -25,7 +26,7 @@ mod materials;
 use std::env;
 use std::fs;
 use std::fs::create_dir_all;
-use std::ops::DerefMut;
+use std::ops::{DerefMut};
 use include_dir::{Dir, DirEntry};
 use lazy_static::lazy_static;
 use tikv_jemallocator::Jemalloc;
@@ -91,6 +92,39 @@ fn main() -> Result<(), CloneableError> {
     Ok(())
 }
 
+struct ConnectedComponent<'a> {
+    output_tasks: Vec<&'a CloneableLazyTask<()>>,
+    total_tasks: usize,
+    max_ref_count: usize
+}
+
+impl <'a> PartialEq<Self> for ConnectedComponent<'a> {
+    fn eq(&self, _other: &Self) -> bool {
+        false
+    }
+}
+
+impl <'a> Eq for ConnectedComponent<'a> {}
+
+impl <'a> PartialOrd<Self> for ConnectedComponent<'a> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl <'a> Ord for ConnectedComponent<'a> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // Run connected components with widely-used tasks first, so that cloning their result
+        // doesn't become a bottleneck. Also favor running small ones first, to free up memory for
+        // the large ones.
+        match self.max_ref_count.cmp(&other.max_ref_count) {
+            Ordering::Less => Ordering::Less,
+            Ordering::Greater => Ordering::Greater,
+            Ordering::Equal => self.total_tasks.cmp(&other.total_tasks)
+        }
+    }
+}
+
 fn build_task_vector() -> Vec<CloneableLazyTask<()>> {
     let output_tasks = materials::ALL_MATERIALS.get_output_tasks();
     let mut output_task_ids = Vec::with_capacity(output_tasks.len());
@@ -102,7 +136,6 @@ fn build_task_vector() -> Vec<CloneableLazyTask<()>> {
     }
     // Split the graph into weakly-connected components (WCCs, groups that don't share any subtasks).
     // Used to save memory by minimizing the number of WCCs caching their subtasks at once.
-    // Adapted from https://docs.rs/petgraph/latest/src/petgraph/algo/mod.rs.html#87-102.
     let mut vertex_sets = UnionFind::new(ctx.graph.node_bound());
     for edge in ctx.graph.edge_references() {
         let (a, b) = (edge.source(), edge.target());
@@ -110,32 +143,37 @@ fn build_task_vector() -> Vec<CloneableLazyTask<()>> {
         // union the two vertices of the edge
         vertex_sets.union(a, b);
     }
-    let mut component_map: HashMap<NodeIndex<DefaultIx>, Vec<Option<&CloneableLazyTask<()>>>>
+    let mut component_map: HashMap<NodeIndex<DefaultIx>, ConnectedComponent>
         = HashMap::with_capacity(ctx.graph.node_bound());
     let labeling = vertex_sets.into_labeling();
     for (index, task) in ctx.graph.node_references() {
         let representative = labeling[index.index()];
-        let future_if_output = if let TaskSpec::FileOutput(sink_task_spec) = task {
-            let (_, future) = ctx.output_task_to_future_map.get(&sink_task_spec)
-                .unwrap_or_else(|| panic!("Missing output_task_to_future_map entry for {}", sink_task_spec));
-            Some(future)
-        } else {
-            None
-        };
-        match component_map.get_mut(&representative) {
-            Some(existing) => {
-                existing.push(future_if_output);
-            },
+        let ref_count = ctx.get_ref_count(task).unwrap();
+        let component = match component_map.get_mut(&representative) {
+            Some(existing) => existing,
             None => {
-                let mut vec = Vec::with_capacity(1024);
-                vec.push(future_if_output);
-                component_map.insert(representative, vec);
+                let new_component = ConnectedComponent {
+                    output_tasks: Vec::new(),
+                    total_tasks: 0,
+                    max_ref_count: 0,
+                };
+                component_map.insert(representative, new_component);
+                component_map.get_mut(&representative).unwrap()
             }
         };
+        component.total_tasks += 1;
+        component.max_ref_count = component.max_ref_count.max(ref_count);
+        if let TaskSpec::FileOutput(output_task) = task {
+            let (_, output_future) = ctx.output_task_to_future_map.get(output_task).unwrap();
+            component.output_tasks.push(output_future);
+        }
     }
-    // Run small WCCs first so that their data can leave the heap before the big WCCs run
-    let mut components: Vec<Vec<Option<&CloneableLazyTask<()>>>> = component_map.into_values().collect();
-    components.sort_by_key(Vec::len);
-    info!("Connected component sizes: {}", components.iter().map(Vec::len).join(","));
-    components.into_iter().flatten().flatten().map(CloneableLazyTask::to_owned).collect()
+    let mut components: Vec<ConnectedComponent> = component_map.into_values().collect();
+    components.sort();
+    info!("Connected component sizes: {}", components.iter().map(|component| component.total_tasks).join(","));
+    components
+        .into_iter()
+        .flat_map(|component| component.output_tasks)
+        .map(CloneableLazyTask::to_owned)
+        .collect()
 }

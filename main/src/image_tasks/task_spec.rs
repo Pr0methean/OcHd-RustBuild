@@ -454,11 +454,11 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
                             || CloneableLazyTaskState::Finished {
                                 result: Err(anyhoo!("replace_with_and_return_failed"))
                             },
-                            | exec_state | {
+                            |exec_state| {
                                 match exec_state {
                                     CloneableLazyTaskState::Upcoming { function} => {
-                                        info ! ("Starting task {}", self.name);
-                                        let result: CloneableResult < T > = function().map(Arc::new);
+                                        info! ("Starting task {}", self.name);
+                                        let result: CloneableResult<T> = function().map(Arc::new);
                                         info! ("Finished task {}", self.name);
                                         info!("Unwrapping one of {} references to {} after computing it",
                                             Arc::strong_count(&shared_state), self.name);
@@ -477,6 +477,10 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
                 }
             }
         }
+    }
+
+    fn ref_count(&self) -> usize {
+        Arc::strong_count(&self.state)
     }
 }
 
@@ -529,6 +533,20 @@ impl <'a,E,Ix> TaskGraphBuildingContext<'a,E,Ix> where Ix: IndexType {
             pixmap_task_to_future_map: HashMap::new(),
             alpha_task_to_future_map: HashMap::new(),
             output_task_to_future_map: HashMap::new()
+        }
+    }
+
+    pub fn get_ref_count(&self, task: &TaskSpec) -> Option<usize> {
+        match task {
+            TaskSpec::ToPixmap(pixmap_task) =>
+                self.pixmap_task_to_future_map.get(pixmap_task)
+                    .map(|(_, task)| task.ref_count()),
+            TaskSpec::ToAlphaChannel(alpha_task) =>
+                self.alpha_task_to_future_map.get(alpha_task)
+                    .map(|(_, task)| task.ref_count()),
+            TaskSpec::FileOutput(output_task) =>
+                self.output_task_to_future_map.get(output_task)
+                    .map(|(_, task)| task.ref_count()),
         }
     }
 }
