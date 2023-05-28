@@ -16,7 +16,7 @@ use zip_next::{ZipWriter};
 
 use crate::image_tasks::MaybeFromPool;
 use crate::image_tasks::task_spec::{CloneableError};
-use crate::TILE_SIZE;
+use crate::{TILE_SIZE, ZOPFLI_ITERATIONS};
 
 pub type ZipBufferRaw = Cursor<Vec<u8>>;
 
@@ -43,7 +43,7 @@ lazy_static!{
     ));
     static ref OXIPNG_OPTIONS: Options = {
         let mut options = Options::from_preset(4);
-        options.deflate = Deflaters::Zopfli {iterations: 15.try_into().unwrap()};
+        options.deflate = Deflaters::Zopfli {iterations: *ZOPFLI_ITERATIONS};
         options.optimize_alpha = true;
         options
     };

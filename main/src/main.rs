@@ -25,6 +25,7 @@ mod materials;
 use std::env;
 use std::fs;
 use std::fs::create_dir_all;
+use std::num::NonZeroU8;
 use std::ops::{DerefMut};
 use include_dir::{Dir, DirEntry};
 use lazy_static::lazy_static;
@@ -33,16 +34,31 @@ use crate::image_tasks::png_output::{copy_in_to_out, ZIP};
 
 #[cfg(not(any(test,clippy)))]
 lazy_static! {
+    static ref ARGS: Vec<String> = env::args().collect();
     static ref TILE_SIZE: u32 = {
-        let args: Vec<String> = env::args().collect();
-        args.get(1).expect("Usage: OcHd-RustBuild <tile-size>").parse::<u32>()
+        ARGS.get(1).expect("Usage: OcHd-RustBuild <tile-size>").parse::<u32>()
             .expect("Tile size (first command-line argument) must be an integer")
     };
+    static ref ZOPFLI_ITERATIONS: NonZeroU8 = {
+        if *TILE_SIZE < 64 {
+            u8::MAX
+        } else if *TILE_SIZE < 128 {
+            30
+        } else if *TILE_SIZE < 256 {
+            15
+        } else if *TILE_SIZE < 512 {
+            10
+        } else {
+            5
+        }
+    }
+    .try_into().unwrap();
 }
 
 #[cfg(any(test,clippy))]
 lazy_static! {
     static ref TILE_SIZE: u32 = 128;
+    static ref ZOPFLI_ITERATIONS: NonZeroU8 = 15.try_into().unwrap();
 }
 
 #[global_allocator]
