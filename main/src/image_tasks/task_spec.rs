@@ -428,15 +428,18 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
     pub fn into_result(self) -> CloneableResult<T> {
         match Arc::try_unwrap(self.state) {
             Ok(exclusive_state) => {
+                // We're the last referent to this Lazy, so we don't need to clone anything.
                 match exclusive_state.into_inner() {
                     Ok(state) => match state {
                         CloneableLazyTaskState::Upcoming { function } => {
                             info!("Starting task {}", self.name);
                             let result: CloneableResult<T> = function().map(Arc::new);
                             info!("Finished task {}", self.name);
+                            info!("Unwrapping the only reference to {}", self.name);
                             result
                         },
                         CloneableLazyTaskState::Finished { result } => {
+                            info!("Unwrapping the last reference to {}", self.name);
                             result
                         },
                     }
@@ -457,9 +460,13 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
                                         info ! ("Starting task {}", self.name);
                                         let result: CloneableResult < T > = function().map(Arc::new);
                                         info! ("Finished task {}", self.name);
+                                        info!("Unwrapping one of {} references to {} after computing it",
+                                            Arc::strong_count(&shared_state), self.name);
                                         (result.to_owned(), CloneableLazyTaskState::Finished { result })
                                     },
                                     CloneableLazyTaskState::Finished { result } => {
+                                        info!("Unwrapping one of {} references to {}",
+                                            Arc::strong_count(&shared_state), self.name);
                                         (result.to_owned(), CloneableLazyTaskState::Finished { result })
                                     },
                                 }
