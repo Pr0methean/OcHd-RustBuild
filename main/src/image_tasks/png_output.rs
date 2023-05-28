@@ -25,10 +25,23 @@ const PNG_BUFFER_SIZE: usize = 1024 * 1024;
 lazy_static!{
 
     static ref ZIP_BUFFER_SIZE: usize = (*TILE_SIZE as usize) * 32 * 1024;
-    // Pixels are already deflated by oxipng.
+    // Pixels are already deflated by oxipng, but they're still compressible, probably because PNG
+    // chunks are compressed independently.
     static ref PNG_ZIP_OPTIONS: FileOptions = FileOptions::default()
-        .compression_method(Stored)
-        .compression_level(None);
+        .compression_method(Deflated)
+        .compression_level(Some(if *TILE_SIZE < 64 {
+        264
+    } else if *TILE_SIZE < 256 {
+        24
+    } else if *TILE_SIZE < 512 {
+        14
+    } else if *TILE_SIZE < 1024 {
+        9
+    } else if *TILE_SIZE < 2048 {
+        6
+    } else {
+        1
+    }));
     static ref METADATA_ZIP_OPTIONS: FileOptions = FileOptions::default()
         .compression_method(Deflated)
         .compression_level(Some(264));
