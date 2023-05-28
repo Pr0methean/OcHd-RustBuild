@@ -25,7 +25,7 @@ lazy_static!{
     static ref ZIP_BUFFER_SIZE: usize = (*TILE_SIZE as usize) * 32 * 1024;
     static ref ZIP_OPTIONS: FileOptions = FileOptions::default()
         .compression_method(Deflated)
-        .compression_level(Some(264))
+        .compression_level(Some(39))
         .with_zopfli_buffer(Some(PNG_BUFFER_SIZE));
     pub static ref ZIP: Mutex<ZipWriter<ZipBufferRaw>> = Mutex::new(ZipWriter::new(Cursor::new(
         Vec::with_capacity(*ZIP_BUFFER_SIZE)
