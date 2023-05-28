@@ -75,13 +75,9 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
                 let background: Color = (*background).into();
                 let (fg_index, fg_future) = foreground.add_to(ctx);
-                let fg_name = foreground.to_string();
-                let name = name.to_owned();
                 (vec![fg_index],
                 Box::new(move || {
                     let fg_image: Arc<Box<MaybeFromPool<Pixmap>>> = fg_future.into_result()?;
-                    info!("Unwrapping one of {} references to {} for mutation by {}",
-                            Arc::strong_count(&fg_image), fg_name, name);
                     let mut fg_image = Arc::unwrap_or_clone(fg_image);
                     stack_layer_on_background(background, &mut fg_image)?;
                     Ok(fg_image)
@@ -90,12 +86,8 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
                 let (bg_index, bg_future) = background.add_to(ctx);
                 let (fg_index, fg_future) = foreground.add_to(ctx);
-                let bg_name = background.to_string();
-                let name = name.to_owned();
                 (vec![bg_index, fg_index], Box::new(move || {
                     let bg_image: Arc<Box<MaybeFromPool<Pixmap>>> = bg_future.into_result()?;
-                    info!("Unwrapping one of {} references to {} for mutation by {}",
-                            Arc::strong_count(&bg_image), bg_name, name);
                     let mut out_image = Arc::unwrap_or_clone(bg_image);
                     let fg_image: Arc<Box<MaybeFromPool<Pixmap>>> = fg_future.into_result()?;
                     stack_layer_on_layer(&mut out_image, fg_image.deref());
@@ -105,13 +97,9 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
             ToPixmapTaskSpec::PaintAlphaChannel { base, color } => {
                 let (base_index, base_future) = base.add_to(ctx);
                 let color: Color = (*color).into();
-                let base_name = base.to_string();
-                let name = name.to_owned();
                 (vec![base_index],
                 Box::new(move || {
                     let base_image: Arc<Box<MaybeFromPool<Mask>>> = base_future.into_result()?;
-                    info!("Unwrapping one of {} references to {} for mutation by {}",
-                            Arc::strong_count(&base_image), base_name, name);
                     paint(Arc::unwrap_or_clone(base_image).as_ref(), color)
                 }))
             },
@@ -143,13 +131,9 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
             ToAlphaChannelTaskSpec::MakeSemitransparent { base, alpha } => {
                 let alpha: f32 = (*alpha).into();
                 let (base_index, base_future) = base.add_to(ctx);
-                let base_name = base.to_string();
-                let name = name.to_owned();
                 (vec![base_index],
                 Box::new(move || {
                     let base_result: Arc<Box<MaybeFromPool<Mask>>> = base_future.into_result()?;
-                    info!("Unwrapping one of {} references to {} for mutation by {}",
-                            Arc::strong_count(&base_result), base_name, name);
                     let mut channel = Arc::unwrap_or_clone(base_result);
                     make_semitransparent(&mut channel, alpha);
                     Ok(channel)
@@ -165,13 +149,9 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
             },
             ToAlphaChannelTaskSpec::StackAlphaOnAlpha { background, foreground } => {
                 let (bg_index, bg_future) = background.add_to(ctx);
-                let bg_name = background.to_string();
                 let (fg_index, fg_future) = foreground.add_to(ctx);
-                let name = name.to_owned();
                 (vec![bg_index, fg_index], Box::new(move || {
                     let bg_mask: Arc<Box<MaybeFromPool<Mask>>> = bg_future.into_result()?;
-                    info!("Unwrapping one of {} references to {} for mutation by {}",
-                            Arc::strong_count(&bg_mask), bg_name, name);
                     let mut out_mask = Arc::unwrap_or_clone(bg_mask);
                     let fg_mask: Arc<Box<MaybeFromPool<Mask>>> = fg_future.into_result()?;
                     stack_alpha_on_alpha(&mut out_mask, fg_mask.deref());
@@ -181,13 +161,9 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
             ToAlphaChannelTaskSpec::StackAlphaOnBackground { background, foreground } => {
                 let background = background.0;
                 let (fg_index, fg_future) = foreground.add_to(ctx);
-                let fg_name = foreground.to_string();
-                let name = name.to_owned();
                 (vec![fg_index],
                  Box::new(move || {
                      let fg_arc: Arc<Box<MaybeFromPool<Mask>>> = fg_future.into_result()?;
-                     info!("Unwrapping one of {} references to {} for mutation by {}",
-                            Arc::strong_count(&fg_arc), fg_name, name);
                      let mut fg_image = Arc::unwrap_or_clone(fg_arc);
                      stack_alpha_on_background(background, &mut fg_image);
                      Ok(fg_image)
@@ -220,12 +196,8 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
             FileOutputTaskSpec::PngOutput {base, destination } => {
                 let destination = destination.to_owned();
                 let (base_index, base_future) = base.add_to(ctx);
-                let base_name = base.to_string();
-                let name = name.to_owned();
                 (vec![base_index], Box::new(move || {
                     let base_result = base_future.into_result()?;
-                    info!("Unwrapping one of {} references to {} for mutation by {}",
-                            Arc::strong_count(&base_result), base_name, name);
                     Ok(Box::new(png_output(*Arc::unwrap_or_clone(base_result),
                                            &destination)?))
                 }))
