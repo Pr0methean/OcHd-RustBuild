@@ -10,7 +10,7 @@ use log::{error, info};
 use oxipng::{Deflaters, optimize_from_memory, Options};
 
 use resvg::tiny_skia::{Pixmap};
-use zip_next::CompressionMethod::{Deflated, Stored};
+use zip_next::CompressionMethod::{Deflated};
 use zip_next::write::FileOptions;
 use zip_next::{ZipWriter};
 
