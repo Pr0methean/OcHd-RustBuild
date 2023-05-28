@@ -426,62 +426,27 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
     /// Consumes this particular copy of the task and returns the result. Trades off readability and
     /// maintainability to maximize the chance of avoiding unnecessary copies.
     pub fn into_result(self) -> CloneableResult<T> {
-        let state = self.state;
-        let result = Arc::try_unwrap(state);
-        match result {
-            Ok(mutex) => match mutex.into_inner() {
-                Ok(state) => {
-                    // We're the last referent to this Lazy, so we don't need to clone anything.
-                    match state {
+        let lock_result = self.state.lock();
+        match lock_result {
+            Ok(mut exec_result) =>
+                replace_with_and_return(
+                    exec_result.deref_mut(),
+                    || CloneableLazyTaskState::Finished {
+                        result: Err(anyhoo!("replace_with_and_return_failed"))
+                    },
+                    |exec_state| match exec_state {
                         CloneableLazyTaskState::Upcoming { function } => {
                             info!("Starting task {}", self.name);
-                            let result = function().map(Arc::new);
+                            let result: CloneableResult<T> = function().map(Arc::new);
                             info!("Finished task {}", self.name);
-                            result
+                            (result.to_owned(), CloneableLazyTaskState::Finished { result })
                         },
                         CloneableLazyTaskState::Finished { result } => {
-                            info!("Unwrapping the last reference to {}", self.name);
-                            result
+                            (result.to_owned(), CloneableLazyTaskState::Finished { result })
                         },
                     }
-                },
-                Err(e) => Err(e.into())
-            },
-            Err(arc) => {
-                // We're not the last referent to this Lazy, so we need to make at least a shallow
-                // copy, which will become deep (via Arc::clone_or_unwrap) if it needs to be
-                // mutable.
-                let lock_result = arc.lock();
-                match lock_result {
-                    Ok(mut guard) => {
-                        if let CloneableLazyTaskState::Finished {result} = guard.deref() {
-                            return result.to_owned();
-                        }
-                        replace_with_and_return(
-                            guard.deref_mut(),
-                            || CloneableLazyTaskState::Finished {result: Err(anyhoo!("replace_with failed")) },
-                            |state| -> (CloneableResult<T>, CloneableLazyTaskState<T>) {
-                                let result = match state {
-                            CloneableLazyTaskState::Upcoming { function } => {
-                                info!("Starting task {}", self.name);
-                                let result = function().map(Arc::new);
-                                info!("Finished task {}", self.name);
-                                info!("Unwrapping one of {} references to {} after computing it",
-                                    Arc::strong_count(&arc), self.name);
-                                result
-                            },
-                            CloneableLazyTaskState::Finished { result } => {
-                                info!("Unwrapping one of {} references to {}",
-                                    Arc::strong_count(&arc), self.name);
-                                result
-                            }
-                        };
-                        (result.to_owned(), CloneableLazyTaskState::Finished { result })
-                    }
-                )},
-                    Err(e) => Err(e.into())
-                }
-            }
+                ),
+            Err(e) => Err(e.into())
         }
     }
 }
