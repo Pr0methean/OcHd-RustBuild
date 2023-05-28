@@ -426,27 +426,49 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
     /// Consumes this particular copy of the task and returns the result. Trades off readability and
     /// maintainability to maximize the chance of avoiding unnecessary copies.
     pub fn into_result(self) -> CloneableResult<T> {
-        let lock_result = self.state.lock();
-        match lock_result {
-            Ok(mut exec_result) =>
-                replace_with_and_return(
-                    exec_result.deref_mut(),
-                    || CloneableLazyTaskState::Finished {
-                        result: Err(anyhoo!("replace_with_and_return_failed"))
-                    },
-                    |exec_state| match exec_state {
+        match Arc::try_unwrap(self.state) {
+            Ok(exclusive_state) => {
+                match exclusive_state.into_inner() {
+                    Ok(state) => match state {
                         CloneableLazyTaskState::Upcoming { function } => {
                             info!("Starting task {}", self.name);
                             let result: CloneableResult<T> = function().map(Arc::new);
                             info!("Finished task {}", self.name);
-                            (result.to_owned(), CloneableLazyTaskState::Finished { result })
+                            result
                         },
                         CloneableLazyTaskState::Finished { result } => {
-                            (result.to_owned(), CloneableLazyTaskState::Finished { result })
+                            result
                         },
                     }
-                ),
-            Err(e) => Err(e.into())
+                    Err(e) => Err(e.into())
+                }
+            }
+            Err(shared_state) => {
+                match shared_state.lock() {
+                    Ok(mut locked_state) => {
+                        replace_with_and_return(
+                            locked_state.deref_mut(),
+                            || CloneableLazyTaskState::Finished {
+                                result: Err(anyhoo!("replace_with_and_return_failed"))
+                            },
+                            | exec_state | {
+                                match exec_state {
+                                    CloneableLazyTaskState::Upcoming { function} => {
+                                        info ! ("Starting task {}", self.name);
+                                        let result: CloneableResult < T > = function().map(Arc::new);
+                                        info! ("Finished task {}", self.name);
+                                        (result.to_owned(), CloneableLazyTaskState::Finished { result })
+                                    },
+                                    CloneableLazyTaskState::Finished { result } => {
+                                        (result.to_owned(), CloneableLazyTaskState::Finished { result })
+                                    },
+                                }
+                            }
+                        )
+                    }
+                    Err(e) => Err(e.into())
+                }
+            }
         }
     }
 }
