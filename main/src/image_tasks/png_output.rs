@@ -29,7 +29,7 @@ lazy_static!{
     // chunks are compressed independently.
     static ref PNG_ZIP_OPTIONS: FileOptions = FileOptions::default()
         .compression_method(Deflated)
-        .with_zopfli_buffer(PNG_BUFFER_SIZE)
+        .with_zopfli_buffer(Some(PNG_BUFFER_SIZE))
         .compression_level(Some(if *TILE_SIZE < 64 {
         264
     } else if *TILE_SIZE < 128 {
