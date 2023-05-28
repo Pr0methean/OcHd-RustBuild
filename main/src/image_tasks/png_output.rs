@@ -43,7 +43,6 @@ lazy_static!{
     ));
     static ref OXIPNG_OPTIONS: Options = {
         let mut options = Options::max_compression();
-        options.deflate = Deflaters::Zopfli {iterations: 1.try_into().unwrap()};
         options.optimize_alpha = true;
         options
     };
