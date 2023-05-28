@@ -29,16 +29,19 @@ lazy_static!{
     // chunks are compressed independently.
     static ref PNG_ZIP_OPTIONS: FileOptions = FileOptions::default()
         .compression_method(Deflated)
+        .with_zopfli_buffer(PNG_BUFFER_SIZE)
         .compression_level(Some(if *TILE_SIZE < 64 {
         264
     } else if *TILE_SIZE < 128 {
+        39
+    } else if *TILE_SIZE < 256 {
         24
+    } else if *TILE_SIZE < 512 {
+        14
     } else if *TILE_SIZE < 1024 {
         9
-    } else if *TILE_SIZE < 2048 {
-        6
     } else {
-        1
+        6
     }));
     static ref METADATA_ZIP_OPTIONS: FileOptions = FileOptions::default()
         .compression_method(Deflated)
@@ -61,8 +64,10 @@ lazy_static!{
             Deflaters::Zopfli {iterations: 50.try_into().unwrap() }
         } else if *TILE_SIZE < 256 {
             Deflaters::Zopfli {iterations: 5.try_into().unwrap() }
-        } else {
+        } else if *TILE_SIZE < 2048 {
             Deflaters::Libdeflater {compression: 12}
+        } else {
+            Deflaters::Libdeflater {compression: 6}
         };
         options.optimize_alpha = true;
         options
