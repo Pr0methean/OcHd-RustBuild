@@ -42,7 +42,7 @@ lazy_static!{
         Vec::clear
     ));
     static ref OXIPNG_OPTIONS: Options = {
-        let mut options = Options::from_preset(6);
+        let mut options = Options::from_preset(4);
         options.deflate = Deflaters::Zopfli {iterations: 30.try_into().unwrap()};
         options.optimize_alpha = true;
         options
