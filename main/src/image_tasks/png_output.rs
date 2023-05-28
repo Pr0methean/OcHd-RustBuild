@@ -42,7 +42,7 @@ lazy_static!{
         Vec::clear
     ));
     static ref OXIPNG_OPTIONS: Options = {
-        let mut options = Options::max_compression();
+        let mut options = Options::from_preset(4);
         options.optimize_alpha = true;
         options
     };
