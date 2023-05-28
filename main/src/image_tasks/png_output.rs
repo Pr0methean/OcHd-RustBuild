@@ -5,11 +5,12 @@ use std::ops::DerefMut;
 use std::path::{Path};
 use std::sync::{Arc, Mutex};
 use lazy_static::lazy_static;
-use lockfree_object_pool::{LinearObjectPool, LinearReusable};
-use log::info;
+use lockfree_object_pool::{LinearObjectPool};
+use log::{error, info};
+use oxipng::{Deflaters, optimize_from_memory, Options};
 
 use resvg::tiny_skia::{Pixmap};
-use zip_next::CompressionMethod::Deflated;
+use zip_next::CompressionMethod::{Deflated, Stored};
 use zip_next::write::FileOptions;
 use zip_next::{ZipWriter};
 
@@ -23,9 +24,13 @@ const PNG_BUFFER_SIZE: usize = 1024 * 1024;
 
 lazy_static!{
     static ref ZIP_BUFFER_SIZE: usize = (*TILE_SIZE as usize) * 32 * 1024;
-    static ref ZIP_OPTIONS: FileOptions = FileOptions::default()
+    // PNGs are already Zopfli compressed by oxipng.
+    static ref PNG_ZIP_OPTIONS: FileOptions = FileOptions::default()
+        .compression_method(Stored)
+        .compression_level(None);
+    static ref METADATA_ZIP_OPTIONS: FileOptions = FileOptions::default()
         .compression_method(Deflated)
-        .compression_level(Some(9));
+        .compression_level(Some(264));
     pub static ref ZIP: Mutex<ZipWriter<ZipBufferRaw>> = Mutex::new(ZipWriter::new(Cursor::new(
         Vec::with_capacity(*ZIP_BUFFER_SIZE)
     ), false));
@@ -35,7 +40,13 @@ lazy_static!{
             Vec::with_capacity(PNG_BUFFER_SIZE)
         },
         Vec::clear
-));
+    ));
+    static ref OXIPNG_OPTIONS: Options = {
+        let mut options = Options::max_compression();
+        options.deflate = Deflaters::Zopfli {iterations: u8::MAX.try_into().unwrap()};
+        options.optimize_alpha = true;
+        options
+    };
 }
 
 pub fn png_output(image: MaybeFromPool<Pixmap>, file: &Path) -> Result<(),CloneableError> {
@@ -63,7 +74,7 @@ pub fn copy_in_to_out(source: &File, dest: &Path) -> Result<(),CloneableError> {
 
 /// Forked from https://docs.rs/tiny-skia/latest/src/tiny_skia/pixmap.rs.html#390 to eliminate the
 /// copy and pre-allocate the byte vector.
-pub fn into_png(mut image: MaybeFromPool<Pixmap>) -> Result<LinearReusable<'static, Vec<u8>>, png::EncodingError> {
+pub fn into_png(mut image: MaybeFromPool<Pixmap>) -> Result<MaybeFromPool<Vec<u8>>, png::EncodingError> {
     for pixel in image.pixels_mut() {
         unsafe {
             // Treat this PremultipliedColorU8 slice as a ColorU8 slice
@@ -72,14 +83,19 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>) -> Result<LinearReusable<'stat
     }
 
     let mut reusable = PNG_BUFFER_POOL.pull();
-    let mut data = reusable.deref_mut();
+    let mut basic_png = reusable.deref_mut();
     {
-        let mut encoder = png::Encoder::new(&mut data, image.width(), image.height());
+        let mut encoder = png::Encoder::new(&mut basic_png, image.width(), image.height());
         encoder.set_color(png::ColorType::Rgba);
         encoder.set_depth(png::BitDepth::Eight);
         let mut writer = encoder.write_header()?;
         writer.write_image_data(image.data())?;
     }
-
-    Ok(reusable)
+    match optimize_from_memory(basic_png, &OXIPNG_OPTIONS) {
+        Ok(optimized) => Ok(MaybeFromPool::NotFromPool(optimized)),
+        Err(e) => {
+            error!("Error from oxipng: {}", e);
+            Ok(MaybeFromPool::FromPool {reusable})
+        }
+    }
 }
