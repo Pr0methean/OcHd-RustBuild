@@ -16,7 +16,7 @@ use zip_next::{ZipWriter};
 
 use crate::image_tasks::MaybeFromPool;
 use crate::image_tasks::task_spec::{CloneableError};
-use crate::{TILE_SIZE, ZOPFLI_ITERATIONS};
+use crate::{TILE_SIZE};
 
 pub type ZipBufferRaw = Cursor<Vec<u8>>;
 
