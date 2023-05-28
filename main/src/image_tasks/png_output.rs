@@ -53,7 +53,7 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, file: &Path) -> Result<(),Clonea
     let data = into_png(image)?;
     let mut zip = ZIP.lock()?;
     let writer = zip.deref_mut();
-    writer.start_file(file.to_string_lossy(), ZIP_OPTIONS.to_owned())?;
+    writer.start_file(file.to_string_lossy(), PNG_ZIP_OPTIONS.to_owned())?;
     writer.write_all(&data)?;
     drop(zip);
     Ok(())
@@ -67,7 +67,7 @@ pub fn copy_out_to_out(source: &Path, dest: &Path) -> Result<(),CloneableError> 
 pub fn copy_in_to_out(source: &File, dest: &Path) -> Result<(),CloneableError> {
     let mut zip = ZIP.lock()?;
     let writer = zip.deref_mut();
-    writer.start_file(dest.to_string_lossy(), ZIP_OPTIONS.to_owned())?;
+    writer.start_file(dest.to_string_lossy(), METADATA_ZIP_OPTIONS.to_owned())?;
     writer.write_all(source.contents())?;
     Ok(())
 }
