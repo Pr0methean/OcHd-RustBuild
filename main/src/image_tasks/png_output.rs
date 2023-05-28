@@ -25,7 +25,7 @@ const PNG_BUFFER_SIZE: usize = 1024 * 1024;
 lazy_static!{
 
     static ref ZIP_BUFFER_SIZE: usize = (*TILE_SIZE as usize) * 32 * 1024;
-    // PNGs are already deflated by oxipng, so only the metadata is likely to be compressible.
+    // Pixels are already deflated by oxipng, so only the metadata is likely to be compressible.
     static ref PNG_ZIP_OPTIONS: FileOptions = FileOptions::default()
         .compression_method(Deflated)
         .compression_level(Some(1));
