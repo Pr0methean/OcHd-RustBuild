@@ -468,6 +468,7 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
                             result
                         },
                         CloneableLazyTaskState::Finished { result } => {
+                            info!("Unwrapping the last reference to {}", self.name);
                             result
                         },
                     }
@@ -493,9 +494,13 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
                                 info!("Starting task {}", self.name);
                                 let result = function().map(Arc::new);
                                 info!("Finished task {}", self.name);
+                                info!("Unwrapping one of {} references to {} after computing it",
+                                    Arc::strong_count(&arc) + 1, self.name);
                                 result
                             },
                             CloneableLazyTaskState::Finished { result } => {
+                                info!("Unwrapping one of {} references to {}",
+                                    Arc::strong_count(&arc) + 1, self.name);
                                 result
                             }
                         };
