@@ -64,7 +64,7 @@ fn copy_metadata(source_dir: &Dir) {
 }
 
 fn main() -> Result<(), CloneableError> {
-    simple_logging::log_to_file("./log.txt", LevelFilter::Trace).expect("Failed to configure file logging");
+    simple_logging::log_to_file("./log.txt", LevelFilter::Info).expect("Failed to configure file logging");
     let out_dir = PathBuf::from("./out");
     let out_file = out_dir.join(format!("OcHD-{}x{}.zip", *TILE_SIZE, *TILE_SIZE));
     info!("Writing output to {}", absolute(&out_file)?.to_string_lossy());

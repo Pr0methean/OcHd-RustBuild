@@ -30,7 +30,7 @@ lazy_static!{
         .compression_level(None);
     static ref METADATA_ZIP_OPTIONS: FileOptions = FileOptions::default()
         .compression_method(Deflated)
-        .compression_level(Some(10));
+        .compression_level(Some(264));
     pub static ref ZIP: Mutex<ZipWriter<ZipBufferRaw>> = Mutex::new(ZipWriter::new(Cursor::new(
         Vec::with_capacity(*ZIP_BUFFER_SIZE)
     ), false));
@@ -42,7 +42,8 @@ lazy_static!{
         Vec::clear
     ));
     static ref OXIPNG_OPTIONS: Options = {
-        let mut options = Options::from_preset(4);
+        let mut options = Options::from_preset(6);
+        options.deflate = Deflaters::Zopfli {iterations: u8::MAX.try_into().unwrap()};
         options.optimize_alpha = true;
         options
     };
