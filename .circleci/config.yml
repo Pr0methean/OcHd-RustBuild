@@ -91,9 +91,12 @@ jobs:
       - checkout
       - attach_workspace:
           at: main/target/release
-      - run: |
-          cd main
-          ./target/release/ochd << parameters.size >>
+      - run:
+          name: Build Texture Pack
+          no_output_timeout: 1h
+          command: |
+            cd main
+            ./target/release/ochd << parameters.size >>
       - store_artifacts:
           path: 'main/out/OcHD-<< parameters.size >>x<< parameters.size >>.zip'
       - store_artifacts:
