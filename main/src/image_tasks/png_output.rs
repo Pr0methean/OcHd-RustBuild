@@ -12,7 +12,7 @@ use oxipng::{Deflaters, optimize_from_memory, Options};
 use resvg::tiny_skia::{Pixmap};
 use zip_next::CompressionMethod::{Deflated};
 use zip_next::write::FileOptions;
-use zip_next::{ZipWriter};
+use zip_next::{ZipArchive, ZipWriter};
 
 use crate::image_tasks::MaybeFromPool;
 use crate::image_tasks::task_spec::{CloneableError};
@@ -39,9 +39,6 @@ lazy_static!{
     } else {
         14
     }));
-    static ref METADATA_ZIP_OPTIONS: FileOptions = FileOptions::default()
-        .compression_method(Deflated)
-        .compression_level(Some(264));
     pub static ref ZIP: Mutex<ZipWriter<ZipBufferRaw>> = Mutex::new(ZipWriter::new(Cursor::new(
         Vec::with_capacity(*ZIP_BUFFER_SIZE)
     ), false));
@@ -86,10 +83,11 @@ pub fn copy_out_to_out(source: &Path, dest: &Path) -> Result<(),CloneableError> 
 }
 
 pub fn copy_in_to_out(source: &File, dest: &Path) -> Result<(),CloneableError> {
-    let mut zip = ZIP.lock()?;
-    let writer = zip.deref_mut();
-    writer.start_file(dest.to_string_lossy(), METADATA_ZIP_OPTIONS.to_owned())?;
-    writer.write_all(source.contents())?;
+    let mut in_zip = ZipArchive::new(Cursor::new(source.contents()))?;
+    let in_file = in_zip.by_index(0)?;
+    let mut out_zip = ZIP.lock()?;
+    let writer = out_zip.deref_mut();
+    writer.raw_copy_file_rename(in_file, dest.to_string_lossy())?;
     Ok(())
 }
 
