@@ -32,7 +32,7 @@ lazy_static!{
         .with_zopfli_buffer(Some(PNG_BUFFER_SIZE))
         .compression_level(Some(if *TILE_SIZE < 64 {
         264
-    } else if *TILE_SIZE < 128 {
+    } else if *TILE_SIZE < 512 {
         39
     } else if *TILE_SIZE < 4096 {
         24
@@ -62,8 +62,10 @@ lazy_static!{
             Deflaters::Zopfli {iterations: 5.try_into().unwrap() }
         } else if *TILE_SIZE < 2048 {
             Deflaters::Libdeflater {compression: 12}
+        } else if *TILE_SIZE < 4096 {
+            Deflaters::Libdeflater {compression: 10}
         } else {
-            Deflaters::Libdeflater {compression: 9}
+            Deflaters::Libdeflater {compression: 8}
         };
         options.optimize_alpha = true;
         options
