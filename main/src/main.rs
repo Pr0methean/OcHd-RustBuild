@@ -76,11 +76,12 @@ fn main() -> Result<(), CloneableError> {
         for task in out_tasks {
             planned_tasks.push(task.add_to(&mut ctx));
         }
-        planned_tasks.into_par_iter()
-            .map(|task| task.into_result())
-            .for_each(|result| {
-                result.expect("Error running a task");
-            });
+        drop(ctx);
+        planned_tasks.into_par_iter().for_each(move |task| {
+            let name = task.name.to_owned();
+            task.into_result()
+                .unwrap_or_else(|err| panic!("Error running task {}: {:?}", name, err));
+        });
     });
     let mut zip = ZIP.lock()?;
     let zip_writer = zip.deref_mut();
@@ -90,30 +91,4 @@ fn main() -> Result<(), CloneableError> {
     fs::write(out_file.as_path(), zip_contents)?;
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     Ok(())
-}
-
-fn build_task_vector() -> Vec<CloneableLazyTask<()>> {
-    let output_tasks = materials::ALL_MATERIALS.get_output_tasks();
-    let mut output_task_ids = Vec::with_capacity(output_tasks.len());
-    let mut ctx: TaskGraphBuildingContext<(), DefaultIx>
-        = TaskGraphBuildingContext::new();
-    for task in output_tasks.iter() {
-        let (output_task_id, _) = task.add_to(&mut ctx);
-        output_task_ids.push(output_task_id);
-    }
-    ctx.graph.node_references()
-        .map(|(_, task)| {
-            match task {
-                TaskSpec::FileOutput(output_task) => {
-                    match ctx.output_task_to_future_map.get(output_task) {
-                        Some((_, future)) => Some(future),
-                        None => None
-                    }
-                },
-                _ => None
-            }
-        })
-        .flatten()
-        .map(CloneableLazyTask::to_owned)
-        .collect()
 }

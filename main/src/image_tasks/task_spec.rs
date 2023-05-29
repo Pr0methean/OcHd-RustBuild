@@ -365,7 +365,7 @@ pub enum CloneableLazyTaskState<T> where T: ?Sized {
 
 #[derive(Clone,Debug)]
 pub struct CloneableLazyTask<T> where T: ?Sized {
-    name: String,
+    pub name: String,
     state: Arc<Mutex<CloneableLazyTaskState<T>>>
 }
 
@@ -451,10 +451,6 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
             }
         }
     }
-
-    fn ref_count(&self) -> usize {
-        Arc::strong_count(&self.state)
-    }
 }
 
 impl ToPixmapTaskSpec {
@@ -503,20 +499,6 @@ impl TaskGraphBuildingContext {
             pixmap_task_to_future_map: HashMap::new(),
             alpha_task_to_future_map: HashMap::new(),
             output_task_to_future_map: HashMap::new()
-        }
-    }
-
-    pub fn get_ref_count(&self, task: &TaskSpec) -> Option<usize> {
-        match task {
-            TaskSpec::ToPixmap(pixmap_task) =>
-                self.pixmap_task_to_future_map.get(pixmap_task)
-                    .map(|(_, task)| task.ref_count()),
-            TaskSpec::ToAlphaChannel(alpha_task) =>
-                self.alpha_task_to_future_map.get(alpha_task)
-                    .map(|(_, task)| task.ref_count()),
-            TaskSpec::FileOutput(output_task) =>
-                self.output_task_to_future_map.get(output_task)
-                    .map(|(_, task)| task.ref_count()),
         }
     }
 }
