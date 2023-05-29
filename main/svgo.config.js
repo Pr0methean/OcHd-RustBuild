@@ -9,5 +9,15 @@ module.exports = {
         'preset-default',
         'removeOffCanvasPaths',
         'removeUnusedNS',
+        {
+            name: 'cleanupNumericValues',
+            params: {
+                overrides: {
+                    floatPrecision: 1,
+                    convertToPx: true,
+                    defaultPx: true
+                }
+            }
+        }
     ],
 };
