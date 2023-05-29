@@ -64,11 +64,6 @@ fn main() -> Result<(), CloneableError> {
     simple_logging::log_to_file("./log.txt", LevelFilter::Info).expect("Failed to configure file logging");
     let out_dir = PathBuf::from("./out");
     let out_file = out_dir.join(format!("OcHD-{}x{}.zip", *TILE_SIZE, *TILE_SIZE));
-    let background_tasks: Vec<fn() -> ()> = vec![
-        prewarm_mask_pool,
-        prewarm_pixmap_pool,
-        prewarm_png_buffer_pool,
-    ];
     info!("Writing output to {}", absolute(&out_file)?.to_string_lossy());
     let tile_size: u32 = *TILE_SIZE;
     info!("Using {} pixels per tile", tile_size);
@@ -76,11 +71,16 @@ fn main() -> Result<(), CloneableError> {
     rayon::join(
         || rayon::join(
         || {
-            background_tasks.into_par_iter().for_each(|x| (x)())
+            prewarm_pixmap_pool();
+            prewarm_mask_pool();
+            prewarm_png_buffer_pool();
+            info!("Caches prewarmed");
+            create_dir_all(out_dir).expect("Failed to create output directory");
+            info!("Output directory built");
         },
         || {
-            create_dir_all(out_dir).expect("Failed to create output directory");
             copy_metadata(&METADATA_DIR);
+            info!("Metadata copied");
         }),
     || {
         let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
