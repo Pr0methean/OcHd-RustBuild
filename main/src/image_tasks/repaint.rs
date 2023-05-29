@@ -19,6 +19,10 @@ lazy_static!{
     ));
 }
 
+pub fn prewarm_mask_pool() {
+    ALPHA_CHANNEL_POOL.pull();
+}
+
 impl Clone for MaybeFromPool<Mask> {
     fn clone(&self) -> Self {
         let width = self.width();

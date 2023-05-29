@@ -20,13 +20,17 @@ pub mod task_spec;
 pub mod make_semitransparent;
 
 lazy_static! {
-static ref PIXMAP_POOL: Arc<LinearObjectPool<Pixmap>> = Arc::new(LinearObjectPool::new(
-    || {
-        info!("Allocating a Pixmap for pool");
-        Pixmap::new(*TILE_SIZE, *TILE_SIZE).expect("Failed to allocate a Pixmap for pool")
-    },
-    |_| {} // no reset needed if using allocate_pixmap_for_overwrite
-));
+    static ref PIXMAP_POOL: Arc<LinearObjectPool<Pixmap>> = Arc::new(LinearObjectPool::new(
+        || {
+            info!("Allocating a Pixmap for pool");
+            Pixmap::new(*TILE_SIZE, *TILE_SIZE).expect("Failed to allocate a Pixmap for pool")
+        },
+        |_| {} // no reset needed if using allocate_pixmap_for_overwrite
+    ));
+}
+
+pub fn prewarm_pixmap_pool() {
+    PIXMAP_POOL.pull();
 }
 
 pub enum MaybeFromPool<T: 'static> {

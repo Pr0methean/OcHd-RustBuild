@@ -24,7 +24,9 @@ use std::ops::{DerefMut};
 use include_dir::{Dir, DirEntry};
 use lazy_static::lazy_static;
 use tikv_jemallocator::Jemalloc;
-use crate::image_tasks::png_output::{copy_in_to_out, ZIP};
+use crate::image_tasks::png_output::{copy_in_to_out, prewarm_png_buffer_pool, ZIP};
+use crate::image_tasks::prewarm_pixmap_pool;
+use crate::image_tasks::repaint::prewarm_mask_pool;
 
 #[cfg(not(any(test,clippy)))]
 lazy_static! {
@@ -62,14 +64,25 @@ fn main() -> Result<(), CloneableError> {
     simple_logging::log_to_file("./log.txt", LevelFilter::Info).expect("Failed to configure file logging");
     let out_dir = PathBuf::from("./out");
     let out_file = out_dir.join(format!("OcHD-{}x{}.zip", *TILE_SIZE, *TILE_SIZE));
+    let background_tasks: Vec<fn() -> ()> = vec![
+        prewarm_mask_pool,
+        prewarm_pixmap_pool,
+        prewarm_png_buffer_pool,
+    ];
     info!("Writing output to {}", absolute(&out_file)?.to_string_lossy());
     let tile_size: u32 = *TILE_SIZE;
     info!("Using {} pixels per tile", tile_size);
     let start_time = Instant::now();
-    rayon::join(|| {
-        create_dir_all(out_dir).expect("Failed to create output directory");
-        copy_metadata(&METADATA_DIR);
-    }, || {
+    rayon::join(
+        || rayon::join(
+        || {
+            background_tasks.into_par_iter().for_each(|x| (x)())
+        },
+        || {
+            create_dir_all(out_dir).expect("Failed to create output directory");
+            copy_metadata(&METADATA_DIR);
+        }),
+    || {
         let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
         let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
         let mut planned_tasks = Vec::with_capacity(out_tasks.len());

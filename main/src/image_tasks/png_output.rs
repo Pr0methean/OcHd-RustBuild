@@ -68,6 +68,10 @@ lazy_static!{
     };
 }
 
+pub fn prewarm_png_buffer_pool() {
+    PNG_BUFFER_POOL.pull();
+}
+
 pub fn png_output(image: MaybeFromPool<Pixmap>, file: &Path) -> Result<(),CloneableError> {
     let data = into_png(image)?;
     let mut zip = ZIP.lock()?;
