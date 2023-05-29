@@ -197,7 +197,7 @@ basalt!(BASALT_SIDE =
 
 basalt!(POLISHED_BASALT_TOP =
     color!(),
-    paint_svg_task("ringsCentralBullseye", shadow!()),
+    paint_svg_task("bigRoundedSquare", shadow!()),
     paint_svg_task("rings", highlight!()),
     paint_svg_task("borderSolid", shadow!()),
     paint_svg_task("borderSolidTopLeft", highlight!()),
@@ -279,8 +279,10 @@ stone!(MOSSY_STONE_BRICKS =
 
 stone!(CHISELED_STONE_BRICKS =
     color!(),
+    paint_svg_task("bigRoundedSquare", extreme_highlight!()),
     paint_stack!(extreme_shadow!(),"rings2","borderSolid"),
-    paint_stack!(extreme_highlight!(),"ringsCentralBullseye","borderSolidTopLeft")
+    paint_svg_task("borderSolidTopLeft", extreme_highlight!()),
+    paint_svg_task("tinyRing", color!())
 );
 
 block_with_colors!(TERRACOTTA = c(0x945b43), c(0x885533), c(0x9b6045),

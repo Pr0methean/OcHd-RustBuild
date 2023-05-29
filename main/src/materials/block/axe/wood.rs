@@ -83,7 +83,7 @@ impl Wood {
     pub fn overworld_stripped_log_top(&self) -> ToPixmapTaskSpec {
         stack_on!(
             self.color,
-            paint_svg_task("ringsCentralBullseye", self.highlight),
+            paint_svg_task("bigRoundedSquare", self.highlight),
             paint_svg_task("rings", self.shadow)
         )
     }
@@ -92,8 +92,9 @@ impl Wood {
         stack_on!(
             self.color,
             stack!(
-                paint_svg_task("ringsCentralBullseye", self.shadow),
-                paint_svg_task("rings2", self.highlight)
+                paint_svg_task("bigRoundedSquare", self.shadow),
+                paint_svg_task("rings2", self.highlight),
+                paint_svg_task("tinyRing", self.color)
             )
         )
     }
