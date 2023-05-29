@@ -35,7 +35,7 @@ lazy_static!{
     } else if *TILE_SIZE < 4096 {
         24
     } else {
-        9
+        8
     }));
     static ref METADATA_ZIP_OPTIONS: FileOptions = FileOptions::default()
         .compression_method(Deflated)
