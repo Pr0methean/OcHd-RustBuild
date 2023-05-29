@@ -36,8 +36,10 @@ lazy_static!{
         39
     } else if *TILE_SIZE < 256 {
         24
-    } else {
+    } else if *TILE_SIZE < 4096 {
         14
+    } else {
+        9
     }));
     static ref METADATA_ZIP_OPTIONS: FileOptions = FileOptions::default()
         .compression_method(Deflated)
@@ -63,7 +65,7 @@ lazy_static!{
         } else if *TILE_SIZE < 2048 {
             Deflaters::Libdeflater {compression: 12}
         } else {
-            Deflaters::Libdeflater {compression: 6}
+            Deflaters::Libdeflater {compression: 9}
         };
         options.optimize_alpha = true;
         options
