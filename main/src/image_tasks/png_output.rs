@@ -33,7 +33,7 @@ lazy_static!{
         .compression_level(Some(if *TILE_SIZE < 1024 {
         264
     } else if *TILE_SIZE < 2048 {
-        39
+        59
     } else if *TILE_SIZE < 4096 {
         24
     } else {
