@@ -106,12 +106,9 @@ impl Wood {
         )
     }
 
-    pub fn fungus_log_top(&self, _stripped_log_top: ToPixmapTaskSpec) -> ToPixmapTaskSpec {
-        stack_on!(self.color,
-            stack!(
-                paint_svg_task("ringsCentralBullseye", self.shadow),
-                paint_svg_task("rings2", self.highlight)
-            ),
+    pub fn fungus_log_top(&self, stripped_log_top: ToPixmapTaskSpec) -> ToPixmapTaskSpec {
+        stack!(
+            stripped_log_top,
             paint_svg_task("borderSolid", self.bark_color),
             paint_svg_task("borderShortDashes", self.bark_shadow)
         )
