@@ -30,13 +30,7 @@ lazy_static!{
     static ref PNG_ZIP_OPTIONS: FileOptions = FileOptions::default()
         .compression_method(Deflated)
         .with_zopfli_buffer(Some(PNG_BUFFER_SIZE))
-        .compression_level(Some(if *TILE_SIZE < 2048 {
-        264
-    } else if *TILE_SIZE < 4096 {
-        24
-    } else {
-        8
-    }));
+        .compression_level(Some(264));
     static ref METADATA_ZIP_OPTIONS: FileOptions = FileOptions::default()
         .compression_method(Deflated)
         .compression_level(Some(264));
@@ -52,17 +46,7 @@ lazy_static!{
     ));
     static ref OXIPNG_OPTIONS: Options = {
         let mut options = Options::from_preset(4);
-        options.deflate = if *TILE_SIZE < 128 {
-            Deflaters::Zopfli {iterations: u8::MAX.try_into().unwrap() }
-        } else if *TILE_SIZE < 256 {
-            Deflaters::Zopfli {iterations: 15.try_into().unwrap() }
-        } else if *TILE_SIZE < 2048 {
-            Deflaters::Libdeflater {compression: 12}
-        } else if *TILE_SIZE < 4096 {
-            Deflaters::Libdeflater {compression: 11}
-        } else {
-            Deflaters::Libdeflater {compression: 6}
-        };
+        options.deflate = Deflaters::Zopfli {iterations: u8::MAX.try_into().unwrap() };
         options.optimize_alpha = true;
         options
     };
