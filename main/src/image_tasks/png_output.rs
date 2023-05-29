@@ -52,12 +52,10 @@ lazy_static!{
     ));
     static ref OXIPNG_OPTIONS: Options = {
         let mut options = Options::from_preset(4);
-        options.deflate = if *TILE_SIZE < 64 {
+        options.deflate = if *TILE_SIZE < 128 {
             Deflaters::Zopfli {iterations: u8::MAX.try_into().unwrap() }
-        } else if *TILE_SIZE < 128 {
-            Deflaters::Zopfli {iterations: 150.try_into().unwrap() }
         } else if *TILE_SIZE < 256 {
-            Deflaters::Zopfli {iterations: 5.try_into().unwrap() }
+            Deflaters::Zopfli {iterations: 15.try_into().unwrap() }
         } else if *TILE_SIZE < 2048 {
             Deflaters::Libdeflater {compression: 12}
         } else if *TILE_SIZE < 4096 {
