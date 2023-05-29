@@ -34,10 +34,8 @@ lazy_static!{
         264
     } else if *TILE_SIZE < 128 {
         39
-    } else if *TILE_SIZE < 256 {
-        24
     } else if *TILE_SIZE < 4096 {
-        14
+        24
     } else {
         9
     }));
