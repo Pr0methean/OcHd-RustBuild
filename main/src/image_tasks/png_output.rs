@@ -30,12 +30,10 @@ lazy_static!{
     static ref PNG_ZIP_OPTIONS: FileOptions = FileOptions::default()
         .compression_method(Deflated)
         .with_zopfli_buffer(Some(PNG_BUFFER_SIZE))
-        .compression_level(Some(if *TILE_SIZE < 128 {
+        .compression_level(Some(if *TILE_SIZE < 1024 {
         264
-    } else if *TILE_SIZE < 1024 {
-        39
     } else if *TILE_SIZE < 2048 {
-        29
+        39
     } else if *TILE_SIZE < 4096 {
         24
     } else {
