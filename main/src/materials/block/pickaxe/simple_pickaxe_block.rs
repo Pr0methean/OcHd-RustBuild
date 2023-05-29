@@ -287,15 +287,13 @@ stone!(CHISELED_STONE_BRICKS =
 
 block_with_colors!(TERRACOTTA = c(0x945b43), c(0x885533), c(0x9b6045),
     color!(),
-    paint_svg_task("bigDotsTopLeftBottomRight", highlight!()),
-    paint_stack!(shadow!(),
-        "bigRingsTopLeftBottomRight",
-        "bigDotsBottomLeftTopRight"
-    ),
+    paint_svg_task("bigDotsTopLeftBottomRight", shadow!()),
     paint_stack!(highlight!(),
-        "bigRingsBottomLeftTopRight",
+        "bigDotsFillTopLeftBottomRight",
+        "bigDotsBottomLeftTopRight",
         "borderRoundDots"
-    )
+    ),
+    paint_svg_task("bigDotsFillBottomLeftTopRight", shadow!())
 );
 
 single_texture_block!(BRICKS =
@@ -410,8 +408,8 @@ block_with_colors!(BLUE_GLAZED_TERRACOTTA = c(0x4040aa), c(0x2d2d8f), c(0x4577d3
 
     shadow!(),
     paint_svg_task("checksQuarterCircles", color!()),
-    from_svg_task("bigDotsTopLeftBottomRight"),
-    paint_svg_task("bigRingsTopLeftBottomRight", color!()),
+    paint_svg_task("bigDotsTopLeftBottomRight", color!()),
+    from_svg_task("bigDotsFillTopLeftBottomRight"),
     paint_stack!(highlight!(), "checksLargeOutline", "cornerRingTopLeft", "railCornerInverted")
 );
 

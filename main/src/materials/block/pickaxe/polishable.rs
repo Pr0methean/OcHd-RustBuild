@@ -86,10 +86,10 @@ polishable!(DIORITE = c(0xbfbfbf),c(0x888888), ComparableColor::WHITE,
 
 polishable!(GRANITE = c(0x9f6b58),c(0x624033),c(0xFFCDB2),
     color!(),
-    paint_svg_task("bigDotsBottomLeftTopRight", highlight!()),
-    paint_stack!(shadow!(), "bigDotsTopLeftBottomRight",
-        "bigRingsBottomLeftTopRight"),
-    paint_svg_task("bigRingsTopLeftBottomRight", highlight!())
+    paint_svg_task("bigDotsBottomLeftTopRight", shadow!()),
+    paint_stack!(highlight!(), "bigDotsTopLeftBottomRight",
+        "bigDotsFillBottomLeftTopRight"),
+    paint_svg_task("bigDotsFillTopLeftBottomRight", shadow!())
 );
 
 polishable!(BLACKSTONE = c(0x2e2e36), ComparableColor::BLACK, c(0x515151),
