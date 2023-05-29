@@ -57,7 +57,7 @@ lazy_static!{
         options.deflate = if *TILE_SIZE < 64 {
             Deflaters::Zopfli {iterations: u8::MAX.try_into().unwrap() }
         } else if *TILE_SIZE < 128 {
-            Deflaters::Zopfli {iterations: 100.try_into().unwrap() }
+            Deflaters::Zopfli {iterations: 150.try_into().unwrap() }
         } else if *TILE_SIZE < 256 {
             Deflaters::Zopfli {iterations: 5.try_into().unwrap() }
         } else if *TILE_SIZE < 2048 {
@@ -65,7 +65,7 @@ lazy_static!{
         } else if *TILE_SIZE < 4096 {
             Deflaters::Libdeflater {compression: 11}
         } else {
-            Deflaters::Libdeflater {compression: 8}
+            Deflaters::Libdeflater {compression: 7}
         };
         options.optimize_alpha = true;
         options
