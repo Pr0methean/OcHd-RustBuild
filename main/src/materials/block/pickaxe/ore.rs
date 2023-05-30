@@ -295,12 +295,12 @@ lazy_static! {
         let mut emerald = Ore::new("emerald", c(0x009829), c(0x007b18), c(0x00dd62));
         let extreme_highlight = c(0xd9ffeb);
         emerald.raw_item = Box::new(|_| stack!(
+            paint_svg_task("emerald", EMERALD.colors.shadow),
             paint_svg_task("emeraldTopLeft", EMERALD.colors.highlight),
-            paint_svg_task("emeraldBottomRight", EMERALD.colors.shadow)
         ));
         emerald.refined_block = Box::new(move |_| stack_on!(
             EMERALD.colors.highlight,
-            paint_svg_task("emeraldBottomRight", EMERALD.colors.shadow),
+            paint_svg_task("emerald", EMERALD.colors.shadow),
             paint_svg_task("borderSolid", EMERALD.colors.color),
             paint_stack!(extreme_highlight, "emeraldTopLeft", "borderSolidTopLeft")
         ));
