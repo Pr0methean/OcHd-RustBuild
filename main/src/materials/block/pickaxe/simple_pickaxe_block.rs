@@ -477,8 +477,8 @@ block_with_colors!(LIGHT_BLUE_GLAZED_TERRACOTTA = c(0x2389c7), c(0x2d2d8f), c(0x
     shadow!(),
     paint_svg_task("bottomHalf", ComparableColor::WHITE),
     paint_svg_task("checksLarge", highlight!()),
-    paint_svg_task("emerald", color!())
-    paint_svg_task("emeraldTopLeft", ComparableColor::WHITE),
+    paint_svg_task("emerald", color!()),
+    paint_svg_task("emeraldTopLeft", ComparableColor::WHITE)
 );
 block_with_colors!(LIME_GLAZED_TERRACOTTA = c(0x8bd922), c(0x5ea900), c(0xffffc4),
     color!(),

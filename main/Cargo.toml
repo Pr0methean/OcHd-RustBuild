@@ -11,7 +11,7 @@ anyhow = "1.0.71"
 cached = "0.43.0"
 ordered-float = "3.7.0"
 lazy_static = "1.4.0"
-const_format = {version = "0.2.30", features = ["fmt", "rust_1_64"]}
+const_format = {version = "0.2.31", features = ["fmt", "rust_1_64"]}
 rayon = "1.7.0"
 simple-logging = "2.0.2"
 log = "0.4.18"
