@@ -19,6 +19,7 @@ jobs:
             - cargo-rel
           paths:
             - /home/circleci/.cargo
+            - /home/circleci/.rustup
             - main/target/release/deps
             - main/target/release/incremental
       - rust/install:
@@ -38,12 +39,14 @@ jobs:
           key: cargo-rel
           paths:
             - /home/circleci/.cargo
+            - /home/circleci/.rustup
             - main/target/release/deps
             - main/target/release/incremental
       - save_cache:
           key: cargo-rel-{{ checksum "main/Cargo.toml" }}
           paths:
             - /home/circleci/.cargo
+            - /home/circleci/.rustup
             - main/target/release/deps
             - main/target/release/incremental
   unit_tests:
@@ -58,6 +61,7 @@ jobs:
             - cargo-dbg
           paths:
             - /home/circleci/.cargo
+            - /home/circleci/.rustup
             - main/target/debug/deps
             - main/target/debug/incremental
       - rust/install:
@@ -72,12 +76,14 @@ jobs:
           key: cargo-dbg
           paths:
             - /home/circleci/.cargo
+            - /home/circleci/.rustup
             - main/target/debug/deps
             - main/target/debug/incremental
       - save_cache:
           key: cargo-dbg-{{ checksum "main/Cargo.toml" }}
           paths:
             - /home/circleci/.cargo
+            - /home/circleci/.rustup
             - main/target/debug/deps
             - main/target/debug/incremental
   execute:

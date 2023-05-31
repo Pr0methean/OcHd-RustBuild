@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use lazy_static::lazy_static;
 use lockfree_object_pool::{LinearObjectPool};
 use log::{error, info};
-use oxipng::{Deflaters, Headers, optimize_from_memory, Options};
+use oxipng::{Deflaters, Headers, optimize_from_memory, Options, StripChunks};
 
 use resvg::tiny_skia::{Pixmap};
 use zip_next::CompressionMethod::{Deflated};
@@ -35,8 +35,7 @@ lazy_static!{
         .compression_method(Deflated)
         .compression_level(Some(264));
     pub static ref ZIP: Mutex<ZipWriter<ZipBufferRaw>> = Mutex::new(ZipWriter::new(Cursor::new(
-        Vec::with_capacity(*ZIP_BUFFER_SIZE)
-    ), false));
+        Vec::with_capacity(*ZIP_BUFFER_SIZE))));
     static ref PNG_BUFFER_POOL: Arc<LinearObjectPool<Vec<u8>>> = Arc::new(LinearObjectPool::new(
         || {
             info!("Allocating a PNG buffer for pool");
@@ -48,7 +47,7 @@ lazy_static!{
         let mut options = Options::from_preset(4);
         options.deflate = Deflaters::Zopfli {iterations: u8::MAX.try_into().unwrap() };
         options.optimize_alpha = true;
-        options.strip = Headers::All;
+        options.strip = StripChunks::All;
         options
     };
 }
