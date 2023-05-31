@@ -55,12 +55,10 @@ lazy_static!{
             Deflaters::Zopfli {iterations: u8::MAX.try_into().unwrap() }
         } else if *TILE_SIZE < 256 {
             Deflaters::Zopfli {iterations: 15.try_into().unwrap() }
-        } else if *TILE_SIZE < 2048 {
-            Deflaters::Libdeflater {compression: 12}
         } else if *TILE_SIZE < 4096 {
-            Deflaters::Libdeflater {compression: 11}
+            Deflaters::Libdeflater {compression: 12}
         } else {
-            Deflaters::Libdeflater {compression: 6}
+            Deflaters::Libdeflater {compression: 9}
         };
         options.optimize_alpha = true;
         options.strip = StripChunks::All;
