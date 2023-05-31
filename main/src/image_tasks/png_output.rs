@@ -1,3 +1,4 @@
+use bytemuck::cast;
 use include_dir::{File};
 use std::io::{Cursor, Write};
 use std::mem;
@@ -9,7 +10,7 @@ use lockfree_object_pool::{LinearObjectPool};
 use log::{error, info};
 use oxipng::{Deflaters, optimize_from_memory, Options, StripChunks};
 
-use resvg::tiny_skia::{Pixmap};
+use resvg::tiny_skia::{Pixmap, PremultipliedColorU8};
 use zip_next::CompressionMethod::{Deflated};
 use zip_next::write::FileOptions;
 use zip_next::{ZipWriter};
@@ -72,8 +73,8 @@ pub fn prewarm_png_buffer_pool() {
     PNG_BUFFER_POOL.pull();
 }
 
-pub fn png_output(image: MaybeFromPool<Pixmap>, file: &Path) -> Result<(),CloneableError> {
-    let data = into_png(image)?;
+pub fn png_output(image: MaybeFromPool<Pixmap>, omit_alpha: bool, file: &Path) -> Result<(),CloneableError> {
+    let data = into_png(image, omit_alpha)?;
     let mut zip = ZIP.lock()?;
     let writer = zip.deref_mut();
     writer.start_file(file.to_string_lossy(), PNG_ZIP_OPTIONS.to_owned())?;
@@ -97,22 +98,29 @@ pub fn copy_in_to_out(source: &File, dest: &Path) -> Result<(),CloneableError> {
 
 /// Forked from https://docs.rs/tiny-skia/latest/src/tiny_skia/pixmap.rs.html#390 to eliminate the
 /// copy and pre-allocate the byte vector.
-pub fn into_png(mut image: MaybeFromPool<Pixmap>) -> Result<MaybeFromPool<Vec<u8>>, png::EncodingError> {
+pub fn into_png(mut image: MaybeFromPool<Pixmap>, omit_alpha: bool) -> Result<MaybeFromPool<Vec<u8>>, png::EncodingError> {
     for pixel in image.pixels_mut() {
         unsafe {
             // Treat this PremultipliedColorU8 slice as a ColorU8 slice
             *pixel = mem::transmute(pixel.demultiply());
         }
     }
-
     let mut reusable = PNG_BUFFER_POOL.pull();
     let mut basic_png = reusable.deref_mut();
     {
         let mut encoder = png::Encoder::new(&mut basic_png, image.width(), image.height());
-        encoder.set_color(png::ColorType::Rgba);
         encoder.set_depth(png::BitDepth::Eight);
-        let mut writer = encoder.write_header()?;
-        writer.write_image_data(image.data())?;
+        if omit_alpha {
+            encoder.set_color(png::ColorType::Rgb);
+            let mut writer = encoder.write_header()?;
+            for pixel in image.pixels() {
+                writer.write_image_data(&cast::<PremultipliedColorU8, [u8; 4]>(*pixel)[0..3])?;
+            }
+        } else {
+            encoder.set_color(png::ColorType::Rgba);
+            let mut writer = encoder.write_header()?;
+            writer.write_image_data(image.data())?;
+        }
     }
     match optimize_from_memory(basic_png, &OXIPNG_OPTIONS) {
         Ok(optimized) => Ok(MaybeFromPool::NotFromPool(optimized)),
