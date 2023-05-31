@@ -60,7 +60,7 @@ lazy_static!{
         } else if *TILE_SIZE < 4096 {
             Deflaters::Libdeflater {compression: 11}
         } else {
-            Deflaters::Libdeflater {compression: 10}
+            Deflaters::Libdeflater {compression: 9}
         };
         options.optimize_alpha = true;
         options.strip = StripChunks::All;
