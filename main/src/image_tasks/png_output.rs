@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use lazy_static::lazy_static;
 use lockfree_object_pool::{LinearObjectPool};
 use log::{error, info};
-use oxipng::{Deflaters, Headers, optimize_from_memory, Options};
+use oxipng::{Deflaters, optimize_from_memory, Options, StripChunks};
 
 use resvg::tiny_skia::{Pixmap};
 use zip_next::CompressionMethod::{Deflated};
@@ -63,7 +63,7 @@ lazy_static!{
             Deflaters::Libdeflater {compression: 6}
         };
         options.optimize_alpha = true;
-        options.strip = Headers::All;
+        options.strip = StripChunks::All;
         options
     };
 }
