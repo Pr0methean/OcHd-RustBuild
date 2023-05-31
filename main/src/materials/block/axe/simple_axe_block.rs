@@ -66,7 +66,7 @@ lazy_static! {pub static ref COMPOSTER_TOP: SingleLayerMaterial = SingleLayerMat
     color: OAK.color
 };}
 single_texture_block!(COMPOSTER_SIDE = OAK.color,
-    paint_svg_task("stripesThick", OAK.shadow),
+    paint_svg_task("railTies", OAK.shadow),
     paint_svg_task("borderDotted", OAK.highlight)
 );
 single_texture_block!(BEEHIVE_END = ComparableColor::TRANSPARENT,
