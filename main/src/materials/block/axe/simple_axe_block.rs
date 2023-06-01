@@ -116,11 +116,11 @@ single_texture_block!(BARREL_BOTTOM = ComparableColor::TRANSPARENT,
 );
 single_texture_block!(BARREL_TOP = ComparableColor::TRANSPARENT,
     BARREL_BOTTOM.texture(),
-    paint_svg_task("bigCircle", ComparableColor::WHITE * 0.25)
+    paint_svg_task("bigRoundedSquare", ComparableColor::WHITE * 0.25)
 );
 single_texture_block!(BARREL_TOP_OPEN = ComparableColor::TRANSPARENT,
     BARREL_BOTTOM.texture(),
-    from_svg_task("bigCircle")
+    from_svg_task("bigRoundedSquare")
 );
 
 group!(SIMPLE_AXE_BLOCK = CRAFTING_TABLE_SIDE, CRAFTING_TABLE_TOP, CRAFTING_TABLE_FRONT,
