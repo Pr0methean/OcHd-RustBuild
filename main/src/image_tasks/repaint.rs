@@ -62,7 +62,7 @@ pub fn paint(input: &Mask, color: ComparableColor) -> Result<Box<MaybeFromPool<P
     let mut output = allocate_pixmap_empty(input.width(), input.height());
     let mut paint = Paint::default();
     paint.set_color_rgba8(color.red(), color.green(), color.blue(), color.alpha());
-    output.fill_rect(Rect::from_ltrb(0.0, 0.0, input.width() as f32, input.height() as f32)
+    output.fill_rect(Rect::from_xywh(0.0, 0.0, input.width() as f32, input.height() as f32)
                          .ok_or(anyhoo!("Failed to create rectangle for paint()"))?,
                      &paint, Transform::default(),
                      Some(input));
@@ -92,6 +92,7 @@ fn test_paint() {
     use resvg::tiny_skia::{FillRule, Paint};
     use tiny_skia_path::{PathBuilder, Transform};
     use crate::image_tasks::MaybeFromPool::NotFromPool;
+    use crate::image_tasks::color::c;
 
     let side_length = 128;
     let pixmap = &mut NotFromPool(Pixmap::new(side_length, side_length).unwrap());
@@ -100,16 +101,17 @@ fn test_paint() {
                      FillRule::EvenOdd, Transform::default(), None);
     let alpha_channel = pixmap_to_mask(pixmap);
     let repainted_alpha: u8 = 0xcf;
-    let red = Color::from_rgba(1.0, 0.0, 0.0,
-                               (repainted_alpha as f32)/(u8::MAX as f32)).unwrap();
+    let repainted_alpha_fraction = 0xcf as f32 / u8::MAX as f32;
     let repainted_red: Box<MaybeFromPool<Pixmap>>
-        = paint(&alpha_channel, red).unwrap();
+        = paint(&alpha_channel, c(0xff0000) * repainted_alpha_fraction).unwrap();
     let pixmap_pixels = pixmap.pixels();
     let repainted_pixels = repainted_red.pixels();
     for index in 0usize..((side_length * side_length) as usize) {
         let expected_alpha: u8 = (u16::from(repainted_alpha)
             * u16::from(pixmap_pixels[index].alpha()) / 0xff) as u8;
-        assert!(repainted_pixels[index].alpha().abs_diff(expected_alpha) <= 1);
+        let actual_alpha = repainted_pixels[index].alpha();
+        assert!(actual_alpha.abs_diff(expected_alpha) <= 1,
+            "expected alpha of {} but found {}", expected_alpha, actual_alpha);
         if expected_alpha > 0 {
             // premultiplied
             assert_eq!(repainted_pixels[index].red(), repainted_pixels[index].alpha());

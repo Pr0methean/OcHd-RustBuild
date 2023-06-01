@@ -127,16 +127,9 @@ impl Display for ComparableColor {
     }
 }
 
-const CHANNEL_MAX_F32: f32 = u8::MAX as f32;
-
 impl From<Color> for ComparableColor {
     fn from(value: Color) -> Self {
-        ComparableColor {
-            red: (value.red() * CHANNEL_MAX_F32) as u8,
-            green: (value.green() * CHANNEL_MAX_F32) as u8,
-            blue: (value.blue() * CHANNEL_MAX_F32) as u8,
-            alpha: (value.alpha() * CHANNEL_MAX_F32) as u8,
-        }
+        Self::from(value.to_color_u8())
     }
 }
 
