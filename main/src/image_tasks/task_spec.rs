@@ -505,9 +505,15 @@ impl ToPixmapTaskSpec {
                 Some(foreground.get_discrete_colors()?.into_iter().map(|color| color.blend_atop(background)).collect())
             }
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
-                let mut colors = background.get_discrete_colors()?;
-                colors.extend(foreground.get_discrete_colors()?);
-                Some(colors)
+                let bg_colors = background.get_discrete_colors()?;
+                let fg_colors = foreground.get_discrete_colors()?;
+                let mut combined_colors = HashSet::with_capacity(bg_colors.len() * fg_colors.len());
+                for bg_color in bg_colors {
+                    for fg_color in fg_colors.iter() {
+                        combined_colors.insert(fg_color.blend_atop(&bg_color));
+                    }
+                }
+                Some(combined_colors)
             },
         }
     }
