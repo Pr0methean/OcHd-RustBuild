@@ -130,8 +130,7 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>, omit_alpha: bool,
             for pixel in image.pixels() {
                 bit_writer.write_bit(*pixel == first_color).unwrap();
             }
-            drop(bit_writer);
-            writer.finish()?;
+            bit_writer.flush()?;
         } else {
             let depth = if colors.len() <= 4 {
                 BitDepth::Two
@@ -160,8 +159,7 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>, omit_alpha: bool,
                     .or_else(|_| Err(anyhoo!("Unexpected color {}", pixel_color)))?;
                 bit_writer.write(depth, color_index as u16).unwrap();
             }
-            drop(bit_writer);
-            writer.finish()?;
+            bit_writer.flush()?;
         }
     } else {
         for pixel in image.pixels_mut() {
@@ -170,19 +168,19 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>, omit_alpha: bool,
                 *pixel = mem::transmute(pixel.demultiply());
             }
         }
-        encoder.set_depth(png::BitDepth::Eight);
+        encoder.set_depth(BitDepth::Eight);
         if omit_alpha {
-            encoder.set_color(png::ColorType::Rgb);
+            encoder.set_color(ColorType::Rgb);
             let mut writer = encoder.write_header()?;
+            let mut data: Vec<u8> = Vec::with_capacity(3 * image.pixels().len());
             for pixel in image.pixels() {
-                writer.write_image_data(&cast::<PremultipliedColorU8, [u8; 4]>(*pixel)[0..3])?;
+                data.extend(&cast::<PremultipliedColorU8, [u8; 4]>(*pixel)[0..3]);
             }
-            writer.finish()?;
+            writer.write_image_data(&data)?;
         } else {
-            encoder.set_color(png::ColorType::Rgba);
+            encoder.set_color(ColorType::Rgba);
             let mut writer = encoder.write_header()?;
             writer.write_image_data(image.data())?;
-            writer.finish()?;
         }
     }
     match optimize_from_memory(reusable.deref(), &OXIPNG_OPTIONS) {
