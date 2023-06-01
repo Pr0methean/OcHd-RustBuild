@@ -476,7 +476,7 @@ impl ToPixmapTaskSpec {
     /// Used in [TaskSpec::add_to] to deduplicate certain tasks that are redundant.
     fn get_discrete_colors(&self) -> Option<HashSet<ComparableColor>> {
         match self {
-            ToPixmapTaskSpec::None { .. } => panic!("is_all_black() called on None task"),
+            ToPixmapTaskSpec::None { .. } => panic!("get_discrete_colors() called on None task"),
             ToPixmapTaskSpec::Animate { background, frames } => {
                 let mut colors = background.get_discrete_colors()?;
                 for frame in frames {
@@ -513,7 +513,7 @@ impl ToPixmapTaskSpec {
 
     fn is_semitransparency_free(&self) -> bool {
         match self {
-            ToPixmapTaskSpec::None { .. } => panic!("is_all_black() called on None task"),
+            ToPixmapTaskSpec::None { .. } => panic!("is_semitransparency_free() called on None task"),
             ToPixmapTaskSpec::Animate { background, frames } =>
                 background.is_semitransparency_free() && frames.iter().all(|frame| frame.is_semitransparency_free()),
             ToPixmapTaskSpec::FromSvg { source } => SEMITRANSPARENCY_FREE_SVGS.contains(&&*source.to_string_lossy()),
