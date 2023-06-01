@@ -6,6 +6,7 @@ use std::ops::{Deref, DerefMut};
 use std::path::{Path};
 use std::sync::{Arc, Mutex};
 use bitstream_io::{BigEndian, BitWrite, BitWriter};
+use itertools::Itertools;
 use lazy_static::lazy_static;
 use lockfree_object_pool::{LinearObjectPool};
 use log::{error, info};
@@ -156,7 +157,8 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>, omit_alpha: bool,
             for pixel in image.pixels() {
                 let pixel_color: ComparableColor = (*pixel).into();
                 let color_index = colors.binary_search(&pixel_color)
-                    .or_else(|_| Err(anyhoo!("Unexpected color {}", pixel_color)))?;
+                    .or_else(|_| Err(anyhoo!("Unexpected color {}; expected palette was {}",
+                        pixel_color, colors.iter().join(","))))?;
                 bit_writer.write(depth, color_index as u16).unwrap();
             }
             bit_writer.flush()?;
