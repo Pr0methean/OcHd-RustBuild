@@ -3,10 +3,13 @@ use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::ops::Mul;
 
-use resvg::tiny_skia::Color;
+use resvg::tiny_skia::{Color, Pixmap};
 use resvg::tiny_skia::ColorU8;
 use resvg::tiny_skia::PremultipliedColor;
 use resvg::tiny_skia::PremultipliedColorU8;
+use resvg::tiny_skia::Paint;
+use resvg::tiny_skia::Rect;
+use resvg::tiny_skia::Transform;
 
 /// Wrapper around [ColorU8] that implements important missing traits such as [Eq], [Hash], [Copy],
 /// [Clone] and [Ord]. Represents a 24-bit sRGB color + 8-bit alpha value (not premultiplied).
@@ -48,6 +51,22 @@ impl ComparableColor {
     pub fn green(&self) -> u8 { self.green}
     pub fn blue(&self) -> u8 { self.blue}
     pub fn alpha(&self) -> u8 { self.alpha}
+
+    pub(crate) fn blend_atop(self, background: &ComparableColor) -> ComparableColor {
+        if self.alpha == u8::MAX {
+            self
+        } else if self.alpha == 0 {
+            *background
+        } else {
+            let mut blended = Pixmap::new(1, 1).unwrap();
+            blended.pixels_mut()[0] = (*background).into();
+            let mut paint = Paint::default();
+            paint.set_color(self.into());
+            blended.fill_rect(Rect::from_xywh(0.0, 0.0, 1.0, 1.0).unwrap(),
+                              &paint, Transform::default(), None);
+            blended.pixels()[0].into()
+        }
+    }
 
     pub const TRANSPARENT: ComparableColor = rgba(0,0,0,0);
     pub const BLACK: ComparableColor = gray(0);
