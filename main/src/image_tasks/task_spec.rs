@@ -461,7 +461,8 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
 impl ToAlphaChannelTaskSpec {
     fn is_semitransparency_free(&self) -> bool {
         match self {
-            ToAlphaChannelTaskSpec::MakeSemitransparent { alpha, .. } => *alpha == 1.0,
+            ToAlphaChannelTaskSpec::MakeSemitransparent { alpha, .. } =>
+                *alpha == 1.0 || *alpha == 0.0,
             ToAlphaChannelTaskSpec::FromPixmap { base } => base.is_semitransparency_free(),
             ToAlphaChannelTaskSpec::StackAlphaOnAlpha { background, foreground } =>
                 background.is_semitransparency_free() && foreground.is_semitransparency_free(),
