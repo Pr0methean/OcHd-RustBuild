@@ -146,7 +146,7 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>, omit_alpha: bool,
             for pixel in image.pixels() {
                 let mut written = false;
                 let pixel_color: ComparableColor = (*pixel).into();
-                for (index, color) in colors.iter().enumerate() {
+                for (index, color) in colors.iter_mut().enumerate() {
                     if color.red().abs_diff(pixel_color.red()) <= 1
                     && color.green().abs_diff(pixel_color.green()) <= 1
                     && color.blue().abs_diff(pixel_color.blue()) <= 1
@@ -154,6 +154,7 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>, omit_alpha: bool,
                         if *color != pixel_color {
                             warn!("Rounding discrepancy: expected {}, found {}",
                                     color, pixel_color);
+                            *color = pixel_color;
                         }
                         bit_writer.write(depth, index as u16)?;
                         written = true;
