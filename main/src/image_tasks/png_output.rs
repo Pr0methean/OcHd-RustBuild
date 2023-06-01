@@ -114,7 +114,12 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>, omit_alpha: bool,
                 discrete_colors: Option<Vec<ComparableColor>>) -> Result<MaybeFromPool<Vec<u8>>, CloneableError> {
     let mut reusable = PNG_BUFFER_POOL.pull();
     let mut encoder = png::Encoder::new(reusable.deref_mut(), image.width(), image.height());
+    let known_grayscale = match &discrete_colors {
+        None => false,
+        Some(colors) => colors.iter().all(ComparableColor::is_gray_with_binary_alpha)
+    };
     if let Some(mut colors) = discrete_colors
+            && (colors.len() <= 16 || !known_grayscale)
             && colors.len() <= u16::MAX as usize {
         let mut palette: Vec<u8> = Vec::with_capacity(colors.len() * 3);
         let mut trns: Vec<u8> = Vec::with_capacity(
@@ -185,25 +190,34 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>, omit_alpha: bool,
             bit_writer.flush()?;
         }
     } else {
-        for pixel in image.pixels_mut() {
-            unsafe {
-                // Treat this PremultipliedColorU8 slice as a ColorU8 slice
-                *pixel = mem::transmute(pixel.demultiply());
-            }
-        }
-        encoder.set_depth(BitDepth::Eight);
-        if omit_alpha {
-            encoder.set_color(ColorType::Rgb);
+        if known_grayscale {
+            encoder.set_color(ColorType::Grayscale);
+            encoder.set_depth(BitDepth::Eight);
+            encoder.set_trns(vec![1u8]);
             let mut writer = encoder.write_header()?;
-            let mut data: Vec<u8> = Vec::with_capacity(3 * image.pixels().len());
-            for pixel in image.pixels() {
-                data.extend(&cast::<PremultipliedColorU8, [u8; 4]>(*pixel)[0..3]);
-            }
-            writer.write_image_data(&data)?;
+            let data: Vec<u8> = image.pixels().iter().map(|color| color.red()).collect();
+            writer.write_image_data(data.as_slice())?;
         } else {
-            encoder.set_color(ColorType::Rgba);
-            let mut writer = encoder.write_header()?;
-            writer.write_image_data(image.data())?;
+            for pixel in image.pixels_mut() {
+                unsafe {
+                    // Treat this PremultipliedColorU8 slice as a ColorU8 slice
+                    *pixel = mem::transmute(pixel.demultiply());
+                }
+            }
+            encoder.set_depth(BitDepth::Eight);
+            if omit_alpha {
+                encoder.set_color(ColorType::Rgb);
+                let mut writer = encoder.write_header()?;
+                let mut data: Vec<u8> = Vec::with_capacity(3 * image.pixels().len());
+                for pixel in image.pixels() {
+                    data.extend(&cast::<PremultipliedColorU8, [u8; 4]>(*pixel)[0..3]);
+                }
+                writer.write_image_data(&data)?;
+            } else {
+                encoder.set_color(ColorType::Rgba);
+                let mut writer = encoder.write_header()?;
+                writer.write_image_data(image.data())?;
+            }
         }
     }
     match optimize_from_memory(reusable.deref(), &OXIPNG_OPTIONS) {
