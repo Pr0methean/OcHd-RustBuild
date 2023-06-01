@@ -101,6 +101,14 @@ impl ComparableColor {
     /// If I'm gonna use a gray any lighter than this, I may as well just use
     /// [ComparableColor::WHITE] instead.
     pub const LIGHTEST_GRAY: ComparableColor = gray(0xdc);
+
+    pub fn is_gray_with_binary_alpha(&self) -> bool {
+        self.alpha == 0
+                || (self.alpha == u8::MAX
+                && self.red == self.green
+                && self.blue == self.green
+        )
+    }
 }
 
 impl Mul<f32> for ComparableColor {
