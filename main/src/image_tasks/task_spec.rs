@@ -89,7 +89,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
             },
             ToPixmapTaskSpec::PaintAlphaChannel { base, color } => {
                 let base_future = base.add_to(ctx);
-                let color: Color = (*color).into();
+                let color = color.to_owned();
                 Box::new(move || {
                     let base_image: Arc<Box<MaybeFromPool<Mask>>> = base_future.into_result()?;
                     paint(Arc::unwrap_or_clone(base_image).as_ref(), color)
@@ -479,11 +479,18 @@ impl ToPixmapTaskSpec {
         match self {
             ToPixmapTaskSpec::None { .. } => panic!("get_discrete_colors() called on None task"),
             ToPixmapTaskSpec::Animate { background, frames } => {
-                let mut colors = background.get_discrete_colors()?;
+                let bg_colors = background.get_discrete_colors()?;
+                let mut fg_colors: HashSet<ComparableColor> = HashSet::new();
                 for frame in frames {
-                    colors.extend(&frame.get_discrete_colors()?);
+                    fg_colors.extend(&frame.get_discrete_colors()?);
                 }
-                Some(colors)
+                let mut combined_colors = HashSet::with_capacity(bg_colors.len() * fg_colors.len());
+                for bg_color in bg_colors {
+                    for fg_color in fg_colors.iter() {
+                        combined_colors.insert(fg_color.blend_atop(&bg_color));
+                    }
+                }
+                Some(combined_colors)
             },
             ToPixmapTaskSpec::FromSvg { source } => {
                 if COLOR_SVGS.contains(&&*source.to_string_lossy()) {
