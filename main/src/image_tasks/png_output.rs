@@ -97,6 +97,7 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>, omit_alpha: bool,
     if let Some(mut colors) = discrete_colors
             && (colors.len() <= 16 || !known_grayscale)
             && colors.len() <= u16::MAX as usize {
+        colors.sort();
         let mut palette: Vec<u8> = Vec::with_capacity(colors.len() * 3);
         let mut trns: Vec<u8> = Vec::with_capacity(
             if omit_alpha {0} else {colors.len()});
@@ -142,7 +143,6 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>, omit_alpha: bool,
             let mut writer = encoder.write_header()?;
             let mut bit_writer: BitWriter<_, BigEndian> = BitWriter::new(
                 writer.stream_writer()?);
-            colors.sort();
             for pixel in image.pixels() {
                 let mut written = false;
                 let pixel_color: ComparableColor = (*pixel).into();
