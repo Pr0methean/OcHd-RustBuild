@@ -485,11 +485,12 @@ impl ToPixmapTaskSpec {
                 Some(colors)
             },
             ToPixmapTaskSpec::FromSvg { source } => {
-                if !COLOR_SVGS.contains(&&*source.to_string_lossy())
-                    && SEMITRANSPARENCY_FREE_SVGS.contains(&&*source.to_string_lossy()) {
-                    Some(HashSet::from([ComparableColor::TRANSPARENT, ComparableColor::BLACK]))
-                } else {
+                if COLOR_SVGS.contains(&&*source.to_string_lossy()) {
                     None
+                } else if !SEMITRANSPARENCY_FREE_SVGS.contains(&&*source.to_string_lossy()) {
+                    None
+                } else {
+                    Some(HashSet::from([ComparableColor::TRANSPARENT, ComparableColor::BLACK]))
                 }
             },
             ToPixmapTaskSpec::PaintAlphaChannel { color, base } => {
@@ -515,7 +516,7 @@ impl ToPixmapTaskSpec {
             ToPixmapTaskSpec::None { .. } => panic!("is_all_black() called on None task"),
             ToPixmapTaskSpec::Animate { background, frames } =>
                 background.is_semitransparency_free() && frames.iter().all(|frame| frame.is_semitransparency_free()),
-            ToPixmapTaskSpec::FromSvg { source } => !(SEMITRANSPARENCY_FREE_SVGS.contains(&&*source.to_string_lossy())),
+            ToPixmapTaskSpec::FromSvg { source } => SEMITRANSPARENCY_FREE_SVGS.contains(&&*source.to_string_lossy()),
             ToPixmapTaskSpec::PaintAlphaChannel { color, base } =>
                 color.alpha() == u8::MAX && base.is_semitransparency_free(),
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } =>
