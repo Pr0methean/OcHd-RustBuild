@@ -122,16 +122,19 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>, omit_alpha: bool,
         colors.sort();
         let mut palette: Vec<u8> = Vec::with_capacity(colors.len() * 3);
         let mut trns: Vec<u8> = Vec::with_capacity(
-            if omit_alpha {0} else {colors.len()});
+            if omit_alpha { 0 } else { colors.len() });
         for color in colors.iter() {
-            palette.extend_from_slice( & [color.red(), color.green(), color.blue()]);
+            palette.extend_from_slice(&[color.red(), color.green(), color.blue()]);
             if !omit_alpha {
                 trns.push(color.alpha());
             }
         }
         encoder.set_color(ColorType::Indexed);
         encoder.set_palette(palette);
-        if !omit_alpha {
+        if omit_alpha {
+            info!("Writing an indexed-color opaque PNG with {} RGB colors", colors.len());
+        } else {
+            info!("Writing an indexed-color PNG with {} RGBA colors", colors.len());
             encoder.set_trns(trns);
         }
         if colors.len() <= 2 {
@@ -192,11 +195,13 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>, omit_alpha: bool,
         }
     } else {
         if known_grayscale {
+            info!("Writing a grayscale PNG");
             encoder.set_color(ColorType::Grayscale);
             encoder.set_depth(BitDepth::Eight);
-            encoder.set_trns(vec![1u8]);
+            encoder.set_trns(vec![2u8]);
             let mut writer = encoder.write_header()?;
-            let data: Vec<u8> = image.pixels().iter().map(|color| color.red()).collect();
+            let data: Vec<u8> = image.pixels().iter().map(|color|
+                if color.alpha() == 0 { 2 } else { color.red() }).collect();
             writer.write_image_data(data.as_slice())?;
         } else {
             for pixel in image.pixels_mut() {
@@ -207,6 +212,7 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>, omit_alpha: bool,
             }
             encoder.set_depth(BitDepth::Eight);
             if omit_alpha {
+                info!("Writing an RGB PNG");
                 encoder.set_color(ColorType::Rgb);
                 let mut writer = encoder.write_header()?;
                 let mut data: Vec<u8> = Vec::with_capacity(3 * image.pixels().len());
@@ -215,6 +221,7 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>, omit_alpha: bool,
                 }
                 writer.write_image_data(&data)?;
             } else {
+                info!("Writing an RGBA PNG");
                 encoder.set_color(ColorType::Rgba);
                 let mut writer = encoder.write_header()?;
                 writer.write_image_data(image.data())?;
