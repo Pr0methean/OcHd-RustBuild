@@ -14,7 +14,7 @@ single_texture_block!(BROWN_MUSHROOM_BLOCK = BROWN_MUSHROOM_BACKGROUND,
     paint_svg_task("rings", c(0x9d825e))
 );
 single_texture_block!(MUSHROOM_STEM = c(0xd0d0c4),
-    paint_stack!(MUSHROOM_STEM_MAIN_COLOR, "stripesThick", "borderShortDashes")
+    paint_stack!(MUSHROOM_STEM_MAIN_COLOR, "railTies", "borderShortDashes")
 );
 single_texture_block!(MUSHROOM_BLOCK_INSIDE = c(0xD7C187),
     paint_stack!(c(0xab9066), "bigDotsTopLeftBottomRight", "dots0", "borderRoundDots")

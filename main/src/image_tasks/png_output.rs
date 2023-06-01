@@ -1,22 +1,27 @@
+use bytemuck::{cast};
 use include_dir::{File};
 use std::io::{Cursor, Write};
 use std::mem;
-use std::ops::DerefMut;
+use std::ops::{Deref, DerefMut};
 use std::path::{Path};
 use std::sync::{Arc, Mutex};
+use bitstream_io::{BigEndian, BitWrite, BitWriter};
+use itertools::Itertools;
 use lazy_static::lazy_static;
 use lockfree_object_pool::{LinearObjectPool};
-use log::{error, info};
+use log::{error, info, warn};
 use oxipng::{Deflaters, optimize_from_memory, Options, StripChunks};
+use png::{BitDepth, ColorType};
 
-use resvg::tiny_skia::{Pixmap};
+use resvg::tiny_skia::{Pixmap, PremultipliedColorU8};
 use zip_next::CompressionMethod::{Deflated};
 use zip_next::write::FileOptions;
 use zip_next::{ZipWriter};
 
 use crate::image_tasks::MaybeFromPool;
 use crate::image_tasks::task_spec::{CloneableError};
-use crate::{TILE_SIZE};
+use crate::{anyhoo, TILE_SIZE};
+use crate::image_tasks::color::ComparableColor;
 
 pub type ZipBufferRaw = Cursor<Vec<u8>>;
 
@@ -80,8 +85,8 @@ pub fn prewarm_png_buffer_pool() {
     PNG_BUFFER_POOL.pull();
 }
 
-pub fn png_output(image: MaybeFromPool<Pixmap>, file: &Path) -> Result<(),CloneableError> {
-    let data = into_png(image)?;
+pub fn png_output(image: MaybeFromPool<Pixmap>, omit_alpha: bool, discrete_colors: Option<Vec<ComparableColor>>, file: &Path) -> Result<(),CloneableError> {
+    let data = into_png(image, omit_alpha, discrete_colors)?;
     let mut zip = ZIP.lock()?;
     let writer = zip.deref_mut();
     writer.start_file(file.to_string_lossy(), PNG_ZIP_OPTIONS.to_owned())?;
@@ -105,24 +110,103 @@ pub fn copy_in_to_out(source: &File, dest: &Path) -> Result<(),CloneableError> {
 
 /// Forked from https://docs.rs/tiny-skia/latest/src/tiny_skia/pixmap.rs.html#390 to eliminate the
 /// copy and pre-allocate the byte vector.
-pub fn into_png(mut image: MaybeFromPool<Pixmap>) -> Result<MaybeFromPool<Vec<u8>>, png::EncodingError> {
-    for pixel in image.pixels_mut() {
-        unsafe {
-            // Treat this PremultipliedColorU8 slice as a ColorU8 slice
-            *pixel = mem::transmute(pixel.demultiply());
+pub fn into_png(mut image: MaybeFromPool<Pixmap>, omit_alpha: bool,
+                discrete_colors: Option<Vec<ComparableColor>>) -> Result<MaybeFromPool<Vec<u8>>, CloneableError> {
+    let mut reusable = PNG_BUFFER_POOL.pull();
+    let mut encoder = png::Encoder::new(reusable.deref_mut(), image.width(), image.height());
+    if let Some(mut colors) = discrete_colors
+            && colors.len() <= u16::MAX as usize {
+        let mut palette: Vec<u8> = Vec::with_capacity(colors.len() * 3);
+        let mut trns: Vec<u8> = Vec::with_capacity(
+            if omit_alpha {0} else {colors.len()});
+        for color in colors.iter() {
+            palette.extend_from_slice( & [color.red(), color.green(), color.blue()]);
+            if !omit_alpha {
+                trns.push(color.alpha());
+            }
+        }
+        encoder.set_color(ColorType::Indexed);
+        encoder.set_palette(palette);
+        if !omit_alpha {
+            encoder.set_trns(trns);
+        }
+        if colors.len() <= 2 {
+            encoder.set_depth(BitDepth::One);
+            let mut writer = encoder.write_header()?;
+            let mut bit_writer: BitWriter<_, BigEndian> =
+                BitWriter::new(writer.stream_writer()?);
+            let first_color: PremultipliedColorU8 = colors[0].into();
+            for pixel in image.pixels() {
+                bit_writer.write_bit(*pixel == first_color).unwrap();
+            }
+            bit_writer.flush()?;
+        } else {
+            let depth = if colors.len() <= 4 {
+                BitDepth::Two
+            } else if colors.len() <= 16 {
+                BitDepth::Four
+            } else if colors.len() <= 256 {
+                BitDepth::Eight
+            } else {
+                BitDepth::Sixteen
+            };
+            encoder.set_depth(depth);
+            let depth: u32 = match depth {
+                BitDepth::One => 1,
+                BitDepth::Two => 2,
+                BitDepth::Four => 4,
+                BitDepth::Eight => 8,
+                BitDepth::Sixteen => 16
+            };
+            let mut writer = encoder.write_header()?;
+            let mut bit_writer: BitWriter<_, BigEndian> = BitWriter::new(
+                writer.stream_writer()?);
+            colors.sort();
+            for pixel in image.pixels() {
+                let pixel_color: ComparableColor = (*pixel).into();
+                let color_index = colors.binary_search(&pixel_color)
+                    .or_else(|_| {
+                        for (index, color) in colors.iter_mut().enumerate() {
+                            if color.red().abs_diff(pixel_color.red()) <= 1
+                            && color.green().abs_diff(pixel_color.green()) <= 1
+                            && color.blue().abs_diff(pixel_color.blue()) <= 1
+                            && color.alpha().abs_diff(pixel_color.alpha()) <= 1 {
+                                warn!("Rounding discrepancy: expected {}, found {}",
+                                        color, pixel_color);
+                                *color = pixel_color;
+                                return Ok(index);
+                            }
+                        }
+                        Err(anyhoo!("Unexpected color {}; expected palette was {}",
+                            pixel_color, colors.iter().join(",")))
+                    })?;
+                bit_writer.write(depth, color_index as u16).unwrap();
+            }
+            bit_writer.flush()?;
+        }
+    } else {
+        for pixel in image.pixels_mut() {
+            unsafe {
+                // Treat this PremultipliedColorU8 slice as a ColorU8 slice
+                *pixel = mem::transmute(pixel.demultiply());
+            }
+        }
+        encoder.set_depth(BitDepth::Eight);
+        if omit_alpha {
+            encoder.set_color(ColorType::Rgb);
+            let mut writer = encoder.write_header()?;
+            let mut data: Vec<u8> = Vec::with_capacity(3 * image.pixels().len());
+            for pixel in image.pixels() {
+                data.extend(&cast::<PremultipliedColorU8, [u8; 4]>(*pixel)[0..3]);
+            }
+            writer.write_image_data(&data)?;
+        } else {
+            encoder.set_color(ColorType::Rgba);
+            let mut writer = encoder.write_header()?;
+            writer.write_image_data(image.data())?;
         }
     }
-
-    let mut reusable = PNG_BUFFER_POOL.pull();
-    let mut basic_png = reusable.deref_mut();
-    {
-        let mut encoder = png::Encoder::new(&mut basic_png, image.width(), image.height());
-        encoder.set_color(png::ColorType::Rgba);
-        encoder.set_depth(png::BitDepth::Eight);
-        let mut writer = encoder.write_header()?;
-        writer.write_image_data(image.data())?;
-    }
-    match optimize_from_memory(basic_png, &OXIPNG_OPTIONS) {
+    match optimize_from_memory(reusable.deref(), &OXIPNG_OPTIONS) {
         Ok(optimized) => Ok(MaybeFromPool::NotFromPool(optimized)),
         Err(e) => {
             error!("Error from oxipng: {}", e);
