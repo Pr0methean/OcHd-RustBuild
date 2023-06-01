@@ -28,6 +28,7 @@ fn test_make_semitransparent() {
     use crate::image_tasks::MaybeFromPool;
     use crate::image_tasks::repaint::paint;
     use crate::image_tasks::repaint::pixmap_to_mask;
+    use crate::image_tasks::color::ComparableColor;
 
     let alpha = 0.5;
     let alpha_multiplier = (alpha * f32::from(u8::MAX)) as u16;
@@ -35,7 +36,7 @@ fn test_make_semitransparent() {
     let pixmap = &mut Pixmap::new(side_length, side_length).unwrap();
     let circle = PathBuilder::from_circle(64.0, 64.0, 50.0).unwrap();
     let mut red_paint = Paint::default();
-    let red = Color::from_rgba(1.0, 0.0, 0.0, 1.0).unwrap();
+    let red = Color::from_rgba8(255, 0, 0, 255);
     red_paint.set_color(red);
     pixmap.fill_path(&circle, &red_paint,
                      FillRule::EvenOdd, Transform::default(), None);
@@ -43,7 +44,7 @@ fn test_make_semitransparent() {
     let mut semitransparent_circle: MaybeFromPool<Mask> = pixmap_to_mask(pixmap);
     make_semitransparent(&mut semitransparent_circle, alpha);
     let semitransparent_red_circle: Box<MaybeFromPool<Pixmap>> =
-        paint(&semitransparent_circle, red).unwrap();
+        paint(&semitransparent_circle, ComparableColor::RED).unwrap();
     let semitransparent_pixels = semitransparent_red_circle.pixels();
     for index in 0usize..((side_length * side_length) as usize) {
         let expected_alpha: u8 = (u16::from(alpha_multiplier

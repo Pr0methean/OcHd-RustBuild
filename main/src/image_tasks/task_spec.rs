@@ -1,4 +1,4 @@
-use std::collections::{HashMap};
+use std::collections::{HashMap, HashSet};
 
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
@@ -21,7 +21,7 @@ use resvg::tiny_skia::{Color, Mask, Pixmap};
 
 use crate::image_tasks::animate::animate;
 use crate::image_tasks::color::ComparableColor;
-use crate::image_tasks::from_svg::{COLOR_SVGS, from_svg};
+use crate::image_tasks::from_svg::{COLOR_SVGS, from_svg, SEMITRANSPARENCY_FREE_SVGS};
 use crate::image_tasks::make_semitransparent::make_semitransparent;
 use crate::image_tasks::MaybeFromPool;
 use crate::image_tasks::png_output::{copy_out_to_out, png_output};
@@ -89,7 +89,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
             },
             ToPixmapTaskSpec::PaintAlphaChannel { base, color } => {
                 let base_future = base.add_to(ctx);
-                let color: Color = (*color).into();
+                let color = color.to_owned();
                 Box::new(move || {
                     let base_image: Arc<Box<MaybeFromPool<Mask>>> = base_future.into_result()?;
                     paint(Arc::unwrap_or_clone(base_image).as_ref(), color)
@@ -174,9 +174,14 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
             FileOutputTaskSpec::PngOutput {base, destination } => {
                 let destination = destination.to_owned();
                 let base_future = base.add_to(ctx);
+                let opaque = base.is_necessarily_opaque();
+                let colors: Option<Vec<ComparableColor>> = base.get_discrete_colors()
+                    .map(|set| set.into_iter().collect());
                 Box::new(move || {
                     let base_result = base_future.into_result()?;
                     Ok(Box::new(png_output(*Arc::unwrap_or_clone(base_result),
+                                           opaque,
+                                           colors,
                                            &destination)?))
                 })
             }
@@ -453,18 +458,93 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
     }
 }
 
+impl ToAlphaChannelTaskSpec {
+    fn is_semitransparency_free(&self) -> bool {
+        match self {
+            ToAlphaChannelTaskSpec::MakeSemitransparent { alpha, base } =>
+                (*alpha == 1.0 && base.is_semitransparency_free()) || *alpha == 0.0,
+            ToAlphaChannelTaskSpec::FromPixmap { base } => base.is_semitransparency_free(),
+            ToAlphaChannelTaskSpec::StackAlphaOnAlpha { background, foreground } =>
+                background.is_semitransparency_free() && foreground.is_semitransparency_free(),
+            ToAlphaChannelTaskSpec::StackAlphaOnBackground { background, foreground } => {
+                *background == 1.0 || (*background == 0.0 && foreground.is_semitransparency_free())
+            }
+        }
+    }
+}
+
 impl ToPixmapTaskSpec {
     /// Used in [TaskSpec::add_to] to deduplicate certain tasks that are redundant.
-    fn is_all_black(&self) -> bool {
+    fn get_discrete_colors(&self) -> Option<HashSet<ComparableColor>> {
         match self {
-            ToPixmapTaskSpec::None { .. } => panic!("is_all_black() called on None task"),
+            ToPixmapTaskSpec::None { .. } => panic!("get_discrete_colors() called on None task"),
+            ToPixmapTaskSpec::Animate { background, frames } => {
+                let bg_colors = background.get_discrete_colors()?;
+                let mut fg_colors: HashSet<ComparableColor> = HashSet::new();
+                for frame in frames {
+                    fg_colors.extend(&frame.get_discrete_colors()?);
+                }
+                let mut combined_colors = HashSet::with_capacity(bg_colors.len() * fg_colors.len());
+                for bg_color in bg_colors {
+                    for fg_color in fg_colors.iter() {
+                        combined_colors.insert(fg_color.blend_atop(&bg_color));
+                    }
+                }
+                Some(combined_colors)
+            },
+            ToPixmapTaskSpec::FromSvg { source } => {
+                if COLOR_SVGS.contains(&&*source.to_string_lossy()) {
+                    None
+                } else if !SEMITRANSPARENCY_FREE_SVGS.contains(&&*source.to_string_lossy()) {
+                    None
+                } else {
+                    Some(HashSet::from([ComparableColor::TRANSPARENT, ComparableColor::BLACK]))
+                }
+            },
+            ToPixmapTaskSpec::PaintAlphaChannel { color, base } => {
+                if base.is_semitransparency_free() {
+                    Some(HashSet::from([ComparableColor::TRANSPARENT, *color]))
+                } else {
+                    None
+                }
+            },
+            ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
+                Some(foreground.get_discrete_colors()?.into_iter().map(|color| color.blend_atop(background)).collect())
+            }
+            ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
+                let bg_colors = background.get_discrete_colors()?;
+                let fg_colors = foreground.get_discrete_colors()?;
+                let mut combined_colors = HashSet::with_capacity(bg_colors.len() * fg_colors.len());
+                for bg_color in bg_colors {
+                    for fg_color in fg_colors.iter() {
+                        combined_colors.insert(fg_color.blend_atop(&bg_color));
+                    }
+                }
+                Some(combined_colors)
+            },
+        }
+    }
+
+    fn is_semitransparency_free(&self) -> bool {
+        match self {
+            ToPixmapTaskSpec::None { .. } => panic!("is_semitransparency_free() called on None task"),
             ToPixmapTaskSpec::Animate { background, frames } =>
-                background.is_all_black() && frames.iter().all(|frame| frame.is_all_black()),
-            ToPixmapTaskSpec::FromSvg { source } => !(COLOR_SVGS.contains(&&*source.to_string_lossy())),
-            ToPixmapTaskSpec::PaintAlphaChannel { color, .. } => color.is_black_or_transparent(),
+                background.is_semitransparency_free() && frames.iter().all(|frame| frame.is_semitransparency_free()),
+            ToPixmapTaskSpec::FromSvg { source } => SEMITRANSPARENCY_FREE_SVGS.contains(&&*source.to_string_lossy()),
+            ToPixmapTaskSpec::PaintAlphaChannel { color, base } =>
+                color.alpha() == u8::MAX && base.is_semitransparency_free(),
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } =>
-                background.is_black_or_transparent() && foreground.is_all_black(),
-            ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => background.is_all_black() && foreground.is_all_black(),
+                background.alpha() == u8::MAX || (background.alpha() == 0 && foreground.is_semitransparency_free()),
+            ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } =>
+                background.is_semitransparency_free() && foreground.is_semitransparency_free()
+
+        }
+    }
+
+    fn is_all_black(&self) -> bool {
+        match self.get_discrete_colors() {
+            None => false,
+            Some(colors) => colors.iter().all(ComparableColor::is_black_or_transparent)
         }
     }
 
