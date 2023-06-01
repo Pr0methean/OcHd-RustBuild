@@ -170,17 +170,16 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>, omit_alpha: bool,
             for pixel in image.pixels() {
                 let mut written = false;
                 let pixel_color: ComparableColor = (*pixel).into();
-                let color_index: Option<usize> = None;
-                for (index, color) in colors.iter_mut().enumerate() {
+                for (index, color) in colors.iter().enumerate() {
                     if color.red().abs_diff(pixel_color.red()) <= 1
                     && color.green().abs_diff(pixel_color.green()) <= 1
                     && color.blue().abs_diff(pixel_color.blue()) <= 1
                     && color.alpha().abs_diff(pixel_color.alpha()) <= 1 {
-                        if color != pixel_color {
+                        if *color != pixel_color {
                             warn!("Rounding discrepancy: expected {}, found {}",
                                     color, pixel_color);
                         }
-                        bit_writer.write(depth, index)?;
+                        bit_writer.write(depth, index as u16)?;
                         written = true;
                         break;
                     }
