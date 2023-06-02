@@ -72,13 +72,13 @@ macro_rules! polishable {
     }
 }
 
-polishable!(ANDESITE = c(0x8b8b8b),c(0x737373),c(0xaaaaaa),
+polishable!(ANDESITE = ComparableColor::STONE, ComparableColor::STONE_SHADOW, ComparableColor::STONE_HIGHLIGHT,
     color!(),
     paint_svg_task("bigRingsBottomLeftTopRight", highlight!()),
     paint_svg_task("bigRingsTopLeftBottomRight", shadow!())
 );
 
-polishable!(DIORITE = c(0xbfbfbf),c(0x888888), ComparableColor::WHITE,
+polishable!(DIORITE = ComparableColor::STONE_EXTREME_HIGHLIGHT, ComparableColor::STONE, ComparableColor::WHITE,
     color!(),
     paint_svg_task("bigRingsBottomLeftTopRight", shadow!()),
     paint_svg_task("bigRingsTopLeftBottomRight", highlight!())
