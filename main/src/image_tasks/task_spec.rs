@@ -685,6 +685,153 @@ impl PngMode {
         Ok(MaybeFromPool::FromPool {reusable})
     }
 }
+impl PngMode {
+    pub fn write(self, mut image: MaybeFromPool<Pixmap>) -> Result<MaybeFromPool<Vec<u8>>, CloneableError> {
+        let mut reusable = PNG_BUFFER_POOL.pull();
+        let mut encoder = Encoder::new(reusable.deref_mut(), image.width(), image.height());
+        match self.color_mode {
+            Indexed(mut palette) => {
+                if ((palette.len() > 16 && self.transparency_mode != AlphaChannel)
+                    || palette.len() > u8::MAX as usize + 1)
+                        && palette.iter().all(ComparableColor::is_gray) {
+                    return PngMode {color_mode: Grayscale, transparency_mode: self.transparency_mode}
+                        .write(image);
+                }
+                if palette.len() > u8::MAX as usize + 1 {
+                    return PngMode {color_mode: Rgb, transparency_mode: self.transparency_mode}
+                        .write(image);
+                }
+                let include_alpha = self.transparency_mode != Opaque;
+                let mut palette_data: Vec<u8> = Vec::with_capacity(palette.len() * 3);
+                let mut trns: Vec<u8> = Vec::with_capacity(
+                    if self.transparency_mode == Opaque { 0 } else { palette.len() });
+                for color in palette.iter() {
+                    palette_data.extend_from_slice(&[color.red(), color.green(), color.blue()]);
+                    if include_alpha {
+                        trns.push(color.alpha());
+                    }
+                }
+                encoder.set_color(ColorType::Indexed);
+                encoder.set_palette(palette_data);
+                if include_alpha {
+                    encoder.set_trns(trns);
+                }
+                let depth = if palette.len() <= 2 {
+                    BitDepth::One
+                } else if palette.len() <= 4 {
+                    BitDepth::Two
+                } else if palette.len() <= 16 {
+                    BitDepth::Four
+                } else if palette.len() <= 256 {
+                    BitDepth::Eight
+                } else {
+                    BitDepth::Sixteen
+                };
+                encoder.set_depth(depth);
+                let depth: u32 = match depth {
+                    BitDepth::One => 1,
+                    BitDepth::Two => 2,
+                    BitDepth::Four => 4,
+                    BitDepth::Eight => 8,
+                    BitDepth::Sixteen => 16
+                };
+                let mut writer = encoder.write_header()?;
+                let mut bit_writer: BitWriter<_, BigEndian> = BitWriter::new(
+                    writer.stream_writer()?);
+                for pixel in image.pixels() {
+                    let mut written = false;
+                    let pixel_color: ComparableColor = (*pixel).into();
+                    for (index, color) in palette.iter_mut().enumerate() {
+                        if color.red().abs_diff(pixel_color.red()) <= 1
+                            && color.green().abs_diff(pixel_color.green()) <= 1
+                            && color.blue().abs_diff(pixel_color.blue()) <= 1
+                            && color.alpha().abs_diff(pixel_color.alpha()) <= 1 {
+                            if *color != pixel_color {
+                                warn!("Rounding discrepancy: expected {}, found {}",
+                                    color, pixel_color);
+                                *color = pixel_color;
+                            }
+                            bit_writer.write(depth, index as u16)?;
+                            written = true;
+                            break;
+                        }
+                    }
+                    if !written {
+                        return Err(anyhoo!("Unexpected color {}; expected palette was {}",
+                            pixel_color, palette.iter().join(",")));
+                    }
+                }
+                bit_writer.flush()?;
+            }
+            Grayscale => {
+                if self.transparency_mode == Opaque {
+                    encoder.set_color(ColorType::Grayscale);
+                    encoder.set_depth(BitDepth::Eight);
+                    let mut writer = encoder.write_header()?;
+                    let data: Vec<u8> = image.pixels().iter().map(|pixel| pixel.red()).collect();
+                    writer.write_image_data(data.as_slice())?;
+                } else {
+                    encoder.set_color(ColorType::GrayscaleAlpha);
+                    encoder.set_depth(BitDepth::Eight);
+                    let mut writer = encoder.write_header()?;
+                    let data: Vec<u8> = image.pixels().iter().flat_map(|pixel| {
+                        let demul_red = pixel.demultiply().red();
+                        [demul_red, pixel.alpha()]
+                    }).collect();
+                    writer.write_image_data(data.as_slice())?;
+                }
+
+            }
+            Rgb => {
+                for pixel in image.pixels_mut() {
+                    unsafe {
+                        // Treat this PremultipliedColorU8 slice as a ColorU8 slice
+                        *pixel = transmute(pixel.demultiply());
+                    }
+                }
+                match self.transparency_mode {
+                    Opaque => {
+                        info!("Writing an RGB PNG");
+                        encoder.set_color(ColorType::Rgb);
+                        let mut data = Vec::with_capacity(3 * image.pixels().len());
+                        let mut writer = encoder.write_header()?;
+                        for pixel in image.pixels() {
+                            data.push(pixel.red());
+                            data.push(pixel.green());
+                            data.push(pixel.blue());
+                        }
+                        writer.write_image_data(&data)?;
+                    }
+                    BinaryTransparency => {
+                        let mut data: Vec<u8> = Vec::with_capacity(3 * image.pixels().len());
+                        for pixel in image.pixels() {
+                            let pixel_color: ComparableColor = (*pixel).into();
+                            if pixel_color.red().abs_diff(0xc0) <= 1
+                                    && pixel_color.green() >= 0xfe
+                                    && pixel_color.blue().abs_diff(0x3e) <= 1 {
+                                panic!("Found pixel color {} close to reserved-for-transparency color",
+                                    pixel_color);
+                            }
+                            data.extend(&cast::<PremultipliedColorU8, [u8; 4]>(*pixel)[0..3]);
+                        }
+                        encoder.set_color(ColorType::Rgb);
+                        encoder.set_trns(vec![0xc0, 0xff, 0x3e]);
+                        info!("Writing an RGB PNG with a transparent color");
+                        let mut writer = encoder.write_header()?;
+                        writer.write_image_data(&data)?;
+                    }
+                    AlphaChannel => {
+                        info!("Writing an RGBA PNG");
+                        encoder.set_color(ColorType::Rgba);
+                        let mut writer = encoder.write_header()?;
+                        writer.write_image_data(image.data())?;
+                    }
+                }
+            }
+        }
+        Ok(MaybeFromPool::FromPool {reusable})
+    }
+}
 
 impl ToAlphaChannelTaskSpec {
     fn is_semitransparency_free(&self) -> bool {
@@ -719,11 +866,7 @@ impl ToPixmapTaskSpec {
                 if frame_color_modes.contains(&Rgb) {
                     Rgb
                 } else if frame_color_modes.contains(&Grayscale) {
-                    if frame_color_modes.iter().all(PngColorMode::is_grayscale_compatible) {
-                        Grayscale
-                    } else {
-                        Rgb
-                    }
+                    Grayscale
                 } else {
                     let mut combined_colors: HashSet<ComparableColor> = HashSet::new();
                     for frame_color_mode in frame_color_modes {
@@ -790,13 +933,9 @@ impl ToPixmapTaskSpec {
                     Opaque => foreground.get_color_mode(),
                     BinaryTransparency => {
                         if let Indexed(fg_palette) = foreground.get_color_mode()
-                                && let Indexed(bg_palette) = background.get_color_mode() {
-                            let combined_size = bg_palette.len() * fg_palette.len();
-                            if combined_size > u8::MAX as usize + 1 {
-                                warn!("Canceling indexed mode for stack of {} on {} because palette of {} colors exceeds limit of {}",
-                                    foreground, background, combined_size, u8::MAX as usize + 1);
-                                return Rgb;
-                            }
+                                && let Indexed(bg_palette) = background.get_color_mode()
+                                && let combined_size = bg_palette.len() * fg_palette.len()
+                                && combined_size <= u8::MAX as usize + 1 {
                             let mut combined_colors = HashSet::with_capacity(combined_size);
                             for bg_color in bg_palette {
                                 for fg_color in fg_palette.iter() {
