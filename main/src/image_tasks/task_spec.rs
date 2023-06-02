@@ -498,6 +498,8 @@ impl PngMode {
         match self.color_mode {
             Indexed(mut palette) => {
                 if palette.len() > u16::MAX as usize + 1 {
+                    warn!("Canceling indexed mode because palette of {} colors exceeds limit of {}",
+                            palette.len(), u16::MAX as usize + 1);
                     return PngMode {color_mode: Rgb, transparency_mode: self.transparency_mode}
                         .write(image);
                 }
@@ -791,6 +793,8 @@ impl ToPixmapTaskSpec {
                                 && let Indexed(bg_palette) = background.get_color_mode() {
                             let combined_size = bg_palette.len() * fg_palette.len();
                             if combined_size > u16::MAX as usize + 1 {
+                                warn!("Canceling indexed mode for stack of {} on {} because palette of {} colors exceeds limit of {}",
+                                    foreground, background, combined_size, u16::MAX as usize + 1);
                                 return Rgb;
                             }
                             let mut combined_colors = HashSet::with_capacity(combined_size);
