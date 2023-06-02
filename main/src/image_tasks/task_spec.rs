@@ -731,8 +731,15 @@ impl ToPixmapTaskSpec {
                     Indexed(SEMITRANSPARENT_BLACK_PALETTE.to_owned())
                 }
             },
-            ToPixmapTaskSpec::PaintAlphaChannel { color, .. } => {
-                Indexed(vec![ComparableColor::TRANSPARENT, *color])
+            ToPixmapTaskSpec::PaintAlphaChannel { color, base } => {
+                if base.is_semitransparency_free() {
+                    Indexed(vec![ComparableColor::TRANSPARENT, *color])
+                } else {
+                    let max_alpha = color.alpha();
+                    Indexed((0..=max_alpha).map(|alpha| ComparableColor::from(ColorU8::from_rgba(
+                        color.red(), color.green(), color.blue(), alpha
+                    ))).collect())
+                }
             },
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
                 match foreground.get_transparency_mode() {
