@@ -514,7 +514,10 @@ impl PngMode {
                 for color in palette.iter() {
                     palette_data.extend_from_slice(&[color.red(), color.green(), color.blue()]);
                     if include_alpha {
+                        info!("Writing an indexed-color PNG with {} colors and alpha", palette.len());
                         trns.push(color.alpha());
+                    } else {
+                        info!("Writing an indexed-color PNG with {} colors", palette.len());
                     }
                 }
                 encoder.set_color(ColorType::Indexed);
