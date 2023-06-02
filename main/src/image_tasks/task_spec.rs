@@ -582,21 +582,53 @@ impl PngMode {
                 bit_writer.flush()?;
             }
             Grayscale => {
-                if self.transparency_mode == Opaque {
-                    encoder.set_color(ColorType::Grayscale);
-                    encoder.set_depth(BitDepth::Eight);
-                    let mut writer = encoder.write_header()?;
-                    let data: Vec<u8> = image.pixels().iter().map(|pixel| pixel.red()).collect();
-                    writer.write_image_data(data.as_slice())?;
-                } else {
-                    encoder.set_color(ColorType::GrayscaleAlpha);
-                    encoder.set_depth(BitDepth::Eight);
-                    let mut writer = encoder.write_header()?;
-                    let data: Vec<u8> = image.pixels().iter().flat_map(|pixel| {
-                        let demul_red = pixel.demultiply().red();
-                        [demul_red, pixel.alpha()]
-                    }).collect();
-                    writer.write_image_data(data.as_slice())?;
+                match self.transparency_mode {
+                    Opaque => {
+                        encoder.set_color(ColorType::Grayscale);
+                        encoder.set_depth(BitDepth::Eight);
+                        let mut writer = encoder.write_header()?;
+                        let data: Vec<u8> = image.pixels().iter().map(|pixel| pixel.red()).collect();
+                        writer.write_image_data(data.as_slice())?;
+                    },
+                    BinaryTransparency => {
+                        let mut shades_in_use = [false; u8::MAX as usize + 1];
+                        for pixel in image.pixels() {
+                            if pixel.alpha() == u8::MAX {
+                                // No need to demultiply fully opaque
+                                shades_in_use[pixel.red() as usize] = true;
+                            }
+                        }
+                        match shades_in_use.into_iter().enumerate().find(|(_, in_use)| !in_use) {
+                            None => {
+                                return PngMode {color_mode: Grayscale, transparency_mode: AlphaChannel }
+                                    .write(image);
+                            },
+                            Some((transparent_shade, _)) => {
+                                let transparent_shade = transparent_shade as u8;
+                                encoder.set_color(ColorType::Grayscale);
+                                encoder.set_depth(BitDepth::Eight);
+                                encoder.set_trns(vec![transparent_shade]);
+                                let mut writer = encoder.write_header()?;
+                                let data: Vec<u8> = image.pixels().iter().map(|pixel|
+                                    if pixel.alpha() != u8::MAX {
+                                        transparent_shade
+                                    } else {
+                                        pixel.red()
+                                    }).collect();
+                                writer.write_image_data(data.as_slice())?;
+                            }
+                        }
+                    }
+                    AlphaChannel => {
+                        encoder.set_color(ColorType::GrayscaleAlpha);
+                        encoder.set_depth(BitDepth::Eight);
+                        let mut writer = encoder.write_header()?;
+                        let data: Vec<u8> = image.pixels().iter().flat_map(|pixel| {
+                            let demul_red = pixel.demultiply().red();
+                            [demul_red, pixel.alpha()]
+                        }).collect();
+                        writer.write_image_data(data.as_slice())?;
+                    },
                 }
 
             }
