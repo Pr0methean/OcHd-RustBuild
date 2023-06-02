@@ -785,7 +785,11 @@ impl ToPixmapTaskSpec {
                     BinaryTransparency => {
                         if let Indexed(fg_palette) = foreground.get_color_mode()
                                 && let Indexed(bg_palette) = background.get_color_mode() {
-                            let mut combined_colors = HashSet::with_capacity(bg_palette.len() * fg_palette.len());
+                            let combined_size = bg_palette.len() * fg_palette.len();
+                            if combined_size > u16::MAX as usize + 1 {
+                                return Rgb;
+                            }
+                            let mut combined_colors = HashSet::with_capacity(combined_size);
                             for bg_color in bg_palette {
                                 for fg_color in fg_palette.iter() {
                                     combined_colors.insert(fg_color.blend_atop(&bg_color));
