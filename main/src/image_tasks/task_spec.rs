@@ -744,23 +744,13 @@ impl ToPixmapTaskSpec {
                                 Rgb
                             },
                             Indexed(bg_palette) => {
-                                match foreground.get_color_mode() {
-                                    Indexed(fg_palette) => {
-                                        let mut combined_colors = HashSet::with_capacity(bg_palette.len() * fg_palette.len());
-                                        for bg_color in bg_palette {
-                                            for fg_color in fg_palette.iter() {
-                                                combined_colors.insert(fg_color.blend_atop(&bg_color));
-                                            }
-                                        }
-                                        Indexed(combined_colors.into_iter().collect())
-                                    },
-                                    Grayscale => if background.is_gray() {
-                                        Grayscale
-                                    } else {
-                                        Rgb
-                                    },
-                                    Rgb => Rgb
+                               let mut combined_colors = HashSet::with_capacity(bg_palette.len() * fg_palette.len());
+                                for bg_color in bg_palette {
+                                    for fg_color in fg_palette.iter() {
+                                        combined_colors.insert(fg_color.blend_atop(&bg_color));
+                                    }
                                 }
+                                Indexed(combined_colors.into_iter().collect())
                             }
                         }
                     }
