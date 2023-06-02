@@ -3,7 +3,7 @@
 #![feature(const_type_id)]
 #![feature(let_chains)]
 #![feature(macro_metavar_expr)]
-
+#![feature(const_trait_impl)]
 use std::path::{absolute, PathBuf};
 use std::time::Instant;
 
