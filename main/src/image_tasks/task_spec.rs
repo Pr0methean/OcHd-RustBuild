@@ -2,33 +2,33 @@ use std::collections::{HashMap, HashSet};
 
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
-use std::mem::transmute;
+use std::hint::unreachable_unchecked;
+
 
 use std::ops::{Deref, DerefMut, Mul};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
-use bitstream_io::{BigEndian, BitWrite, BitWriter};
-use bytemuck::{cast};
+
 
 use cached::lazy_static::lazy_static;
 use crate::anyhoo;
 use include_dir::{Dir, include_dir};
 use itertools::Itertools;
 
-use log::{info, warn};
+use log::{info};
 use ordered_float::OrderedFloat;
-use png::{BitDepth, ColorType, Encoder};
+use png::{BitDepth};
 use replace_with::replace_with_and_return;
 
-use resvg::tiny_skia::{Color, ColorU8, Mask, Pixmap, PremultipliedColorU8};
+use resvg::tiny_skia::{Color, ColorU8, Mask, Pixmap};
 
 use crate::image_tasks::animate::animate;
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::from_svg::{COLOR_SVGS, from_svg, SEMITRANSPARENCY_FREE_SVGS};
 use crate::image_tasks::make_semitransparent::make_semitransparent;
 use crate::image_tasks::MaybeFromPool;
-use crate::image_tasks::png_output::{copy_out_to_out, PNG_BUFFER_POOL, png_output};
+use crate::image_tasks::png_output::{copy_out_to_out, png_output};
 use crate::image_tasks::repaint::{paint, pixmap_to_mask};
 use crate::image_tasks::stack::{stack_alpha_on_alpha, stack_alpha_on_background, stack_layer_on_background, stack_layer_on_layer};
 use crate::image_tasks::task_spec::PngColorMode::{Grayscale, Indexed, Rgb};
@@ -462,7 +462,7 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
     }
 }
 
-#[derive(Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PngColorMode {
     Indexed(Vec<ComparableColor>),
     Grayscale,
@@ -491,195 +491,27 @@ pub struct PngMode {
     pub transparency_mode: PngTransparencyMode
 }
 
-impl PngMode {
-    pub fn write(self, mut image: MaybeFromPool<Pixmap>) -> Result<MaybeFromPool<Vec<u8>>, CloneableError> {
-        let mut reusable = PNG_BUFFER_POOL.pull();
-        let mut encoder = Encoder::new(reusable.deref_mut(), image.width(), image.height());
-        match self.color_mode {
-            Indexed(palette) => {
-                if palette.len() > 16 {
-                    if palette.iter().all(ComparableColor::is_gray)
-                            && (self.transparency_mode != AlphaChannel
-                                || palette.len() > u8::MAX as usize + 1) {
-                        return PngMode {color_mode: Grayscale, transparency_mode: self.transparency_mode}
-                            .write(image);
-                    } else if palette.len() > u8::MAX as usize + 1 {
-                        return PngMode {color_mode: Rgb, transparency_mode: self.transparency_mode}
-                            .write(image);
-                    }
-                }
-                let include_alpha = self.transparency_mode != Opaque;
-                let mut palette_data: Vec<u8> = Vec::with_capacity(palette.len() * 3);
-                let mut trns: Vec<u8> = Vec::with_capacity(
-                    if self.transparency_mode == Opaque { 0 } else { palette.len() });
-                for color in palette.iter() {
-                    palette_data.extend_from_slice(&[color.red(), color.green(), color.blue()]);
-                    if include_alpha {
-                        info!("Writing an indexed-color PNG with {} colors and alpha", palette.len());
-                        trns.push(color.alpha());
-                    } else {
-                        info!("Writing an indexed-color PNG with {} colors", palette.len());
-                    }
-                }
-                encoder.set_color(ColorType::Indexed);
-                encoder.set_palette(palette_data);
-                if include_alpha {
-                    encoder.set_trns(trns);
-                }
-                let depth = if palette.len() <= 2 {
-                    BitDepth::One
-                } else if palette.len() <= 4 {
-                    BitDepth::Two
-                } else if palette.len() <= 16 {
-                    BitDepth::Four
-                } else if palette.len() <= 256 {
-                    BitDepth::Eight
-                } else {
-                    BitDepth::Sixteen
-                };
-                encoder.set_depth(depth);
-                let depth: u32 = match depth {
-                    BitDepth::One => 1,
-                    BitDepth::Two => 2,
-                    BitDepth::Four => 4,
-                    BitDepth::Eight => 8,
-                    BitDepth::Sixteen => 16
-                };
-                let mut writer = encoder.write_header()?;
-                let mut bit_writer: BitWriter<_, BigEndian> = BitWriter::new(
-                    writer.stream_writer()?);
-                let mut color_to_index: HashMap<ComparableColor, u16> = HashMap::with_capacity(palette.len());
-                for (index, color) in palette.iter().enumerate() {
-                    color_to_index.insert(*color, index as u16);
-                }
-                let mut prev_pixel: Option<PremultipliedColorU8> = None;
-                let mut prev_index: Option<u16> = None;
-                for pixel in image.pixels() {
-                    let index = if prev_pixel == Some(*pixel)
-                            && let Some(prev_index) = prev_index {
-                        prev_index
-                    } else {
-                        let pixel_color: ComparableColor = (*pixel).into();
-                        let index = color_to_index.get(&pixel_color).map(|index| *index).unwrap_or_else(|| {
-                            let (index, color)
-                                = palette.iter().enumerate()
-                                .min_by_key(|(_, color)| color.abs_diff(&pixel_color))
-                                .unwrap();
-                            let index = index as u16;
-                            color_to_index.insert(*color, index);
-                            index
-                        });
-                        prev_pixel = Some(*pixel);
-                        prev_index = Some(index);
-                        index
-                    };
-                    let fuzzy_matched_colors = color_to_index.len() - palette.len();
-                    if fuzzy_matched_colors > 0 {
-                        warn!("Found {} colors that didn't exactly match the palette", fuzzy_matched_colors);
-                    }
-                    bit_writer.write(depth, index)?;
-                }
-                bit_writer.flush()?;
-            }
-            Grayscale => {
-                match self.transparency_mode {
-                    Opaque => {
-                        encoder.set_color(ColorType::Grayscale);
-                        encoder.set_depth(BitDepth::Eight);
-                        let mut writer = encoder.write_header()?;
-                        let data: Vec<u8> = image.pixels().iter().map(|pixel| pixel.red()).collect();
-                        writer.write_image_data(data.as_slice())?;
-                    },
-                    BinaryTransparency => {
-                        let mut shades_in_use = [false; u8::MAX as usize + 1];
-                        for pixel in image.pixels() {
-                            if pixel.alpha() == u8::MAX {
-                                // No need to demultiply fully opaque
-                                shades_in_use[pixel.red() as usize] = true;
-                            }
-                        }
-                        match shades_in_use.into_iter().enumerate().find(|(_, in_use)| !in_use) {
-                            None => {
-                                return PngMode {color_mode: Grayscale, transparency_mode: AlphaChannel }
-                                    .write(image);
-                            },
-                            Some((transparent_shade, _)) => {
-                                let transparent_shade = transparent_shade as u8;
-                                encoder.set_color(ColorType::Grayscale);
-                                encoder.set_depth(BitDepth::Eight);
-                                encoder.set_trns(vec![transparent_shade]);
-                                let mut writer = encoder.write_header()?;
-                                let data: Vec<u8> = image.pixels().iter().map(|pixel|
-                                    if pixel.alpha() != u8::MAX {
-                                        transparent_shade
-                                    } else {
-                                        pixel.red()
-                                    }).collect();
-                                writer.write_image_data(data.as_slice())?;
-                            }
-                        }
-                    }
-                    AlphaChannel => {
-                        encoder.set_color(ColorType::GrayscaleAlpha);
-                        encoder.set_depth(BitDepth::Eight);
-                        let mut writer = encoder.write_header()?;
-                        let data: Vec<u8> = image.pixels().iter().flat_map(|pixel| {
-                            let demul_red = pixel.demultiply().red();
-                            [demul_red, pixel.alpha()]
-                        }).collect();
-                        writer.write_image_data(data.as_slice())?;
-                    },
-                }
+pub fn channel_to_bit_depth(input: u8, depth: BitDepth) -> u16 {
+    match depth {
+        BitDepth::One => if input < 0x80 { 0 } else { 1 },
+        BitDepth::Two => {
+            (input as u16 + (0x055/2)) / 0x55
+        },
+        BitDepth::Four => {
+            (input as u16 + (0x011/2)) / 0x11
+        },
+        BitDepth::Eight => input as u16,
+        BitDepth::Sixteen => input as u16 * 0x101
+    }
+}
 
-            }
-            Rgb => {
-                for pixel in image.pixels_mut() {
-                    unsafe {
-                        // Treat this PremultipliedColorU8 slice as a ColorU8 slice
-                        *pixel = transmute(pixel.demultiply());
-                    }
-                }
-                match self.transparency_mode {
-                    Opaque => {
-                        info!("Writing an RGB PNG");
-                        encoder.set_color(ColorType::Rgb);
-                        let mut data = Vec::with_capacity(3 * image.pixels().len());
-                        let mut writer = encoder.write_header()?;
-                        for pixel in image.pixels() {
-                            data.push(pixel.red());
-                            data.push(pixel.green());
-                            data.push(pixel.blue());
-                        }
-                        writer.write_image_data(&data)?;
-                    }
-                    BinaryTransparency => {
-                        let mut data: Vec<u8> = Vec::with_capacity(3 * image.pixels().len());
-                        for pixel in image.pixels() {
-                            let pixel_color: ComparableColor = (*pixel).into();
-                            if pixel_color.red().abs_diff(0xc0) <= 1
-                                    && pixel_color.green() >= 0xfe
-                                    && pixel_color.blue().abs_diff(0x3e) <= 1 {
-                                panic!("Found pixel color {} close to reserved-for-transparency color",
-                                    pixel_color);
-                            }
-                            data.extend(&cast::<PremultipliedColorU8, [u8; 4]>(*pixel)[0..3]);
-                        }
-                        encoder.set_color(ColorType::Rgb);
-                        encoder.set_trns(vec![0xc0, 0xff, 0x3e]);
-                        info!("Writing an RGB PNG with a transparent color");
-                        let mut writer = encoder.write_header()?;
-                        writer.write_image_data(&data)?;
-                    }
-                    AlphaChannel => {
-                        info!("Writing an RGBA PNG");
-                        encoder.set_color(ColorType::Rgba);
-                        let mut writer = encoder.write_header()?;
-                        writer.write_image_data(image.data())?;
-                    }
-                }
-            }
-        }
-        Ok(MaybeFromPool::FromPool {reusable})
+pub fn bit_depth_to_u32(depth: &BitDepth) -> u32 {
+    match depth {
+        BitDepth::One => 1,
+        BitDepth::Two => 2,
+        BitDepth::Four => 4,
+        BitDepth::Eight => 8,
+        BitDepth::Sixteen => 16
     }
 }
 
@@ -720,11 +552,10 @@ impl ToPixmapTaskSpec {
                 } else {
                     let mut combined_colors: HashSet<ComparableColor> = HashSet::new();
                     for frame_color_mode in frame_color_modes {
-                        let Indexed(colors) = frame_color_mode
-                            else {
-                                panic!("Found non-indexed mode after ruling it out")
-                            };
-                        combined_colors.extend(colors);
+                        match frame_color_mode {
+                            Indexed(colors) => combined_colors.extend(colors),
+                            _ => unsafe {unreachable_unchecked()}
+                        }
                     }
                     Indexed(combined_colors.into_iter().collect())
                 }
