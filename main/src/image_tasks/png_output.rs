@@ -1,27 +1,21 @@
-use bytemuck::{cast};
 use include_dir::{File};
 use std::io::{Cursor, Write};
-use std::mem;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path};
 use std::sync::{Arc, Mutex};
-use bitstream_io::{BigEndian, BitWrite, BitWriter};
-use itertools::Itertools;
 use lazy_static::lazy_static;
 use lockfree_object_pool::{LinearObjectPool};
-use log::{error, info, warn};
+use log::{error, info};
 use oxipng::{Deflaters, optimize_from_memory, Options, StripChunks};
-use png::{BitDepth, ColorType};
 
-use resvg::tiny_skia::{Pixmap, PremultipliedColorU8};
+use resvg::tiny_skia::{Pixmap};
 use zip_next::CompressionMethod::{Deflated};
 use zip_next::write::FileOptions;
 use zip_next::{ZipWriter};
 
 use crate::image_tasks::MaybeFromPool;
-use crate::image_tasks::task_spec::{CloneableError};
-use crate::{anyhoo, TILE_SIZE};
-use crate::image_tasks::color::ComparableColor;
+use crate::image_tasks::task_spec::{CloneableError, PngMode};
+use crate::{TILE_SIZE};
 
 pub type ZipBufferRaw = Cursor<Vec<u8>>;
 
@@ -41,7 +35,7 @@ lazy_static!{
         .compression_level(Some(264));
     pub static ref ZIP: Mutex<ZipWriter<ZipBufferRaw>> = Mutex::new(ZipWriter::new(Cursor::new(
         Vec::with_capacity(*ZIP_BUFFER_SIZE))));
-    static ref PNG_BUFFER_POOL: Arc<LinearObjectPool<Vec<u8>>> = Arc::new(LinearObjectPool::new(
+    pub static ref PNG_BUFFER_POOL: Arc<LinearObjectPool<Vec<u8>>> = Arc::new(LinearObjectPool::new(
         || {
             info!("Allocating a PNG buffer for pool");
             Vec::with_capacity(PNG_BUFFER_SIZE)
@@ -61,8 +55,8 @@ pub fn prewarm_png_buffer_pool() {
     PNG_BUFFER_POOL.pull();
 }
 
-pub fn png_output(image: MaybeFromPool<Pixmap>, omit_alpha: bool, discrete_colors: Option<Vec<ComparableColor>>, file: &Path) -> Result<(),CloneableError> {
-    let data = into_png(image, omit_alpha, discrete_colors)?;
+pub fn png_output(image: MaybeFromPool<Pixmap>, png_mode: PngMode, file: &Path) -> Result<(),CloneableError> {
+    let data = into_png(image, png_mode)?;
     let mut zip = ZIP.lock()?;
     let writer = zip.deref_mut();
     writer.start_file(file.to_string_lossy(), PNG_ZIP_OPTIONS.to_owned())?;
@@ -86,131 +80,13 @@ pub fn copy_in_to_out(source: &File, dest: &Path) -> Result<(),CloneableError> {
 
 /// Forked from https://docs.rs/tiny-skia/latest/src/tiny_skia/pixmap.rs.html#390 to eliminate the
 /// copy and pre-allocate the byte vector.
-pub fn into_png(mut image: MaybeFromPool<Pixmap>, omit_alpha: bool,
-                discrete_colors: Option<Vec<ComparableColor>>) -> Result<MaybeFromPool<Vec<u8>>, CloneableError> {
-    let mut reusable = PNG_BUFFER_POOL.pull();
-    let mut encoder = png::Encoder::new(reusable.deref_mut(), image.width(), image.height());
-    let known_grayscale = match &discrete_colors {
-        None => false,
-        Some(colors) => colors.iter().all(ComparableColor::is_gray_with_binary_alpha)
-    };
-    if let Some(mut colors) = discrete_colors
-            && (colors.len() <= 16 || !known_grayscale)
-            && colors.len() <= u16::MAX as usize {
-        colors.sort();
-        let mut palette: Vec<u8> = Vec::with_capacity(colors.len() * 3);
-        let mut trns: Vec<u8> = Vec::with_capacity(
-            if omit_alpha { 0 } else { colors.len() });
-        for color in colors.iter() {
-            palette.extend_from_slice(&[color.red(), color.green(), color.blue()]);
-            if !omit_alpha {
-                trns.push(color.alpha());
-            }
-        }
-        encoder.set_color(ColorType::Indexed);
-        encoder.set_palette(palette);
-        if omit_alpha {
-            info!("Writing an indexed-color opaque PNG with {} RGB colors", colors.len());
-        } else {
-            info!("Writing an indexed-color PNG with {} RGBA colors", colors.len());
-            encoder.set_trns(trns);
-        }
-        if colors.len() <= 2 {
-            encoder.set_depth(BitDepth::One);
-            let mut writer = encoder.write_header()?;
-            let mut bit_writer: BitWriter<_, BigEndian> =
-                BitWriter::new(writer.stream_writer()?);
-            let first_color: PremultipliedColorU8 = colors[0].into();
-            for pixel in image.pixels() {
-                bit_writer.write_bit(*pixel == first_color).unwrap();
-            }
-            bit_writer.flush()?;
-        } else {
-            let depth = if colors.len() <= 4 {
-                BitDepth::Two
-            } else if colors.len() <= 16 {
-                BitDepth::Four
-            } else if colors.len() <= 256 {
-                BitDepth::Eight
-            } else {
-                BitDepth::Sixteen
-            };
-            encoder.set_depth(depth);
-            let depth: u32 = match depth {
-                BitDepth::One => 1,
-                BitDepth::Two => 2,
-                BitDepth::Four => 4,
-                BitDepth::Eight => 8,
-                BitDepth::Sixteen => 16
-            };
-            let mut writer = encoder.write_header()?;
-            let mut bit_writer: BitWriter<_, BigEndian> = BitWriter::new(
-                writer.stream_writer()?);
-            for pixel in image.pixels() {
-                let mut written = false;
-                let pixel_color: ComparableColor = (*pixel).into();
-                for (index, color) in colors.iter_mut().enumerate() {
-                    if color.red().abs_diff(pixel_color.red()) <= 1
-                    && color.green().abs_diff(pixel_color.green()) <= 1
-                    && color.blue().abs_diff(pixel_color.blue()) <= 1
-                    && color.alpha().abs_diff(pixel_color.alpha()) <= 1 {
-                        if *color != pixel_color {
-                            warn!("Rounding discrepancy: expected {}, found {}",
-                                    color, pixel_color);
-                            *color = pixel_color;
-                        }
-                        bit_writer.write(depth, index as u16)?;
-                        written = true;
-                        break;
-                    }
-                }
-                if !written {
-                    return Err(anyhoo!("Unexpected color {}; expected palette was {}",
-                            pixel_color, colors.iter().join(",")));
-                }
-            }
-            bit_writer.flush()?;
-        }
-    } else {
-        if known_grayscale {
-            info!("Writing a grayscale PNG");
-            encoder.set_color(ColorType::Grayscale);
-            encoder.set_depth(BitDepth::Eight);
-            encoder.set_trns(vec![2u8]);
-            let mut writer = encoder.write_header()?;
-            let data: Vec<u8> = image.pixels().iter().map(|color|
-                if color.alpha() == 0 { 2 } else { color.red() }).collect();
-            writer.write_image_data(data.as_slice())?;
-        } else {
-            for pixel in image.pixels_mut() {
-                unsafe {
-                    // Treat this PremultipliedColorU8 slice as a ColorU8 slice
-                    *pixel = mem::transmute(pixel.demultiply());
-                }
-            }
-            encoder.set_depth(BitDepth::Eight);
-            if omit_alpha {
-                info!("Writing an RGB PNG");
-                encoder.set_color(ColorType::Rgb);
-                let mut writer = encoder.write_header()?;
-                let mut data: Vec<u8> = Vec::with_capacity(3 * image.pixels().len());
-                for pixel in image.pixels() {
-                    data.extend(&cast::<PremultipliedColorU8, [u8; 4]>(*pixel)[0..3]);
-                }
-                writer.write_image_data(&data)?;
-            } else {
-                info!("Writing an RGBA PNG");
-                encoder.set_color(ColorType::Rgba);
-                let mut writer = encoder.write_header()?;
-                writer.write_image_data(image.data())?;
-            }
-        }
-    }
+pub fn into_png(image: MaybeFromPool<Pixmap>, png_mode: PngMode) -> Result<MaybeFromPool<Vec<u8>>, CloneableError> {
+    let reusable = png_mode.write(image)?;
     match optimize_from_memory(reusable.deref(), &OXIPNG_OPTIONS) {
         Ok(optimized) => Ok(MaybeFromPool::NotFromPool(optimized)),
         Err(e) => {
             error!("Error from oxipng: {}", e);
-            Ok(MaybeFromPool::FromPool {reusable})
+            Ok(reusable)
         }
     }
 }

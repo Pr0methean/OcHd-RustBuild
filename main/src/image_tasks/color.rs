@@ -102,12 +102,16 @@ impl ComparableColor {
     /// [ComparableColor::WHITE] instead.
     pub const LIGHTEST_GRAY: ComparableColor = gray(0xdc);
 
-    pub fn is_gray_with_binary_alpha(&self) -> bool {
+    pub const RESERVED_FOR_TRANSPARENCY: ComparableColor = c(0xc0ff3e);
+
+    pub fn is_gray(&self) -> bool {
         self.alpha == 0
-                || (self.alpha == u8::MAX
-                && self.red == self.green
-                && self.blue == self.green
-        )
+            || (self.green == self.red
+            && self.blue == self.red)
+    }
+
+    pub fn is_binary_alpha(&self) -> bool {
+        self.alpha == 0 || self.alpha == u8::MAX
     }
 }
 
