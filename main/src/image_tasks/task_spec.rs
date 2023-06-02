@@ -496,7 +496,7 @@ impl PngMode {
         let mut reusable = PNG_BUFFER_POOL.pull();
         let mut encoder = Encoder::new(reusable.deref_mut(), image.width(), image.height());
         match self.color_mode {
-            Indexed(mut palette) => {
+            Indexed(palette) => {
                 if ((palette.len() > 16 && self.transparency_mode != AlphaChannel)
                     || palette.len() > u8::MAX as usize + 1)
                         && palette.iter().all(ComparableColor::is_gray) {
@@ -544,37 +544,24 @@ impl PngMode {
                 let mut writer = encoder.write_header()?;
                 let mut bit_writer: BitWriter<_, BigEndian> = BitWriter::new(
                     writer.stream_writer()?);
+                let mut color_to_index: HashMap<ComparableColor, u16> = HashMap::with_capacity(palette.len());
+                for (index, color) in palette.iter().enumerate() {
+                    color_to_index.insert(*color, index as u16);
+                }
                 for pixel in image.pixels() {
-                    let mut written = false;
                     let pixel_color: ComparableColor = (*pixel).into();
-                    for (index, color) in palette.iter().enumerate() {
-                        if *color == pixel_color {
-                            bit_writer.write(depth, index as u16)?;
-                            written = true;
-                            break;
-                        }
-                    }
-                    if !written {
-                        for (index, color) in palette.iter_mut().enumerate() {
-                            if color.red().abs_diff(pixel_color.red()) <= 3
-                                && color.green().abs_diff(pixel_color.green()) <= 3
-                                && color.blue().abs_diff(pixel_color.blue()) <= 3
-                                && color.alpha().abs_diff(pixel_color.alpha()) <= 1 {
-                                if *color != pixel_color {
-                                    warn!("Rounding discrepancy: expected {}, found {}",
-                                    color, pixel_color);
-                                    *color = pixel_color;
-                                }
-                                bit_writer.write(depth, index as u16)?;
-                                written = true;
-                                break;
-                            }
-                        }
-                    }
-                    if !written {
-                        return Err(anyhoo!("Unexpected color {}; expected palette was {}",
-                            pixel_color, palette.iter().join(",")));
-                    }
+                    let index = color_to_index.get(&pixel_color).map(|index| *index).unwrap_or_else(|| {
+                        let (index, color)
+                            = palette.iter().enumerate()
+                            .min_by_key(|(_, color)| color.abs_diff(&pixel_color))
+                            .unwrap();
+                        let index = index as u16;
+                        warn!("Rounding discrepancy: expected {}, found {}",
+                                color, pixel_color);
+                        color_to_index.insert(*color, index);
+                        index
+                    });
+                    bit_writer.write(depth, index)?;
                 }
                 bit_writer.flush()?;
             }

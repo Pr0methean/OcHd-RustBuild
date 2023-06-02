@@ -113,6 +113,17 @@ impl ComparableColor {
     pub fn is_binary_alpha(&self) -> bool {
         self.alpha == 0 || self.alpha == u8::MAX
     }
+
+    pub fn abs_diff(&self, other: &ComparableColor) -> u16 {
+        if self.alpha == 0 && other.alpha == 0 {
+            0
+        } else {
+            self.red.abs_diff(other.red) as u16
+                + self.green.abs_diff(other.green) as u16
+                + self.blue.abs_diff(other.blue) as u16
+                + self.alpha.abs_diff(other.alpha) as u16
+        }
+    }
 }
 
 impl Mul<f32> for ComparableColor {
