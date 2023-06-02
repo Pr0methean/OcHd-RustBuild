@@ -743,12 +743,10 @@ impl ToPixmapTaskSpec {
                             } else {
                                 Rgb
                             },
-                            Indexed(bg_palette) => {
-                               let mut combined_colors = HashSet::with_capacity(bg_palette.len() * fg_palette.len());
-                                for bg_color in bg_palette {
-                                    for fg_color in fg_palette.iter() {
-                                        combined_colors.insert(fg_color.blend_atop(&bg_color));
-                                    }
+                            Indexed(fg_palette) => {
+                                let mut combined_colors = HashSet::with_capacity(fg_palette.len() * fg_palette.len());
+                                for fg_color in fg_palette {
+                                    combined_colors.insert(fg_color.blend_atop(&background));
                                 }
                                 Indexed(combined_colors.into_iter().collect())
                             }
