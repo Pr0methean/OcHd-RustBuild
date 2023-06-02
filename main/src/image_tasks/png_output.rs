@@ -171,8 +171,9 @@ pub fn into_png(image: MaybeFromPool<Pixmap>, png_mode: PngMode) -> Result<Maybe
 }
 
 fn get_grayscale_transparency_mode(image: &MaybeFromPool<Pixmap>, grayscale_bit_depth: &BitDepth) -> GrayscaleTransparencyMode {
-    let grayscale_bits = bit_depth_to_u32(&grayscale_bit_depth);
-    let mut shades_in_use: Vec<bool> = Vec::with_capacity(1 << grayscale_bits);
+    let grayscale_bits = bit_depth_to_u32(grayscale_bit_depth);
+    let grayscale_shades = 1 << grayscale_bits;
+    let mut shades_in_use: Vec<bool> = vec![false;grayscale_shades];
     for pixel in image.pixels() {
         if pixel.alpha() == u8::MAX {
             // No need to demultiply fully opaque
@@ -210,7 +211,7 @@ pub fn write_grayscale_png<T: Write>(image: MaybeFromPool<Pixmap>, mut encoder: 
             let depth_bits: u32 = bit_depth_to_u32(&depth);
             encoder.set_color(ColorType::Grayscale);
             encoder.set_depth(depth);
-            encoder.set_trns(vec![transparent_shade as u8]);
+            encoder.set_trns(vec![transparent_shade]);
             let transparent_shade = transparent_shade as u16;
             let mut writer = encoder.write_header()?;
             let mut writer: BitWriter<_, BigEndian>
@@ -308,7 +309,7 @@ pub fn write_indexed_png<T: Write>(image: MaybeFromPool<Pixmap>, palette: Vec<Co
             transparent_index
         } else {
             let pixel_color: ComparableColor = (*pixel).into();
-            let index = color_to_index.get(&pixel_color).map(|index| *index).unwrap_or_else(|| {
+            let index = color_to_index.get(&pixel_color).copied().unwrap_or_else(|| {
                 let (index, color)
                     = palette.iter().enumerate()
                     .min_by_key(|(_, color)| color.abs_diff(&pixel_color))
