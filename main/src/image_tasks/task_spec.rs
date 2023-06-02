@@ -21,7 +21,7 @@ use ordered_float::OrderedFloat;
 use png::{BitDepth, ColorType, Encoder};
 use replace_with::replace_with_and_return;
 
-use resvg::tiny_skia::{Color, Mask, Pixmap, PremultipliedColorU8};
+use resvg::tiny_skia::{Color, ColorU8, Mask, Pixmap, PremultipliedColorU8};
 
 use crate::image_tasks::animate::animate;
 use crate::image_tasks::color::ComparableColor;
@@ -685,6 +685,11 @@ impl ToAlphaChannelTaskSpec {
     }
 }
 
+lazy_static!{
+    pub static ref SEMITRANSPARENT_BLACK_PALETTE: Vec<ComparableColor> = (0..=u8::MAX).map(|alpha| ComparableColor::from(
+        ColorU8::from_rgba(0, 0, 0, alpha))).collect();
+}
+
 impl ToPixmapTaskSpec {
     /// Used in [TaskSpec::add_to] to deduplicate certain tasks that are redundant.
     fn get_color_mode(&self) -> PngColorMode {
@@ -716,10 +721,13 @@ impl ToPixmapTaskSpec {
                 }
             },
             ToPixmapTaskSpec::FromSvg { source } => {
-                if COLOR_SVGS.contains(&&*source.to_string_lossy()) {
+                let source = &&*source.to_string_lossy();
+                if COLOR_SVGS.contains(source) {
                     Rgb
-                } else {
+                } else if SEMITRANSPARENCY_FREE_SVGS.contains(source) {
                     Indexed(vec![ComparableColor::TRANSPARENT, ComparableColor::BLACK])
+                } else {
+                    Indexed(SEMITRANSPARENT_BLACK_PALETTE.to_owned())
                 }
             },
             ToPixmapTaskSpec::PaintAlphaChannel { color, .. } => {
@@ -746,7 +754,7 @@ impl ToPixmapTaskSpec {
                             Indexed(fg_palette) => {
                                 let mut combined_colors = HashSet::with_capacity(fg_palette.len() * fg_palette.len());
                                 for fg_color in fg_palette {
-                                    combined_colors.insert(fg_color.blend_atop(&background));
+                                    combined_colors.insert(fg_color.blend_atop(background));
                                 }
                                 Indexed(combined_colors.into_iter().collect())
                             }
