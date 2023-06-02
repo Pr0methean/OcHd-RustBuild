@@ -497,8 +497,12 @@ impl PngMode {
         let mut encoder = Encoder::new(reusable.deref_mut(), image.width(), image.height());
         match self.color_mode {
             Indexed(mut palette) => {
+                if palette.len() > u16::MAX as usize + 1 {
+                    return PngMode {color_mode: Rgb, transparency_mode: self.transparency_mode}
+                        .write(image);
+                }
                 if palette.len() > 16
-                    && (self.transparency_mode != AlphaChannel || palette.len() > 256)
+                    && (self.transparency_mode != AlphaChannel || palette.len() > u8::MAX as usize + 1)
                         && palette.iter().all(ComparableColor::is_gray) {
                     return PngMode {color_mode: Grayscale, transparency_mode: self.transparency_mode}
                         .write(image);
