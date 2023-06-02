@@ -581,64 +581,38 @@ impl ToPixmapTaskSpec {
                 }
             },
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
-                match foreground.get_transparency_mode() {
-                    Opaque => foreground.get_color_mode(),
-                    AlphaChannel => {
-                        if background.is_gray() && foreground.get_color_mode().is_grayscale_compatible() {
-                            Grayscale
-                        } else {
-                            Rgb
+                match foreground.get_color_mode() {
+                    Rgb => Rgb,
+                    Grayscale => if background.is_gray() {
+                        Grayscale
+                    } else {
+                        Rgb
+                    },
+                    Indexed(fg_palette) => {
+                        let mut combined_colors = HashSet::with_capacity(fg_palette.len() * fg_palette.len());
+                        for fg_color in fg_palette {
+                            combined_colors.insert(fg_color.blend_atop(background));
                         }
-                    }
-                    BinaryTransparency => {
-                        match foreground.get_color_mode() {
-                            Rgb => Rgb,
-                            Grayscale => if background.is_gray() {
-                                Grayscale
-                            } else {
-                                Rgb
-                            },
-                            Indexed(fg_palette) => {
-                                let mut combined_colors = HashSet::with_capacity(fg_palette.len() * fg_palette.len());
-                                for fg_color in fg_palette {
-                                    combined_colors.insert(fg_color.blend_atop(background));
-                                }
-                                Indexed(combined_colors.into_iter().collect())
-                            }
-                        }
+                        Indexed(combined_colors.into_iter().collect())
                     }
                 }
             }
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
-                match foreground.get_transparency_mode() {
-                    Opaque => foreground.get_color_mode(),
-                    BinaryTransparency => {
-                        if let Indexed(fg_palette) = foreground.get_color_mode()
-                                && let Indexed(bg_palette) = background.get_color_mode()
-                                && let combined_size = bg_palette.len() * fg_palette.len()
-                                && combined_size <= u8::MAX as usize + 1 {
-                            let mut combined_colors = HashSet::with_capacity(combined_size);
-                            for bg_color in bg_palette {
-                                for fg_color in fg_palette.iter() {
-                                    combined_colors.insert(fg_color.blend_atop(&bg_color));
-                                }
-                            }
-                            Indexed(combined_colors.into_iter().collect())
-                        } else if background.get_color_mode().is_grayscale_compatible()
-                                && foreground.get_color_mode().is_grayscale_compatible() {
-                            Grayscale
-                        } else {
-                            Rgb
+                if let Indexed(fg_palette) = foreground.get_color_mode()
+                        && let Indexed(bg_palette) = background.get_color_mode() {
+                    let combined_size = bg_palette.len() * fg_palette.len();
+                    let mut combined_colors = HashSet::with_capacity(combined_size);
+                    for bg_color in bg_palette {
+                        for fg_color in fg_palette.iter() {
+                            combined_colors.insert(fg_color.blend_atop(&bg_color));
                         }
-                    },
-                    AlphaChannel => {
-                        if background.get_color_mode().is_grayscale_compatible()
-                                && foreground.get_color_mode().is_grayscale_compatible() {
-                            Grayscale
-                        } else {
-                            Rgb
-                        }
-                    },
+                    }
+                    Indexed(combined_colors.into_iter().collect())
+                } else if background.get_color_mode().is_grayscale_compatible()
+                        && foreground.get_color_mode().is_grayscale_compatible() {
+                    Grayscale
+                } else {
+                    Rgb
                 }
             }
         }
