@@ -552,29 +552,31 @@ impl PngMode {
                 for (index, color) in palette.iter().enumerate() {
                     color_to_index.insert(*color, index as u16);
                 }
-                let mut prev_color: Option<ComparableColor> = None;
+                let mut prev_pixel: Option<PremultipliedColorU8> = None;
                 let mut prev_index: Option<u16> = None;
                 for pixel in image.pixels() {
-                    let pixel_color: ComparableColor = (*pixel).into();
-                    let index = if prev_color == Some(pixel_color)
+                    let index = if prev_pixel == Some(*pixel)
                             && let Some(prev_index) = prev_index {
                         prev_index
                     } else {
+                        let pixel_color: ComparableColor = (*pixel).into();
                         let index = color_to_index.get(&pixel_color).map(|index| *index).unwrap_or_else(|| {
                             let (index, color)
                                 = palette.iter().enumerate()
                                 .min_by_key(|(_, color)| color.abs_diff(&pixel_color))
                                 .unwrap();
                             let index = index as u16;
-                            warn!("Rounding discrepancy: expected {}, found {}",
-                                    color, pixel_color);
                             color_to_index.insert(*color, index);
                             index
                         });
-                        prev_color = Some(pixel_color);
+                        prev_pixel = Some(*pixel);
                         prev_index = Some(index);
                         index
                     };
+                    let fuzzy_matched_colors = color_to_index.len() - palette.len();
+                    if fuzzy_matched_colors > 0 {
+                        warn!("Found {} colors that didn't exactly match the palette", fuzzy_matched_colors);
+                    }
                     bit_writer.write(depth, index)?;
                 }
                 bit_writer.flush()?;
