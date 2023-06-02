@@ -548,19 +548,29 @@ impl PngMode {
                 for (index, color) in palette.iter().enumerate() {
                     color_to_index.insert(*color, index as u16);
                 }
+                let mut prev_color: Option<ComparableColor> = None;
+                let mut prev_index: Option<u16> = None;
                 for pixel in image.pixels() {
                     let pixel_color: ComparableColor = (*pixel).into();
-                    let index = color_to_index.get(&pixel_color).map(|index| *index).unwrap_or_else(|| {
-                        let (index, color)
-                            = palette.iter().enumerate()
-                            .min_by_key(|(_, color)| color.abs_diff(&pixel_color))
-                            .unwrap();
-                        let index = index as u16;
-                        warn!("Rounding discrepancy: expected {}, found {}",
-                                color, pixel_color);
-                        color_to_index.insert(*color, index);
+                    let index = if prev_color == Some(pixel_color)
+                            && let Some(prev_index) = prev_index {
+                        prev_index
+                    } else {
+                        let index = color_to_index.get(&pixel_color).map(|index| *index).unwrap_or_else(|| {
+                            let (index, color)
+                                = palette.iter().enumerate()
+                                .min_by_key(|(_, color)| color.abs_diff(&pixel_color))
+                                .unwrap();
+                            let index = index as u16;
+                            warn!("Rounding discrepancy: expected {}, found {}",
+                                    color, pixel_color);
+                            color_to_index.insert(*color, index);
+                            index
+                        });
+                        prev_color = Some(pixel_color);
+                        prev_index = Some(index);
                         index
-                    });
+                    };
                     bit_writer.write(depth, index)?;
                 }
                 bit_writer.flush()?;
