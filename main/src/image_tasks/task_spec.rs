@@ -558,9 +558,9 @@ impl PngMode {
                     }
                     if !written {
                         for (index, color) in palette.iter_mut().enumerate() {
-                            if color.red().abs_diff(pixel_color.red()) <= 3
-                                && color.green().abs_diff(pixel_color.green()) <= 3
-                                && color.blue().abs_diff(pixel_color.blue()) <= 3
+                            if color.red().abs_diff(pixel_color.red()) <= 5
+                                && color.green().abs_diff(pixel_color.green()) <= 5
+                                && color.blue().abs_diff(pixel_color.blue()) <= 5
                                 && color.alpha().abs_diff(pixel_color.alpha()) <= 1 {
                                 if *color != pixel_color {
                                     warn!("Rounding discrepancy: expected {}, found {}",
