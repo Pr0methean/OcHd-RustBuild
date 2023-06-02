@@ -507,10 +507,6 @@ impl PngMode {
                     return PngMode {color_mode: Rgb, transparency_mode: self.transparency_mode}
                         .write(image);
                 }
-                if palette.len() > u8::MAX as usize + 1 {
-                    return PngMode {color_mode: Rgb, transparency_mode: self.transparency_mode}
-                        .write(image);
-                }
                 let include_alpha = self.transparency_mode != Opaque;
                 let mut palette_data: Vec<u8> = Vec::with_capacity(palette.len() * 3);
                 let mut trns: Vec<u8> = Vec::with_capacity(
