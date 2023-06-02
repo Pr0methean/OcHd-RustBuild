@@ -496,11 +496,15 @@ impl PngMode {
         let mut reusable = PNG_BUFFER_POOL.pull();
         let mut encoder = Encoder::new(reusable.deref_mut(), image.width(), image.height());
         match self.color_mode {
-            Indexed(mut palette) => {
+            Indexed(palette) => {
                 if ((palette.len() > 16 && self.transparency_mode != AlphaChannel)
                     || palette.len() > u8::MAX as usize + 1)
                         && palette.iter().all(ComparableColor::is_gray) {
                     return PngMode {color_mode: Grayscale, transparency_mode: self.transparency_mode}
+                        .write(image);
+                }
+                if palette.len() > u8::MAX as usize + 1 {
+                    return PngMode {color_mode: Rgb, transparency_mode: self.transparency_mode}
                         .write(image);
                 }
                 if palette.len() > u8::MAX as usize + 1 {
@@ -514,7 +518,10 @@ impl PngMode {
                 for color in palette.iter() {
                     palette_data.extend_from_slice(&[color.red(), color.green(), color.blue()]);
                     if include_alpha {
+                        info!("Writing an indexed-color PNG with {} colors and alpha", palette.len());
                         trns.push(color.alpha());
+                    } else {
+                        info!("Writing an indexed-color PNG with {} colors", palette.len());
                     }
                 }
                 encoder.set_color(ColorType::Indexed);
@@ -544,28 +551,34 @@ impl PngMode {
                 let mut writer = encoder.write_header()?;
                 let mut bit_writer: BitWriter<_, BigEndian> = BitWriter::new(
                     writer.stream_writer()?);
+                let mut color_to_index: HashMap<ComparableColor, u16> = HashMap::with_capacity(palette.len());
+                for (index, color) in palette.iter().enumerate() {
+                    color_to_index.insert(*color, index as u16);
+                }
+                let mut prev_color: Option<ComparableColor> = None;
+                let mut prev_index: Option<u16> = None;
                 for pixel in image.pixels() {
-                    let mut written = false;
                     let pixel_color: ComparableColor = (*pixel).into();
-                    for (index, color) in palette.iter_mut().enumerate() {
-                        if color.red().abs_diff(pixel_color.red()) <= 1
-                            && color.green().abs_diff(pixel_color.green()) <= 1
-                            && color.blue().abs_diff(pixel_color.blue()) <= 1
-                            && color.alpha().abs_diff(pixel_color.alpha()) <= 1 {
-                            if *color != pixel_color {
-                                warn!("Rounding discrepancy: expected {}, found {}",
+                    let index = if prev_color == Some(pixel_color)
+                            && let Some(prev_index) = prev_index {
+                        prev_index
+                    } else {
+                        let index = color_to_index.get(&pixel_color).map(|index| *index).unwrap_or_else(|| {
+                            let (index, color)
+                                = palette.iter().enumerate()
+                                .min_by_key(|(_, color)| color.abs_diff(&pixel_color))
+                                .unwrap();
+                            let index = index as u16;
+                            warn!("Rounding discrepancy: expected {}, found {}",
                                     color, pixel_color);
-                                *color = pixel_color;
-                            }
-                            bit_writer.write(depth, index as u8)?;
-                            written = true;
-                            break;
-                        }
-                    }
-                    if !written {
-                        return Err(anyhoo!("Unexpected color {}; expected palette was {}",
-                            pixel_color, palette.iter().join(",")));
-                    }
+                            color_to_index.insert(*color, index);
+                            index
+                        });
+                        prev_color = Some(pixel_color);
+                        prev_index = Some(index);
+                        index
+                    };
+                    bit_writer.write(depth, index)?;
                 }
                 bit_writer.flush()?;
             }
