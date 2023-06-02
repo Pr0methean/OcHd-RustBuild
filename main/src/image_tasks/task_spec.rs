@@ -46,7 +46,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                          -> CloneableLazyTask<MaybeFromPool<Pixmap>>
                          where 'b: 'a {
         let name: String = self.to_string();
-        if let Some(existing_future) = ctx.pixmap_task_to_future_map.get(&self) {
+        if let Some(existing_future) = ctx.pixmap_task_to_future_map.get(self) {
             info!("Matched an existing node: {}", name);
             return existing_future.to_owned();
         }
@@ -115,7 +115,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                          where 'b: 'a {
         let name: String = self.to_string();
         if let Some(existing_future)
-                = ctx.alpha_task_to_future_map.get(&self) {
+                = ctx.alpha_task_to_future_map.get(self) {
             info!("Matched an existing node: {}", name);
             return existing_future.to_owned();
         }
@@ -172,7 +172,7 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
                          where 'b: 'a {
         let name: String = self.to_string();
         if let Some(existing_future)
-                = ctx.output_task_to_future_map.get(&self) {
+                = ctx.output_task_to_future_map.get(self) {
             info!("Matched an existing node: {}", name);
             return existing_future.to_owned();
         }
@@ -565,23 +565,59 @@ impl PngMode {
                 bit_writer.flush()?;
             }
             Grayscale => {
-                if self.transparency_mode == Opaque {
-                    encoder.set_color(ColorType::Grayscale);
-                    encoder.set_depth(BitDepth::Eight);
-                    let mut writer = encoder.write_header()?;
-                    let data: Vec<u8> = image.pixels().iter().map(|pixel| pixel.red()).collect();
-                    writer.write_image_data(data.as_slice())?;
-                } else {
-                    encoder.set_color(ColorType::GrayscaleAlpha);
-                    encoder.set_depth(BitDepth::Eight);
-                    let mut writer = encoder.write_header()?;
-                    let data: Vec<u8> = image.pixels().iter().flat_map(|pixel| {
-                        let demul_red = pixel.demultiply().red();
-                        [demul_red, pixel.alpha()]
-                    }).collect();
-                    writer.write_image_data(data.as_slice())?;
+                match self.transparency_mode {
+                    Opaque => {
+                        encoder.set_color(ColorType::Grayscale);
+                        encoder.set_depth(BitDepth::Eight);
+                        let mut writer = encoder.write_header()?;
+                        let data: Vec<u8> = image.pixels().iter().map(|pixel| pixel.red()).collect();
+                        writer.write_image_data(data.as_slice())?
+                    },
+                    AlphaChannel => {
+                        encoder.set_color(ColorType::GrayscaleAlpha);
+                        encoder.set_depth(BitDepth::Eight);
+                        let mut writer = encoder.write_header()?;
+                        let data: Vec<u8> = image.pixels().iter().flat_map(|pixel| {
+                            let demul_red = pixel.demultiply().red();
+                            [demul_red, pixel.alpha()]
+                        }).collect();
+                        writer.write_image_data(data.as_slice())?
+                    },
+                    BinaryTransparency => {
+                        let mut used_shades = [false; 256];
+                        for pixel in image.pixels() {
+                            if pixel.alpha() > 0 {
+                                used_shades[pixel.red() as usize] = true;
+                            }
+                        }
+                        let unused_shade = used_shades
+                            .iter()
+                            .enumerate()
+                            .find(|(_, used)| !*used)
+                            .map(|(index, _)| index);
+                        match unused_shade {
+                            None => {
+                                return PngMode {color_mode: Grayscale, transparency_mode: AlphaChannel}
+                                    .write(image);
+                            },
+                            Some(unused_shade) => {
+                                let unused_shade = unused_shade as u8;
+                                encoder.set_color(ColorType::Grayscale);
+                                encoder.set_depth(BitDepth::Eight);
+                                encoder.set_trns(vec![unused_shade]);
+                                let mut writer = encoder.write_header()?;
+                                let data: Vec<u8> = image.pixels().iter().map(|pixel| {
+                                    if pixel.alpha() == 0 {
+                                        unused_shade
+                                    } else {
+                                        pixel.red()
+                                    }
+                                }).collect();
+                                writer.write_image_data(data.as_slice())?
+                            }
+                        }
+                    }
                 }
-
             }
             Rgb => {
                 for pixel in image.pixels_mut() {
@@ -657,7 +693,7 @@ impl ToPixmapTaskSpec {
             ToPixmapTaskSpec::Animate { background, frames } => {
                 let frame_color_modes: Vec<PngColorMode> = frames.iter().
                     map(|frame| ToPixmapTaskSpec::StackLayerOnLayer {
-                        background: background.to_owned().into(), foreground: frame.to_owned().into()
+                        background: background.to_owned(), foreground: frame.to_owned().into()
                     }.get_color_mode()).collect();
                 if frame_color_modes.contains(&Rgb) {
                     Rgb
