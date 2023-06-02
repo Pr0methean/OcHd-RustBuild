@@ -557,7 +557,7 @@ impl PngMode {
                                     color, pixel_color);
                                 *color = pixel_color;
                             }
-                            bit_writer.write(depth, index as u16)?;
+                            bit_writer.write(depth, index as u8)?;
                             written = true;
                             break;
                         }
