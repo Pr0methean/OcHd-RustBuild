@@ -310,7 +310,7 @@ pub fn write_indexed_png<T: Write>(image: MaybeFromPool<Pixmap>, palette: Vec<Co
     let mut error_corrections = HashMap::new();
     let mut worst_discrepancy: u16 = 0;
     let indexed_bits = bit_depth_to_u32(&bit_depth);
-    let mut prev_pixel: PremultipliedColorU8 = cast(palette_premul[0].clone());
+    let mut prev_pixel: PremultipliedColorU8 = cast(palette_premul[0]);
     let mut prev_index: u16 = 0;
     for pixel in image.pixels() {
         let index = if prev_pixel == *pixel {

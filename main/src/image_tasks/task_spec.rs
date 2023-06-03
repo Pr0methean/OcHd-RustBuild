@@ -608,7 +608,7 @@ impl ToPixmapTaskSpec {
                     Indexed(fg_palette) => {
                         let background = background.to_owned();
                         normalize_indexed(Box::new(
-                            fg_palette.to_owned().into_iter()
+                            fg_palette.into_iter()
                                 .map(move |fg_color| fg_color.blend_atop(&background))))
                     }
                 }
@@ -620,25 +620,26 @@ impl ToPixmapTaskSpec {
                     return fg_mode;
                 }
                 let bg_mode = background.get_color_mode(ctx);
-                if let Indexed(fg_palette) = &fg_mode
+                let can_be_grayscale = fg_mode.is_grayscale_compatible() && bg_mode.is_grayscale_compatible();
+                if let Indexed(fg_palette) = fg_mode
                         && let Indexed(bg_palette) = bg_mode {
                     if fg_trans == BinaryTransparency {
-                        normalize_indexed(Box::new(bg_palette.to_owned().into_iter()
-                            .chain(fg_palette.to_owned().into_iter())))
+                        normalize_indexed(Box::new(bg_palette.into_iter()
+                            .chain(fg_palette.into_iter())))
                     } else {
-                        let bg_palette = bg_palette.to_owned();
                         normalize_indexed(Box::new(
-                            fg_palette.to_owned().into_iter().flat_map(
+                            fg_palette.into_iter().flat_map(
                                 move |fg_color| -> Box<dyn Iterator<Item=ComparableColor>> {
                                 if fg_color.alpha() == u8::MAX {
                                     Box::new(once(fg_color))
                                 } else {
-                                    Box::new(bg_palette.to_owned().into_iter().map(move |bg_color| fg_color.blend_atop(&bg_color)))
+                                    let bg_palette = bg_palette.to_owned();
+                                    Box::new(bg_palette.into_iter().map(move |bg_color| fg_color.blend_atop(&bg_color)))
                                 }
                             })
                         ))
                     }
-                } else if fg_mode.is_grayscale_compatible() && bg_mode.is_grayscale_compatible() {
+                } else if can_be_grayscale {
                     Grayscale
                 } else {
                     Rgb

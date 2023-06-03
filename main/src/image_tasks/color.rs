@@ -76,8 +76,8 @@ impl ComparableColor {
         } else if self.alpha == 0 {
             *background
         } else {
-            let self_as_linrgb = self.to_palette_crate();
-            let background_as_linrgb = self.to_palette_crate();
+            let self_as_linrgb = self.as_linear_srgba();
+            let background_as_linrgb = self.as_linear_srgba();
             let blended_as_srgb8: Srgba<u8>
                 = Srgba::from_linear(self_as_linrgb.over(background_as_linrgb));
             ComparableColor {
@@ -89,7 +89,7 @@ impl ComparableColor {
         }
     }
 
-    pub fn to_palette_crate(&self) -> LinSrgba {
+    pub fn as_linear_srgba(&self) -> LinSrgba {
         LinSrgba::from(Srgba::<u8>::new(
             self.red,
             self.green,
