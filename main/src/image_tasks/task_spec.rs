@@ -1,34 +1,33 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
-use std::mem::transmute;
+use std::hint::unreachable_unchecked;
+use std::iter::once;
 
 use std::ops::{Deref, DerefMut, Mul};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
-use bitstream_io::{BigEndian, BitWrite, BitWriter};
-use bytemuck::{cast};
 
 use cached::lazy_static::lazy_static;
 use crate::anyhoo;
 use include_dir::{Dir, include_dir};
 use itertools::Itertools;
 
-use log::{info, warn};
+use log::{info};
 use ordered_float::OrderedFloat;
-use png::{BitDepth, ColorType, Encoder};
+use png::{BitDepth};
 use replace_with::replace_with_and_return;
 
-use resvg::tiny_skia::{Color, ColorU8, Mask, Pixmap, PremultipliedColorU8};
+use resvg::tiny_skia::{Color, ColorU8, Mask, Pixmap};
 
 use crate::image_tasks::animate::animate;
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::from_svg::{COLOR_SVGS, from_svg, SEMITRANSPARENCY_FREE_SVGS};
 use crate::image_tasks::make_semitransparent::make_semitransparent;
 use crate::image_tasks::MaybeFromPool;
-use crate::image_tasks::png_output::{copy_out_to_out, PNG_BUFFER_POOL, png_output};
+use crate::image_tasks::png_output::{copy_out_to_out, png_output};
 use crate::image_tasks::repaint::{paint, pixmap_to_mask};
 use crate::image_tasks::stack::{stack_alpha_on_alpha, stack_alpha_on_background, stack_layer_on_background, stack_layer_on_layer};
 use crate::image_tasks::task_spec::PngColorMode::{Grayscale, Indexed, Rgb};
@@ -180,7 +179,7 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
             FileOutputTaskSpec::PngOutput {base, destination } => {
                 let destination = destination.to_owned();
                 let base_future = base.add_to(ctx);
-                let color_mode = base.get_color_mode();
+                let color_mode = base.get_color_mode(ctx);
                 let transparency_mode = base.get_transparency_mode();
                 Box::new(move || {
                     let base_result = base_future.into_result()?;
@@ -462,7 +461,7 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
     }
 }
 
-#[derive(Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PngColorMode {
     Indexed(Vec<ComparableColor>),
     Grayscale,
@@ -491,195 +490,27 @@ pub struct PngMode {
     pub transparency_mode: PngTransparencyMode
 }
 
-impl PngMode {
-    pub fn write(self, mut image: MaybeFromPool<Pixmap>) -> Result<MaybeFromPool<Vec<u8>>, CloneableError> {
-        let mut reusable = PNG_BUFFER_POOL.pull();
-        let mut encoder = Encoder::new(reusable.deref_mut(), image.width(), image.height());
-        match self.color_mode {
-            Indexed(palette) => {
-                if palette.len() > 16 {
-                    if palette.iter().all(ComparableColor::is_gray)
-                            && (self.transparency_mode != AlphaChannel
-                                || palette.len() > u8::MAX as usize + 1) {
-                        return PngMode {color_mode: Grayscale, transparency_mode: self.transparency_mode}
-                            .write(image);
-                    } else if palette.len() > u8::MAX as usize + 1 {
-                        return PngMode {color_mode: Rgb, transparency_mode: self.transparency_mode}
-                            .write(image);
-                    }
-                }
-                let include_alpha = self.transparency_mode != Opaque;
-                let mut palette_data: Vec<u8> = Vec::with_capacity(palette.len() * 3);
-                let mut trns: Vec<u8> = Vec::with_capacity(
-                    if self.transparency_mode == Opaque { 0 } else { palette.len() });
-                for color in palette.iter() {
-                    palette_data.extend_from_slice(&[color.red(), color.green(), color.blue()]);
-                    if include_alpha {
-                        info!("Writing an indexed-color PNG with {} colors and alpha", palette.len());
-                        trns.push(color.alpha());
-                    } else {
-                        info!("Writing an indexed-color PNG with {} colors", palette.len());
-                    }
-                }
-                encoder.set_color(ColorType::Indexed);
-                encoder.set_palette(palette_data);
-                if include_alpha {
-                    encoder.set_trns(trns);
-                }
-                let depth = if palette.len() <= 2 {
-                    BitDepth::One
-                } else if palette.len() <= 4 {
-                    BitDepth::Two
-                } else if palette.len() <= 16 {
-                    BitDepth::Four
-                } else if palette.len() <= 256 {
-                    BitDepth::Eight
-                } else {
-                    BitDepth::Sixteen
-                };
-                encoder.set_depth(depth);
-                let depth: u32 = match depth {
-                    BitDepth::One => 1,
-                    BitDepth::Two => 2,
-                    BitDepth::Four => 4,
-                    BitDepth::Eight => 8,
-                    BitDepth::Sixteen => 16
-                };
-                let mut writer = encoder.write_header()?;
-                let mut bit_writer: BitWriter<_, BigEndian> = BitWriter::new(
-                    writer.stream_writer()?);
-                let mut color_to_index: HashMap<ComparableColor, u16> = HashMap::with_capacity(palette.len());
-                for (index, color) in palette.iter().enumerate() {
-                    color_to_index.insert(*color, index as u16);
-                }
-                let mut prev_pixel: Option<PremultipliedColorU8> = None;
-                let mut prev_index: Option<u16> = None;
-                for pixel in image.pixels() {
-                    let index = if prev_pixel == Some(*pixel)
-                            && let Some(prev_index) = prev_index {
-                        prev_index
-                    } else {
-                        let pixel_color: ComparableColor = (*pixel).into();
-                        let index = color_to_index.get(&pixel_color).map(|index| *index).unwrap_or_else(|| {
-                            let (index, color)
-                                = palette.iter().enumerate()
-                                .min_by_key(|(_, color)| color.abs_diff(&pixel_color))
-                                .unwrap();
-                            let index = index as u16;
-                            color_to_index.insert(*color, index);
-                            index
-                        });
-                        prev_pixel = Some(*pixel);
-                        prev_index = Some(index);
-                        index
-                    };
-                    let fuzzy_matched_colors = color_to_index.len() - palette.len();
-                    if fuzzy_matched_colors > 0 {
-                        warn!("Found {} colors that didn't exactly match the palette", fuzzy_matched_colors);
-                    }
-                    bit_writer.write(depth, index)?;
-                }
-                bit_writer.flush()?;
-            }
-            Grayscale => {
-                match self.transparency_mode {
-                    Opaque => {
-                        encoder.set_color(ColorType::Grayscale);
-                        encoder.set_depth(BitDepth::Eight);
-                        let mut writer = encoder.write_header()?;
-                        let data: Vec<u8> = image.pixels().iter().map(|pixel| pixel.red()).collect();
-                        writer.write_image_data(data.as_slice())?;
-                    },
-                    BinaryTransparency => {
-                        let mut shades_in_use = [false; u8::MAX as usize + 1];
-                        for pixel in image.pixels() {
-                            if pixel.alpha() == u8::MAX {
-                                // No need to demultiply fully opaque
-                                shades_in_use[pixel.red() as usize] = true;
-                            }
-                        }
-                        match shades_in_use.into_iter().enumerate().find(|(_, in_use)| !in_use) {
-                            None => {
-                                return PngMode {color_mode: Grayscale, transparency_mode: AlphaChannel }
-                                    .write(image);
-                            },
-                            Some((transparent_shade, _)) => {
-                                let transparent_shade = transparent_shade as u8;
-                                encoder.set_color(ColorType::Grayscale);
-                                encoder.set_depth(BitDepth::Eight);
-                                encoder.set_trns(vec![transparent_shade]);
-                                let mut writer = encoder.write_header()?;
-                                let data: Vec<u8> = image.pixels().iter().map(|pixel|
-                                    if pixel.alpha() != u8::MAX {
-                                        transparent_shade
-                                    } else {
-                                        pixel.red()
-                                    }).collect();
-                                writer.write_image_data(data.as_slice())?;
-                            }
-                        }
-                    }
-                    AlphaChannel => {
-                        encoder.set_color(ColorType::GrayscaleAlpha);
-                        encoder.set_depth(BitDepth::Eight);
-                        let mut writer = encoder.write_header()?;
-                        let data: Vec<u8> = image.pixels().iter().flat_map(|pixel| {
-                            let demul_red = pixel.demultiply().red();
-                            [demul_red, pixel.alpha()]
-                        }).collect();
-                        writer.write_image_data(data.as_slice())?;
-                    },
-                }
+pub fn channel_to_bit_depth(input: u8, depth: BitDepth) -> u16 {
+    match depth {
+        BitDepth::One => if input < 0x80 { 0 } else { 1 },
+        BitDepth::Two => {
+            (input as u16 + (0x055/2)) / 0x55
+        },
+        BitDepth::Four => {
+            (input as u16 + (0x011/2)) / 0x11
+        },
+        BitDepth::Eight => input as u16,
+        BitDepth::Sixteen => input as u16 * 0x101
+    }
+}
 
-            }
-            Rgb => {
-                for pixel in image.pixels_mut() {
-                    unsafe {
-                        // Treat this PremultipliedColorU8 slice as a ColorU8 slice
-                        *pixel = transmute(pixel.demultiply());
-                    }
-                }
-                match self.transparency_mode {
-                    Opaque => {
-                        info!("Writing an RGB PNG");
-                        encoder.set_color(ColorType::Rgb);
-                        let mut data = Vec::with_capacity(3 * image.pixels().len());
-                        let mut writer = encoder.write_header()?;
-                        for pixel in image.pixels() {
-                            data.push(pixel.red());
-                            data.push(pixel.green());
-                            data.push(pixel.blue());
-                        }
-                        writer.write_image_data(&data)?;
-                    }
-                    BinaryTransparency => {
-                        let mut data: Vec<u8> = Vec::with_capacity(3 * image.pixels().len());
-                        for pixel in image.pixels() {
-                            let pixel_color: ComparableColor = (*pixel).into();
-                            if pixel_color.red().abs_diff(0xc0) <= 1
-                                    && pixel_color.green() >= 0xfe
-                                    && pixel_color.blue().abs_diff(0x3e) <= 1 {
-                                panic!("Found pixel color {} close to reserved-for-transparency color",
-                                    pixel_color);
-                            }
-                            data.extend(&cast::<PremultipliedColorU8, [u8; 4]>(*pixel)[0..3]);
-                        }
-                        encoder.set_color(ColorType::Rgb);
-                        encoder.set_trns(vec![0xc0, 0xff, 0x3e]);
-                        info!("Writing an RGB PNG with a transparent color");
-                        let mut writer = encoder.write_header()?;
-                        writer.write_image_data(&data)?;
-                    }
-                    AlphaChannel => {
-                        info!("Writing an RGBA PNG");
-                        encoder.set_color(ColorType::Rgba);
-                        let mut writer = encoder.write_header()?;
-                        writer.write_image_data(image.data())?;
-                    }
-                }
-            }
-        }
-        Ok(MaybeFromPool::FromPool {reusable})
+pub fn bit_depth_to_u32(depth: &BitDepth) -> u32 {
+    match depth {
+        BitDepth::One => 1,
+        BitDepth::Two => 2,
+        BitDepth::Four => 4,
+        BitDepth::Eight => 8,
+        BitDepth::Sixteen => 16
     }
 }
 
@@ -703,30 +534,44 @@ lazy_static!{
         ColorU8::from_rgba(0, 0, 0, alpha))).collect();
 }
 
+fn normalize_indexed(palette: Box<dyn Iterator<Item=ComparableColor>>) -> PngColorMode {
+    let max_size = u8::MAX as usize + 2;
+    let colors: Vec<ComparableColor> = palette.unique().take(max_size).collect();
+    match colors.len() - max_size {
+        0 => Rgb,
+        1 => if colors.iter().all(|color| color.is_gray()) {
+            Grayscale
+        } else {
+            Indexed(colors)
+        },
+        _ => Indexed(colors)
+    }
+}
+
 impl ToPixmapTaskSpec {
     /// Used in [TaskSpec::add_to] to deduplicate certain tasks that are redundant.
-    fn get_color_mode(&self) -> PngColorMode {
+    fn get_color_mode(&self, ctx: &mut TaskGraphBuildingContext) -> PngColorMode {
+        if let Some(mode) = ctx.pixmap_task_to_color_mode_map.get(self) {
+            return mode.to_owned();
+        }
         match self {
             ToPixmapTaskSpec::None { .. } => panic!("get_discrete_colors() called on None task"),
             ToPixmapTaskSpec::Animate { background, frames } => {
                 let frame_color_modes: Vec<PngColorMode> = frames.iter().
                     map(|frame| ToPixmapTaskSpec::StackLayerOnLayer {
                         background: background.to_owned(), foreground: frame.to_owned().into()
-                    }.get_color_mode()).collect();
+                    }.get_color_mode(ctx)).collect();
                 if frame_color_modes.contains(&Rgb) {
                     Rgb
                 } else if frame_color_modes.contains(&Grayscale) {
                     Grayscale
                 } else {
-                    let mut combined_colors: HashSet<ComparableColor> = HashSet::new();
-                    for frame_color_mode in frame_color_modes {
-                        let Indexed(colors) = frame_color_mode
-                            else {
-                                panic!("Found non-indexed mode after ruling it out")
-                            };
-                        combined_colors.extend(colors);
-                    }
-                    Indexed(combined_colors.into_iter().collect())
+                    normalize_indexed(Box::new(frame_color_modes.into_iter().flat_map(|mode| {
+                        match mode {
+                            Indexed(colors) => colors.into_iter(),
+                            _ => unsafe { unreachable_unchecked() }
+                        }
+                    })))
                 }
             },
             ToPixmapTaskSpec::FromSvg { source } => {
@@ -744,79 +589,61 @@ impl ToPixmapTaskSpec {
                     Indexed(vec![ComparableColor::TRANSPARENT, *color])
                 } else {
                     let max_alpha = color.alpha();
-                    Indexed((0..=max_alpha).map(|alpha| ComparableColor::from(ColorU8::from_rgba(
-                        color.red(), color.green(), color.blue(), alpha
-                    ))).collect())
+                    let red = color.red();
+                    let green = color.green();
+                    let blue = color.blue();
+                    normalize_indexed(Box::new((0..=max_alpha).map(move |alpha|
+                        ComparableColor { red, green, blue, alpha }
+                    )))
                 }
             },
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
-                match foreground.get_transparency_mode() {
-                    Opaque => foreground.get_color_mode(),
-                    AlphaChannel => {
-                        if background.is_gray() && foreground.get_color_mode().is_grayscale_compatible() {
-                            Grayscale
-                        } else {
-                            Rgb
-                        }
-                    }
-                    BinaryTransparency => {
-                        match foreground.get_color_mode() {
-                            Rgb => Rgb,
-                            Grayscale => if background.is_gray() {
-                                Grayscale
-                            } else {
-                                Rgb
-                            },
-                            Indexed(fg_palette) => {
-                                let mut combined_colors = HashSet::with_capacity(fg_palette.len() * fg_palette.len());
-                                for fg_color in fg_palette {
-                                    combined_colors.insert(fg_color.blend_atop(background));
-                                }
-                                Indexed(combined_colors.into_iter().collect())
-                            }
-                        }
+                match foreground.get_color_mode(ctx) {
+                    Rgb => Rgb,
+                    Grayscale => if background.is_gray() {
+                        Grayscale
+                    } else {
+                        Rgb
+                    },
+                    Indexed(fg_palette) => {
+                        let background = background.to_owned();
+                        normalize_indexed(Box::new(
+                            fg_palette.to_owned().into_iter()
+                                .map(move |fg_color| fg_color.blend_atop(&background))))
                     }
                 }
             }
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
-                match foreground.get_transparency_mode() {
-                    Opaque => foreground.get_color_mode(),
-                    BinaryTransparency => {
-                        if let Indexed(fg_palette) = foreground.get_color_mode()
-                                && let Indexed(bg_palette) = background.get_color_mode()
-                                && let combined_size = bg_palette.len() * fg_palette.len()
-                                && combined_size <= u8::MAX as usize + 1 {
-                            let mut combined_colors = HashSet::with_capacity(combined_size);
-                            for bg_color in bg_palette {
-                                for fg_color in fg_palette.iter() {
-                                    combined_colors.insert(fg_color.blend_atop(&bg_color));
+                let fg_mode = foreground.get_color_mode(ctx);
+                let fg_trans = foreground.get_transparency_mode();
+                if fg_trans == Opaque {
+                    return fg_mode;
+                }
+                let bg_mode = background.get_color_mode(ctx);
+                if let Indexed(fg_palette) = &fg_mode
+                        && let Indexed(bg_palette) = bg_mode {
+                    if fg_trans == BinaryTransparency {
+                        normalize_indexed(Box::new(bg_palette.to_owned().into_iter()
+                            .chain(fg_palette.to_owned().into_iter())))
+                    } else {
+                        let bg_palette = bg_palette.to_owned();
+                        normalize_indexed(Box::new(
+                            fg_palette.to_owned().into_iter().flat_map(
+                                move |fg_color| -> Box<dyn Iterator<Item=ComparableColor>> {
+                                if fg_color.alpha() == u8::MAX {
+                                    Box::new(once(fg_color))
+                                } else {
+                                    Box::new(bg_palette.to_owned().into_iter().map(move |bg_color| fg_color.blend_atop(&bg_color)))
                                 }
-                            }
-                            Indexed(combined_colors.into_iter().collect())
-                        } else if background.get_color_mode().is_grayscale_compatible()
-                                && foreground.get_color_mode().is_grayscale_compatible() {
-                            Grayscale
-                        } else {
-                            Rgb
-                        }
-                    },
-                    AlphaChannel => {
-                        if background.get_color_mode().is_grayscale_compatible()
-                                && foreground.get_color_mode().is_grayscale_compatible() {
-                            Grayscale
-                        } else {
-                            Rgb
-                        }
-                    },
+                            })
+                        ))
+                    }
+                } else if fg_mode.is_grayscale_compatible() && bg_mode.is_grayscale_compatible() {
+                    Grayscale
+                } else {
+                    Rgb
                 }
             }
-        }
-    }
-
-    fn is_all_black(&self) -> bool {
-        match self.get_color_mode() {
-            Indexed(colors) => colors.iter().all(ComparableColor::is_black_or_transparent),
-            _ => false
         }
     }
 
@@ -895,7 +722,8 @@ impl From<ToPixmapTaskSpec> for ToAlphaChannelTaskSpec {
 pub struct TaskGraphBuildingContext {
     pixmap_task_to_future_map: HashMap<ToPixmapTaskSpec, CloneableLazyTask<MaybeFromPool<Pixmap>>>,
     alpha_task_to_future_map: HashMap<ToAlphaChannelTaskSpec, CloneableLazyTask<MaybeFromPool<Mask>>>,
-    pub output_task_to_future_map: HashMap<FileOutputTaskSpec, CloneableLazyTask<()>>
+    pub output_task_to_future_map: HashMap<FileOutputTaskSpec, CloneableLazyTask<()>>,
+    pixmap_task_to_color_mode_map: HashMap<ToPixmapTaskSpec, PngColorMode>
 }
 
 impl TaskGraphBuildingContext {
@@ -903,7 +731,8 @@ impl TaskGraphBuildingContext {
         TaskGraphBuildingContext {
             pixmap_task_to_future_map: HashMap::new(),
             alpha_task_to_future_map: HashMap::new(),
-            output_task_to_future_map: HashMap::new()
+            output_task_to_future_map: HashMap::new(),
+            pixmap_task_to_color_mode_map: HashMap::new()
         }
     }
 }
@@ -933,14 +762,25 @@ pub fn svg_alpha_task(name: &str) -> ToAlphaChannelTaskSpec {
 
 
 pub fn paint_task(base: ToAlphaChannelTaskSpec, color: ComparableColor) -> ToPixmapTaskSpec {
-    if color == ComparableColor::BLACK
-            && let ToAlphaChannelTaskSpec::FromPixmap {base: base_base} = &base
-            && base_base.is_all_black() {
-        info!("Simplified {}@{} -> {}", base, color, base_base);
-        *(base_base.to_owned())
-    } else {
-        ToPixmapTaskSpec::PaintAlphaChannel { base: Box::new(base), color }
+    if let ToAlphaChannelTaskSpec::FromPixmap {base: ref base_base} = base {
+        match &**base_base {
+            ToPixmapTaskSpec::FromSvg { ref source } => {
+                if color == ComparableColor::BLACK
+                    && !COLOR_SVGS.contains(&&*source.to_string_lossy()) {
+                    info!("Simplified {}@{} -> {}", base, color, base_base);
+                    return *base_base.to_owned();
+                }
+            },
+            ToPixmapTaskSpec::PaintAlphaChannel {base: base_base_base, color: base_color } => {
+                if base_color.alpha() == u8::MAX {
+                    info!("Simplified {}@{} -> {}", base, color, base_base_base);
+                    return paint_task(*base_base_base.to_owned(), color);
+                }
+            },
+            _ => {}
+        }
     }
+    ToPixmapTaskSpec::PaintAlphaChannel { base: Box::new(base), color }
 }
 
 pub fn paint_svg_task(name: &str, color: ComparableColor) -> ToPixmapTaskSpec {

@@ -1,7 +1,10 @@
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
+use std::hint::unreachable_unchecked;
 use std::ops::Mul;
+use lazy_static::lazy_static;
+use png::BitDepth;
 
 use resvg::tiny_skia::{Color, Pixmap};
 use resvg::tiny_skia::ColorU8;
@@ -10,15 +13,16 @@ use resvg::tiny_skia::PremultipliedColorU8;
 use resvg::tiny_skia::Paint;
 use resvg::tiny_skia::Rect;
 use resvg::tiny_skia::Transform;
+use crate::image_tasks::task_spec::bit_depth_to_u32;
 
 /// Wrapper around [ColorU8] that implements important missing traits such as [Eq], [Hash], [Copy],
 /// [Clone] and [Ord]. Represents a 24-bit sRGB color + 8-bit alpha value (not premultiplied).
 #[derive(Eq, Debug, Copy, Clone)]
 pub struct ComparableColor {
-    red: u8,
-    green: u8,
-    blue: u8,
-    alpha: u8,
+    pub(crate) red: u8,
+    pub(crate) green: u8,
+    pub(crate) blue: u8,
+    pub(crate) alpha: u8,
 }
 
 impl PartialOrd for ComparableColor {
@@ -44,6 +48,21 @@ impl Ord for ComparableColor {
         }
         ordering
     }
+}
+
+lazy_static!{
+    static ref BIT_DEPTH_FOR_CHANNEL_VALUE: [BitDepth; u8::MAX as usize + 1] = {
+        let mut depth = [BitDepth::Eight; u8::MAX as usize + 1];
+        for x in 1..=0xE {
+            depth[x * 0x11] = BitDepth::Four;
+        }
+        for x in 1..3 {
+            depth[x * 0x55] = BitDepth::Two;
+        }
+        depth[0] = BitDepth::One;
+        depth[u8::MAX as usize] = BitDepth::One;
+        depth
+    };
 }
 
 impl ComparableColor {
@@ -78,7 +97,7 @@ impl ComparableColor {
     pub const CYAN: ComparableColor = rgb(0,u8::MAX,u8::MAX);
     pub const WHITE: ComparableColor = gray(u8::MAX);
 
-    pub const STONE_EXTREME_SHADOW: ComparableColor = gray(0x51);
+    pub const STONE_EXTREME_SHADOW: ComparableColor = gray(0x55);
     pub const STONE_SHADOW: ComparableColor = gray(0x74);
     pub const STONE: ComparableColor = gray(0x85);
     pub const STONE_HIGHLIGHT: ComparableColor = gray(0xaa);
@@ -122,6 +141,23 @@ impl ComparableColor {
                 + self.green.abs_diff(other.green) as u16
                 + self.blue.abs_diff(other.blue) as u16
                 + self.alpha.abs_diff(other.alpha) as u16
+        }
+    }
+
+    pub fn bit_depth(&self) -> BitDepth {
+        if self.alpha() == 0 {
+            BitDepth::One
+        } else {
+            match bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL_VALUE[self.red as usize])
+                .max(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL_VALUE[self.green as usize]))
+                .max(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL_VALUE[self.blue as usize]))
+                .max(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL_VALUE[self.alpha as usize])) {
+                1 => BitDepth::One,
+                2 => BitDepth::Two,
+                4 => BitDepth::Four,
+                8 => BitDepth::Eight,
+                _ => unsafe { unreachable_unchecked() }
+            }
         }
     }
 }
