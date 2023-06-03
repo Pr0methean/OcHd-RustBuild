@@ -195,11 +195,12 @@ pub enum GrayscaleTransparencyMode {
 
 pub fn write_grayscale_png<T: Write>(image: MaybeFromPool<Pixmap>, mut encoder: Encoder<T>, depth: BitDepth, transparency_mode: GrayscaleTransparencyMode)
     -> Result<(), CloneableError> {
+    let depth_bits: u32 = bit_depth_to_u32(&depth);
+    info!("Writing {}-bit grayscale PNG", depth_bits);
+    encoder.set_depth(depth);
     match transparency_mode {
         GrayscaleTransparencyMode::Opaque => {
             encoder.set_color(ColorType::Grayscale);
-            encoder.set_depth(depth);
-            let depth_bits: u32 = bit_depth_to_u32(&depth);
             let mut writer = encoder.write_header()?;
             let mut writer: BitWriter<_, BigEndian> = BitWriter::new(writer.stream_writer()?);
             for pixel in image.pixels() {
@@ -208,10 +209,8 @@ pub fn write_grayscale_png<T: Write>(image: MaybeFromPool<Pixmap>, mut encoder: 
             writer.flush()?;
         },
         GrayscaleTransparencyMode::TransparentShade(transparent_shade) => {
-            let depth_bits: u32 = bit_depth_to_u32(&depth);
             encoder.set_color(ColorType::Grayscale);
-            encoder.set_depth(depth);
-            encoder.set_trns(vec![transparent_shade]);
+            encoder.set_trns(vec![0, transparent_shade]);
             let transparent_shade = transparent_shade as u16;
             let mut writer = encoder.write_header()?;
             let mut writer: BitWriter<_, BigEndian>
@@ -227,8 +226,6 @@ pub fn write_grayscale_png<T: Write>(image: MaybeFromPool<Pixmap>, mut encoder: 
         },
         GrayscaleTransparencyMode::AlphaChannel => {
             encoder.set_color(ColorType::GrayscaleAlpha);
-            encoder.set_depth(depth);
-            let depth_bits = bit_depth_to_u32(&depth);
             let mut writer = encoder.write_header()?;
             let mut writer: BitWriter<_, BigEndian>
                 = BitWriter::new(writer.stream_writer()?);
@@ -259,18 +256,25 @@ fn bit_depth_for_palette_size(size: usize) -> Option<BitDepth> {
 }
 
 const RESERVED_TRANSPARENT_COLOR: [u8; 3] = [0xc0, 0xff, 0x3e];
+const RESERVED_TRANSPARENT_COLOR_TRNS: [u8; 6] = [
+    0, RESERVED_TRANSPARENT_COLOR[0],
+    0, RESERVED_TRANSPARENT_COLOR[1],
+    0, RESERVED_TRANSPARENT_COLOR[2],
+];
 
 pub fn write_indexed_png<T: Write>(image: MaybeFromPool<Pixmap>, palette: Vec<ComparableColor>, mut encoder: Encoder<T>,
                          bit_depth: BitDepth, transparency_mode: PngTransparencyMode)
     -> Result<(), CloneableError> {
+    encoder.set_color(ColorType::Indexed);
+    encoder.set_depth(bit_depth);
     let real_palette_size = palette.len()
         + if transparency_mode == BinaryTransparency {1} else {0};
     let mut palette_data: Vec<u8> = Vec::with_capacity(real_palette_size);
-    let mut trns: Vec<u8> = Vec::with_capacity(match transparency_mode {
-        Opaque => 0,
-        BinaryTransparency => 3,
-        AlphaChannel => real_palette_size
-    });
+    let mut trns: Vec<u8> = match transparency_mode {
+        Opaque => vec![],
+        BinaryTransparency => RESERVED_TRANSPARENT_COLOR_TRNS.to_vec(),
+        AlphaChannel => Vec::with_capacity(real_palette_size)
+    };
     for color in palette.iter() {
         palette_data.extend_from_slice(&[color.red(), color.green(), color.blue()]);
         if transparency_mode == AlphaChannel {
@@ -283,10 +287,8 @@ pub fn write_indexed_png<T: Write>(image: MaybeFromPool<Pixmap>, palette: Vec<Co
     let mut transparent_index: u16 = 0;
     if transparency_mode == BinaryTransparency {
         palette_data.extend_from_slice(&RESERVED_TRANSPARENT_COLOR);
-        trns.extend_from_slice(&RESERVED_TRANSPARENT_COLOR);
         transparent_index = (real_palette_size - 1) as u16;
     }
-    encoder.set_color(ColorType::Indexed);
     encoder.set_palette(palette_data);
     if transparency_mode != Opaque {
         encoder.set_trns(trns);
@@ -322,17 +324,18 @@ pub fn write_indexed_png<T: Write>(image: MaybeFromPool<Pixmap>, palette: Vec<Co
             prev_index = Some(index);
             index
         };
-        let fuzzy_matched_colors = color_to_index.len() - palette.len();
-        if fuzzy_matched_colors > 0 {
-            warn!("Found {} colors that didn't exactly match the palette", fuzzy_matched_colors);
-        }
         bit_writer.write(indexed_bits, index)?;
+    }
+    let fuzzy_matched_colors = color_to_index.len() - palette.len();
+    if fuzzy_matched_colors > 0 {
+        warn!("Found {} colors that didn't exactly match the palette", fuzzy_matched_colors);
     }
     bit_writer.flush()?;
     Ok(())
 }
 
 fn write_true_color_png<T: Write>(mut image: MaybeFromPool<Pixmap>, mut encoder: Encoder<T>, transparency_mode: PngTransparencyMode) -> Result<(), CloneableError> {
+    encoder.set_depth(BitDepth::Eight);
     for pixel in image.pixels_mut() {
         unsafe {
             // Treat this PremultipliedColorU8 slice as a ColorU8 slice
@@ -355,7 +358,7 @@ fn write_true_color_png<T: Write>(mut image: MaybeFromPool<Pixmap>, mut encoder:
         }
         BinaryTransparency => {
             encoder.set_color(ColorType::Rgb);
-            encoder.set_trns(vec![0xc0, 0xff, 0x3e]);
+            encoder.set_trns(RESERVED_TRANSPARENT_COLOR_TRNS.to_vec());
             info!("Writing an RGB PNG with a transparent color");
             let mut writer = encoder.write_header()?;
             let mut data: Vec<u8> = Vec::with_capacity(3 * image.pixels().len());

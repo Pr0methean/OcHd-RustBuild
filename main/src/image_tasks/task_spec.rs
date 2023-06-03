@@ -1,15 +1,14 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 use std::hint::unreachable_unchecked;
-
+use std::iter::once;
 
 use std::ops::{Deref, DerefMut, Mul};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
-
 
 use cached::lazy_static::lazy_static;
 use crate::anyhoo;
@@ -180,7 +179,7 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
             FileOutputTaskSpec::PngOutput {base, destination } => {
                 let destination = destination.to_owned();
                 let base_future = base.add_to(ctx);
-                let color_mode = base.get_color_mode();
+                let color_mode = base.get_color_mode(ctx);
                 let transparency_mode = base.get_transparency_mode();
                 Box::new(move || {
                     let base_result = base_future.into_result()?;
@@ -535,29 +534,44 @@ lazy_static!{
         ColorU8::from_rgba(0, 0, 0, alpha))).collect();
 }
 
+fn normalize_indexed(palette: Box<dyn Iterator<Item=ComparableColor>>) -> PngColorMode {
+    let max_size = u8::MAX as usize + 2;
+    let colors: Vec<ComparableColor> = palette.unique().take(max_size).collect();
+    match colors.len() - max_size {
+        0 => Rgb,
+        1 => if colors.iter().all(|color| color.is_gray()) {
+            Grayscale
+        } else {
+            Indexed(colors)
+        },
+        _ => Indexed(colors)
+    }
+}
+
 impl ToPixmapTaskSpec {
     /// Used in [TaskSpec::add_to] to deduplicate certain tasks that are redundant.
-    fn get_color_mode(&self) -> PngColorMode {
+    fn get_color_mode(&self, ctx: &mut TaskGraphBuildingContext) -> PngColorMode {
+        if let Some(mode) = ctx.pixmap_task_to_color_mode_map.get(self) {
+            return mode.to_owned();
+        }
         match self {
             ToPixmapTaskSpec::None { .. } => panic!("get_discrete_colors() called on None task"),
             ToPixmapTaskSpec::Animate { background, frames } => {
                 let frame_color_modes: Vec<PngColorMode> = frames.iter().
                     map(|frame| ToPixmapTaskSpec::StackLayerOnLayer {
                         background: background.to_owned(), foreground: frame.to_owned().into()
-                    }.get_color_mode()).collect();
+                    }.get_color_mode(ctx)).collect();
                 if frame_color_modes.contains(&Rgb) {
                     Rgb
                 } else if frame_color_modes.contains(&Grayscale) {
                     Grayscale
                 } else {
-                    let mut combined_colors: HashSet<ComparableColor> = HashSet::new();
-                    for frame_color_mode in frame_color_modes {
-                        match frame_color_mode {
-                            Indexed(colors) => combined_colors.extend(colors),
-                            _ => unsafe {unreachable_unchecked()}
+                    normalize_indexed(Box::new(frame_color_modes.into_iter().flat_map(|mode| {
+                        match mode {
+                            Indexed(colors) => colors.into_iter(),
+                            _ => unsafe { unreachable_unchecked() }
                         }
-                    }
-                    Indexed(combined_colors.into_iter().collect())
+                    })))
                 }
             },
             ToPixmapTaskSpec::FromSvg { source } => {
@@ -575,13 +589,16 @@ impl ToPixmapTaskSpec {
                     Indexed(vec![ComparableColor::TRANSPARENT, *color])
                 } else {
                     let max_alpha = color.alpha();
-                    Indexed((0..=max_alpha).map(|alpha| ComparableColor::from(ColorU8::from_rgba(
-                        color.red(), color.green(), color.blue(), alpha
-                    ))).collect())
+                    let red = color.red();
+                    let green = color.green();
+                    let blue = color.blue();
+                    normalize_indexed(Box::new((0..=max_alpha).map(move |alpha|
+                        ComparableColor { red, green, blue, alpha }
+                    )))
                 }
             },
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
-                match foreground.get_color_mode() {
+                match foreground.get_color_mode(ctx) {
                     Rgb => Rgb,
                     Grayscale => if background.is_gray() {
                         Grayscale
@@ -589,39 +606,44 @@ impl ToPixmapTaskSpec {
                         Rgb
                     },
                     Indexed(fg_palette) => {
-                        let mut combined_colors = HashSet::with_capacity(fg_palette.len() * fg_palette.len());
-                        for fg_color in fg_palette {
-                            combined_colors.insert(fg_color.blend_atop(background));
-                        }
-                        Indexed(combined_colors.into_iter().collect())
+                        let background = background.to_owned();
+                        normalize_indexed(Box::new(
+                            fg_palette.to_owned().into_iter()
+                                .map(move |fg_color| fg_color.blend_atop(&background))))
                     }
                 }
             }
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
-                if let Indexed(fg_palette) = foreground.get_color_mode()
-                        && let Indexed(bg_palette) = background.get_color_mode() {
-                    let combined_size = bg_palette.len() * fg_palette.len();
-                    let mut combined_colors = HashSet::with_capacity(combined_size);
-                    for bg_color in bg_palette {
-                        for fg_color in fg_palette.iter() {
-                            combined_colors.insert(fg_color.blend_atop(&bg_color));
-                        }
+                let fg_mode = foreground.get_color_mode(ctx);
+                let fg_trans = foreground.get_transparency_mode();
+                if fg_trans == Opaque {
+                    return fg_mode;
+                }
+                let bg_mode = background.get_color_mode(ctx);
+                if let Indexed(fg_palette) = &fg_mode
+                        && let Indexed(bg_palette) = bg_mode {
+                    if fg_trans == BinaryTransparency {
+                        normalize_indexed(Box::new(bg_palette.to_owned().into_iter()
+                            .chain(fg_palette.to_owned().into_iter())))
+                    } else {
+                        let bg_palette = bg_palette.to_owned();
+                        normalize_indexed(Box::new(
+                            fg_palette.to_owned().into_iter().flat_map(
+                                move |fg_color| -> Box<dyn Iterator<Item=ComparableColor>> {
+                                if fg_color.alpha() == u8::MAX {
+                                    Box::new(once(fg_color))
+                                } else {
+                                    Box::new(bg_palette.to_owned().into_iter().map(move |bg_color| fg_color.blend_atop(&bg_color)))
+                                }
+                            })
+                        ))
                     }
-                    Indexed(combined_colors.into_iter().collect())
-                } else if background.get_color_mode().is_grayscale_compatible()
-                        && foreground.get_color_mode().is_grayscale_compatible() {
+                } else if fg_mode.is_grayscale_compatible() && bg_mode.is_grayscale_compatible() {
                     Grayscale
                 } else {
                     Rgb
                 }
             }
-        }
-    }
-
-    fn is_all_black(&self) -> bool {
-        match self.get_color_mode() {
-            Indexed(colors) => colors.iter().all(ComparableColor::is_black_or_transparent),
-            _ => false
         }
     }
 
@@ -700,7 +722,8 @@ impl From<ToPixmapTaskSpec> for ToAlphaChannelTaskSpec {
 pub struct TaskGraphBuildingContext {
     pixmap_task_to_future_map: HashMap<ToPixmapTaskSpec, CloneableLazyTask<MaybeFromPool<Pixmap>>>,
     alpha_task_to_future_map: HashMap<ToAlphaChannelTaskSpec, CloneableLazyTask<MaybeFromPool<Mask>>>,
-    pub output_task_to_future_map: HashMap<FileOutputTaskSpec, CloneableLazyTask<()>>
+    pub output_task_to_future_map: HashMap<FileOutputTaskSpec, CloneableLazyTask<()>>,
+    pixmap_task_to_color_mode_map: HashMap<ToPixmapTaskSpec, PngColorMode>
 }
 
 impl TaskGraphBuildingContext {
@@ -708,7 +731,8 @@ impl TaskGraphBuildingContext {
         TaskGraphBuildingContext {
             pixmap_task_to_future_map: HashMap::new(),
             alpha_task_to_future_map: HashMap::new(),
-            output_task_to_future_map: HashMap::new()
+            output_task_to_future_map: HashMap::new(),
+            pixmap_task_to_color_mode_map: HashMap::new()
         }
     }
 }
@@ -738,14 +762,25 @@ pub fn svg_alpha_task(name: &str) -> ToAlphaChannelTaskSpec {
 
 
 pub fn paint_task(base: ToAlphaChannelTaskSpec, color: ComparableColor) -> ToPixmapTaskSpec {
-    if color == ComparableColor::BLACK
-            && let ToAlphaChannelTaskSpec::FromPixmap {base: base_base} = &base
-            && base_base.is_all_black() {
-        info!("Simplified {}@{} -> {}", base, color, base_base);
-        *(base_base.to_owned())
-    } else {
-        ToPixmapTaskSpec::PaintAlphaChannel { base: Box::new(base), color }
+    if let ToAlphaChannelTaskSpec::FromPixmap {base: ref base_base} = base {
+        match &**base_base {
+            ToPixmapTaskSpec::FromSvg { ref source } => {
+                if color == ComparableColor::BLACK
+                    && !COLOR_SVGS.contains(&&*source.to_string_lossy()) {
+                    info!("Simplified {}@{} -> {}", base, color, base_base);
+                    return *base_base.to_owned();
+                }
+            },
+            ToPixmapTaskSpec::PaintAlphaChannel {base: base_base_base, color: base_color } => {
+                if base_color.alpha() == u8::MAX {
+                    info!("Simplified {}@{} -> {}", base, color, base_base_base);
+                    return paint_task(*base_base_base.to_owned(), color);
+                }
+            },
+            _ => {}
+        }
     }
+    ToPixmapTaskSpec::PaintAlphaChannel { base: Box::new(base), color }
 }
 
 pub fn paint_svg_task(name: &str, color: ComparableColor) -> ToPixmapTaskSpec {

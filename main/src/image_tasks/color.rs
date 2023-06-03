@@ -19,10 +19,10 @@ use crate::image_tasks::task_spec::bit_depth_to_u32;
 /// [Clone] and [Ord]. Represents a 24-bit sRGB color + 8-bit alpha value (not premultiplied).
 #[derive(Eq, Debug, Copy, Clone)]
 pub struct ComparableColor {
-    red: u8,
-    green: u8,
-    blue: u8,
-    alpha: u8,
+    pub(crate) red: u8,
+    pub(crate) green: u8,
+    pub(crate) blue: u8,
+    pub(crate) alpha: u8,
 }
 
 impl PartialOrd for ComparableColor {
