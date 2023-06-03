@@ -65,7 +65,7 @@ lazy_static!{
         options.deflate = if *TILE_SIZE < 64 {
             Deflaters::Zopfli {iterations: u8::MAX.try_into().unwrap() }
         } else if *TILE_SIZE < 128 {
-            Deflaters::Zopfli {iterations: 30.try_into().unwrap() }
+            Deflaters::Zopfli {iterations: 50.try_into().unwrap() }
         } else if *TILE_SIZE < 256 {
             Deflaters::Zopfli {iterations: 15.try_into().unwrap() }
         } else if *TILE_SIZE < 512 {
