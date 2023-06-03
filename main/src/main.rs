@@ -68,10 +68,10 @@ fn main() -> Result<(), CloneableError> {
     info!("Writing output to {}", absolute(&out_file)?.to_string_lossy());
     let tile_size: u32 = *TILE_SIZE;
     info!("Using {} pixels per tile", tile_size);
-    let threads = current_num_threads();
-    if threads > 8 {
+    let cpus = num_cpus::get();
+    if cpus > 8 {
         // Compensate for CPU under-utilization on m7g.16xlarge
-        ThreadPoolBuilder::new().num_threads(threads + 1).build_global()?;
+        ThreadPoolBuilder::new().num_threads(cpus + 1).build_global()?;
     }
     info!("Rayon thread pool has {} threads", current_num_threads());
     let start_time = Instant::now();
