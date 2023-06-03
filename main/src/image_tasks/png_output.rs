@@ -68,8 +68,6 @@ lazy_static!{
             Deflaters::Zopfli {iterations: u8::MAX.try_into().unwrap() }
         } else if *TILE_SIZE < 128 {
             Deflaters::Zopfli {iterations: 100.try_into().unwrap() }
-        } else if *TILE_SIZE < 256 {
-            Deflaters::Zopfli {iterations: 5.try_into().unwrap() }
         } else if *TILE_SIZE < 4096 {
             Deflaters::Libdeflater {compression: 12}
         } else {
