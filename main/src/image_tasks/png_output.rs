@@ -287,6 +287,7 @@ pub fn write_indexed_png<T: Write>(image: MaybeFromPool<Pixmap>, palette: Vec<Co
     let indexed_bits = bit_depth_to_u32(&bit_depth);
     let mut prev_pixel: Option<PremultipliedColorU8> = None;
     let mut prev_index: Option<u16> = None;
+    let mut worst_discrepancy: u16 = 0;
     for pixel in image.pixels() {
         let index = if prev_pixel == Some(*pixel)
             && let Some(prev_index) = prev_index {
@@ -300,6 +301,7 @@ pub fn write_indexed_png<T: Write>(image: MaybeFromPool<Pixmap>, palette: Vec<Co
                     = palette.iter().enumerate()
                     .min_by_key(|(_, color)| color.abs_diff(&pixel_color))
                     .unwrap();
+                worst_discrepancy = worst_discrepancy.max(color.abs_diff(&pixel_color));
                 let index = index as u16;
                 color_to_index.insert(*color, index);
                 index
@@ -312,7 +314,8 @@ pub fn write_indexed_png<T: Write>(image: MaybeFromPool<Pixmap>, palette: Vec<Co
     }
     let fuzzy_matched_colors = color_to_index.len() - palette.len();
     if fuzzy_matched_colors > 0 {
-        warn!("Found {} colors that didn't exactly match the palette", fuzzy_matched_colors);
+        warn!("Found {} colors that didn't exactly match the palette; worst discrepancy \
+            (R+G+B+A) was {}", fuzzy_matched_colors, worst_discrepancy);
     }
     bit_writer.flush()?;
     Ok(())
