@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 use std::hint::unreachable_unchecked;
 use std::ops::Mul;
 use lazy_static::lazy_static;
-use palette::{LinSrgba, Srgba};
+use palette::{Srgba};
 use palette::blend::{Compose};
 use png::BitDepth;
 
@@ -76,10 +76,10 @@ impl ComparableColor {
         } else if self.alpha == 0 {
             *background
         } else {
-            let self_as_linrgb = self.as_linear_srgba();
-            let background_as_linrgb = self.as_linear_srgba();
+            let self_as_f32 = self.as_f32_srgba();
+            let background_as_f32 = self.as_f32_srgba();
             let blended_as_srgb8: Srgba<u8>
-                = Srgba::from_linear(self_as_linrgb.over(background_as_linrgb));
+                = (self_as_f32.over(background_as_f32)).into_format();
             ComparableColor {
                 red: blended_as_srgb8.red,
                 green: blended_as_srgb8.green,
@@ -89,12 +89,12 @@ impl ComparableColor {
         }
     }
 
-    pub fn as_linear_srgba(&self) -> LinSrgba {
-        LinSrgba::from(Srgba::<u8>::new(
+    pub fn as_f32_srgba(&self) -> Srgba {
+        Srgba::<u8>::new(
             self.red,
             self.green,
             self.blue,
-            self.alpha))
+            self.alpha).into_format()
     }
 
     pub const TRANSPARENT: ComparableColor = rgba(0,0,0,0);
