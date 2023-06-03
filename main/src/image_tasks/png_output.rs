@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use include_dir::{File};
 use std::io::{Cursor, Write};
 use std::mem::transmute;
@@ -6,9 +5,10 @@ use std::ops::{Deref, DerefMut};
 use std::path::{Path};
 use std::sync::{Arc, Mutex};
 use bitstream_io::{BigEndian, BitWrite, BitWriter};
+use bytemuck::{cast};
 use lazy_static::lazy_static;
 use lockfree_object_pool::{LinearObjectPool};
-use log::{error, info, warn};
+use log::{error, info};
 use oxipng::{Deflaters, optimize_from_memory, Options, StripChunks};
 use png::{BitDepth, ColorType, Encoder};
 
@@ -261,23 +261,25 @@ pub fn write_indexed_png<T: Write>(image: MaybeFromPool<Pixmap>, palette: Vec<Co
     encoder.set_depth(bit_depth);
     let real_palette_size = palette.len()
         + if transparency_mode == BinaryTransparency {1} else {0};
+    let mut sorted_palette: Vec<([u8; 4], ComparableColor)> = Vec::with_capacity(real_palette_size);
     let mut palette_data: Vec<u8> = Vec::with_capacity(real_palette_size);
+    if transparency_mode == BinaryTransparency {
+        palette_data.extend_from_slice(&RESERVED_TRANSPARENT_COLOR); // color 0 is transparent
+    }
+    for color in palette.iter() {
+        sorted_palette.push((cast(PremultipliedColorU8::from(*color)), *color));
+    }
+    sorted_palette.sort_by_key(|(premult_bytes, _)| *premult_bytes);
     let mut trns: Vec<u8> = match transparency_mode {
         Opaque => vec![],
         BinaryTransparency => RESERVED_TRANSPARENT_COLOR_TRNS.to_vec(),
         AlphaChannel => Vec::with_capacity(real_palette_size)
     };
-    for color in palette.iter() {
+    for (_, color) in sorted_palette.iter() {
         palette_data.extend_from_slice(&[color.red(), color.green(), color.blue()]);
         if transparency_mode == AlphaChannel {
             trns.push(color.alpha());
-        } else {
         }
-    }
-    let mut transparent_index: u16 = 0;
-    if transparency_mode == BinaryTransparency {
-        palette_data.extend_from_slice(&RESERVED_TRANSPARENT_COLOR);
-        transparent_index = (real_palette_size - 1) as u16;
     }
     encoder.set_palette(palette_data);
     if transparency_mode != Opaque {
@@ -292,42 +294,29 @@ pub fn write_indexed_png<T: Write>(image: MaybeFromPool<Pixmap>, palette: Vec<Co
     let mut writer = encoder.write_header()?;
     let mut bit_writer: BitWriter<_, BigEndian> = BitWriter::new(
         writer.stream_writer()?);
-    let mut color_to_index: HashMap<ComparableColor, u16> = HashMap::with_capacity(palette.len());
-    for (index, color) in palette.iter().enumerate() {
-        color_to_index.insert(*color, index as u16);
+    let mut palette_premul: Vec<[u8; 4]> = Vec::with_capacity(real_palette_size);
+    if transparency_mode == BinaryTransparency {
+        palette_premul.push([0,0,0,0]);
+    }
+    for (premul_bytes, _) in sorted_palette.into_iter() {
+        palette_premul.push(premul_bytes);
     }
     let indexed_bits = bit_depth_to_u32(&bit_depth);
-    let mut prev_pixel: Option<PremultipliedColorU8> = None;
-    let mut prev_index: Option<u16> = None;
-    let mut worst_discrepancy: u16 = 0;
+    let mut prev_pixel: PremultipliedColorU8 = cast(palette_premul[0].clone());
+    let mut prev_index: u16 = 0;
     for pixel in image.pixels() {
-        let index = if prev_pixel == Some(*pixel)
-            && let Some(prev_index) = prev_index {
+        let index = if prev_pixel == *pixel {
             prev_index
         } else if transparency_mode == BinaryTransparency && pixel.alpha() != u8::MAX {
-            transparent_index
+            0
         } else {
-            let pixel_color: ComparableColor = (*pixel).into();
-            let index = color_to_index.get(&pixel_color).copied().unwrap_or_else(|| {
-                let (index, color)
-                    = palette.iter().enumerate()
-                    .min_by_key(|(_, color)| color.abs_diff(&pixel_color))
-                    .unwrap();
-                worst_discrepancy = worst_discrepancy.max(color.abs_diff(&pixel_color));
-                let index = index as u16;
-                color_to_index.insert(*color, index);
-                index
-            });
-            prev_pixel = Some(*pixel);
-            prev_index = Some(index);
+            let pixel_bytes: [u8; 4] = cast(*pixel);
+            let index = palette_premul.binary_search(&pixel_bytes)? as u16;
+            prev_pixel = *pixel;
+            prev_index = index;
             index
         };
         bit_writer.write(indexed_bits, index)?;
-    }
-    let fuzzy_matched_colors = color_to_index.len() - palette.len();
-    if fuzzy_matched_colors > 0 {
-        warn!("Found {} colors that didn't exactly match the palette; worst discrepancy \
-            (R+G+B+A) was {}", fuzzy_matched_colors, worst_discrepancy);
     }
     bit_writer.flush()?;
     Ok(())
