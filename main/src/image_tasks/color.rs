@@ -4,15 +4,14 @@ use std::hash::{Hash, Hasher};
 use std::hint::unreachable_unchecked;
 use std::ops::Mul;
 use lazy_static::lazy_static;
+use palette::{LinSrgba, Srgba};
+use palette::blend::{Compose};
 use png::BitDepth;
 
-use resvg::tiny_skia::{Color, Pixmap};
+use resvg::tiny_skia::{Color};
 use resvg::tiny_skia::ColorU8;
 use resvg::tiny_skia::PremultipliedColor;
 use resvg::tiny_skia::PremultipliedColorU8;
-use resvg::tiny_skia::Paint;
-use resvg::tiny_skia::Rect;
-use resvg::tiny_skia::Transform;
 use crate::image_tasks::task_spec::bit_depth_to_u32;
 
 /// Wrapper around [ColorU8] that implements important missing traits such as [Eq], [Hash], [Copy],
@@ -77,14 +76,25 @@ impl ComparableColor {
         } else if self.alpha == 0 {
             *background
         } else {
-            let mut blended = Pixmap::new(1, 1).unwrap();
-            blended.pixels_mut()[0] = (*background).into();
-            let mut paint = Paint::default();
-            paint.set_color(self.into());
-            blended.fill_rect(Rect::from_xywh(0.0, 0.0, 1.0, 1.0).unwrap(),
-                              &paint, Transform::default(), None);
-            blended.pixels()[0].into()
+            let self_as_linrgb = self.to_palette_crate();
+            let background_as_linrgb = self.to_palette_crate();
+            let blended_as_srgb8: Srgba<u8>
+                = Srgba::from_linear(self_as_linrgb.over(background_as_linrgb));
+            ComparableColor {
+                red: blended_as_srgb8.red,
+                green: blended_as_srgb8.green,
+                blue: blended_as_srgb8.blue,
+                alpha: blended_as_srgb8.alpha
+            }
         }
+    }
+
+    pub fn to_palette_crate(&self) -> LinSrgba {
+        LinSrgba::from(Srgba::<u8>::new(
+            self.red,
+            self.green,
+            self.blue,
+            self.alpha))
     }
 
     pub const TRANSPARENT: ComparableColor = rgba(0,0,0,0);

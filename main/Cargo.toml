@@ -24,6 +24,7 @@ tikv-jemallocator = "0.5.0"
 zip_next = {version = "0.10.0", default-features = false, features = ["deflate-zlib-ng", "deflate-zopfli"]}
 oxipng = {git = "https://github.com/shssoichiro/oxipng.git", default-features = false, features = ["zopfli"]}
 bitstream-io = "1.6.0"
+palette = "0.7.2"
 
 [dev-dependencies]
 tiny-skia-path = "0.10.0"
