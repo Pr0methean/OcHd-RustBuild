@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use include_dir::{File};
 use std::io::{Cursor, Write};
 use std::mem::transmute;
@@ -8,7 +9,7 @@ use bitstream_io::{BigEndian, BitWrite, BitWriter};
 use bytemuck::{cast};
 use lazy_static::lazy_static;
 use lockfree_object_pool::{LinearObjectPool};
-use log::{error, info};
+use log::{error, info, warn};
 use oxipng::{Deflaters, optimize_from_memory, Options, StripChunks};
 use png::{BitDepth, ColorType, Encoder};
 
@@ -306,9 +307,11 @@ pub fn write_indexed_png<T: Write>(image: MaybeFromPool<Pixmap>, palette: Vec<Co
     if transparency_mode == BinaryTransparency {
         palette_premul.push([0,0,0,0]);
     }
-    for (premul_bytes, _) in sorted_palette.into_iter() {
+    for (premul_bytes, _) in sorted_palette.iter() {
         palette_premul.push(premul_bytes);
     }
+    let mut error_corrections = HashMap::new();
+    let mut worst_discrepancy: u16 = 0;
     let indexed_bits = bit_depth_to_u32(&bit_depth);
     let mut prev_pixel: PremultipliedColorU8 = cast(palette_premul[0].clone());
     let mut prev_index: u16 = 0;
@@ -319,12 +322,31 @@ pub fn write_indexed_png<T: Write>(image: MaybeFromPool<Pixmap>, palette: Vec<Co
             0
         } else {
             let pixel_bytes: [u8; 4] = cast(*pixel);
-            let index = palette_premul.binary_search(&pixel_bytes)? as u16;
+            let index = match palette_premul.binary_search(&pixel_bytes)? as u16 {
+                Ok(index) => index as u16,
+                Err(_) => match error_corrections.get(&pixel_bytes) {
+                    Some(index) => index,
+                    None => {
+                        let pixel_color = ComparableColor::from(pixel.to_owned());
+                        let (index, color)
+                            = palette.iter().enumerate()
+                            .min_by_key(|(_, color)| color.abs_diff(&pixel_color))
+                            .unwrap();
+                        let index = index as u16;
+                        error_corrections.insert(pixel_bytes, index);
+                        worst_discrepancy = worst_discrepancy.max(color.abs_diff(&pixel_color));
+                        index
+                    }
+                }
+            };
             prev_pixel = *pixel;
             prev_index = index;
             index
         };
         bit_writer.write(indexed_bits, index)?;
+    }
+    if !error_corrections.is_empty() {
+        warn!("Corrected {} color errors; worst error amount was {}", error_corrections.len(), worst_discrepancy);
     }
     bit_writer.flush()?;
     Ok(())
