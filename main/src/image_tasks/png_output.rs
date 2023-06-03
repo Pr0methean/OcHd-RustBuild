@@ -109,19 +109,22 @@ pub fn copy_in_to_out(source: &File, dest: &Path) -> Result<(),CloneableError> {
 
 /// Forked from https://docs.rs/tiny-skia/latest/src/tiny_skia/pixmap.rs.html#390 to eliminate the
 /// copy and pre-allocate the byte vector.
-pub fn into_png(image: MaybeFromPool<Pixmap>, mut png_mode: PngMode) -> Result<MaybeFromPool<Vec<u8>>, CloneableError> {
+pub fn into_png(image: MaybeFromPool<Pixmap>, png_mode: PngMode) -> Result<MaybeFromPool<Vec<u8>>, CloneableError> {
     let mut reusable = PNG_BUFFER_POOL.pull();
     let encoder = Encoder::new(reusable.deref_mut(), image.width(), image.height());
     match png_mode.color_mode {
         Indexed(mut palette) => {
-            if png_mode.transparency_mode == BinaryTransparency {
-                palette.push(ComparableColor::TRANSPARENT);
-            }
             match bit_depth_for_palette_size(palette.len()) {
                 None => {
                     write_true_color_png(image, encoder, png_mode.transparency_mode)?;
                 }
                 Some(indexed_bit_depth) => {
+                    let real_transparency_mode = if png_mode.transparency_mode == BinaryTransparency {
+                        palette.push(ComparableColor::TRANSPARENT);
+                        &AlphaChannel // Indexed PNG doesn't support a single transparent color
+                    } else {
+                        &png_mode.transparency_mode
+                    };
                     let indexed_bits = bit_depth_to_u32(&indexed_bit_depth);
                     if palette.iter().all(ComparableColor::is_gray) {
                         let grayscale_bit_depth = palette.iter().max_by_key(
@@ -141,14 +144,10 @@ pub fn into_png(image: MaybeFromPool<Pixmap>, mut png_mode: PngMode) -> Result<M
                         if grayscale_bits <= indexed_bits {
                             write_grayscale_png(image, encoder, grayscale_bit_depth, transparency_mode)?;
                         } else {
-                            write_indexed_png(image, palette, encoder, indexed_bit_depth, png_mode.transparency_mode)?;
+                            write_indexed_png(image, palette, encoder, indexed_bit_depth, real_transparency_mode)?;
                         }
                     } else {
-                        if png_mode.transparency_mode == BinaryTransparency {
-                            // Can't designate a transparent color in indexed mode
-                            png_mode.transparency_mode = AlphaChannel;
-                        }
-                        write_indexed_png(image, palette, encoder, indexed_bit_depth, png_mode.transparency_mode)?;
+                        write_indexed_png(image, palette, encoder, indexed_bit_depth, real_transparency_mode)?;
                     }
                 }
             }
@@ -270,7 +269,7 @@ const RESERVED_TRANSPARENT_COLOR_TRNS: [u8; 6] = [
 ];
 
 pub fn write_indexed_png<T: Write>(image: MaybeFromPool<Pixmap>, palette: Vec<ComparableColor>, mut encoder: Encoder<T>,
-                         bit_depth: BitDepth, transparency_mode: PngTransparencyMode)
+                         bit_depth: BitDepth, transparency_mode: &PngTransparencyMode)
     -> Result<(), CloneableError> {
     encoder.set_color(ColorType::Indexed);
     encoder.set_depth(bit_depth);
@@ -287,15 +286,13 @@ pub fn write_indexed_png<T: Write>(image: MaybeFromPool<Pixmap>, palette: Vec<Co
     };
     for (_, color) in sorted_palette.iter() {
         palette_data.extend_from_slice(&[color.red(), color.green(), color.blue()]);
-        if transparency_mode == AlphaChannel {
+        if *transparency_mode == AlphaChannel {
             trns.push(color.alpha());
         }
     }
     encoder.set_palette(palette_data);
-    if transparency_mode != Opaque {
+    if *transparency_mode == AlphaChannel {
         encoder.set_trns(trns);
-    }
-    if transparency_mode == AlphaChannel {
         info!("Writing an indexed-color PNG with {} colors and alpha", palette.len());
     } else {
         info!("Writing an indexed-color PNG with {} colors", palette.len());
