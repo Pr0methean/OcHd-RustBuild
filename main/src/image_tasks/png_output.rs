@@ -57,7 +57,7 @@ lazy_static!{
         Vec::clear
     ));
     static ref OXIPNG_OPTIONS: Options = {
-        let mut options = Options::from_preset(if *TILE_SIZE < 512 {
+        let mut options = Options::from_preset(if *TILE_SIZE < 1024 {
             6
         } else {
             5
