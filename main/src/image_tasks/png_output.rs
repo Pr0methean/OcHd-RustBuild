@@ -174,10 +174,10 @@ pub enum GrayscaleTransparencyMode {
 pub fn write_grayscale_png<T: Write>(image: MaybeFromPool<Pixmap>, mut encoder: Encoder<T>, depth: BitDepth, transparency_mode: GrayscaleTransparencyMode)
     -> Result<(), CloneableError> {
     let depth_bits: u32 = bit_depth_to_u32(&depth);
-    info!("Writing {}-bit grayscale PNG", depth_bits);
     encoder.set_depth(depth);
     match transparency_mode {
         GrayscaleTransparencyMode::Opaque => {
+            info!("Writing {}-bit grayscale PNG", depth_bits);
             encoder.set_color(ColorType::Grayscale);
             let mut writer = encoder.write_header()?;
             let mut writer: BitWriter<_, BigEndian> = BitWriter::new(writer.stream_writer()?);
@@ -187,6 +187,7 @@ pub fn write_grayscale_png<T: Write>(image: MaybeFromPool<Pixmap>, mut encoder: 
             writer.flush()?;
         },
         GrayscaleTransparencyMode::TransparentShade(transparent_shade) => {
+            info!("Writing {}-bit grayscale PNG", depth_bits);
             encoder.set_color(ColorType::Grayscale);
             encoder.set_trns(vec![0, transparent_shade]);
             let transparent_shade = transparent_shade as u16;
@@ -203,6 +204,7 @@ pub fn write_grayscale_png<T: Write>(image: MaybeFromPool<Pixmap>, mut encoder: 
             writer.flush()?;
         },
         GrayscaleTransparencyMode::AlphaChannel => {
+            info!("Writing {}-bit grayscale PNG with alpha channel", depth_bits);
             encoder.set_color(ColorType::GrayscaleAlpha);
             let mut writer = encoder.write_header()?;
             let mut writer: BitWriter<_, BigEndian>
@@ -256,10 +258,8 @@ pub fn write_indexed_png<T: Write>(image: MaybeFromPool<Pixmap>, palette: Vec<Co
     for color in palette.iter() {
         palette_data.extend_from_slice(&[color.red(), color.green(), color.blue()]);
         if transparency_mode == AlphaChannel {
-            info!("Writing an indexed-color PNG with {} colors and alpha", palette.len());
             trns.push(color.alpha());
         } else {
-            info!("Writing an indexed-color PNG with {} colors", palette.len());
         }
     }
     let mut transparent_index: u16 = 0;
@@ -270,6 +270,12 @@ pub fn write_indexed_png<T: Write>(image: MaybeFromPool<Pixmap>, palette: Vec<Co
     encoder.set_palette(palette_data);
     if transparency_mode != Opaque {
         encoder.set_trns(trns);
+    }
+    if transparency_mode == AlphaChannel {
+        info!("Writing an indexed-color PNG with {} colors and alpha", real_palette_size);
+    } else {
+
+        info!("Writing an indexed-color PNG with {} colors", real_palette_size);
     }
     let mut writer = encoder.write_header()?;
     let mut bit_writer: BitWriter<_, BigEndian> = BitWriter::new(
