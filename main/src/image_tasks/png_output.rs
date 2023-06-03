@@ -109,13 +109,15 @@ pub fn copy_in_to_out(source: &File, dest: &Path) -> Result<(),CloneableError> {
 
 /// Forked from https://docs.rs/tiny-skia/latest/src/tiny_skia/pixmap.rs.html#390 to eliminate the
 /// copy and pre-allocate the byte vector.
-pub fn into_png(image: MaybeFromPool<Pixmap>, png_mode: PngMode) -> Result<MaybeFromPool<Vec<u8>>, CloneableError> {
+pub fn into_png(image: MaybeFromPool<Pixmap>, mut png_mode: PngMode) -> Result<MaybeFromPool<Vec<u8>>, CloneableError> {
     let mut reusable = PNG_BUFFER_POOL.pull();
     let encoder = Encoder::new(reusable.deref_mut(), image.width(), image.height());
     match png_mode.color_mode {
-        Indexed(palette) => {
-            let real_palette_size = palette.len() + if png_mode.transparency_mode == BinaryTransparency {1} else {0};
-            match bit_depth_for_palette_size(real_palette_size) {
+        Indexed(mut palette) => {
+            if png_mode.transparency_mode == BinaryTransparency {
+                palette.push(ComparableColor::TRANSPARENT);
+            }
+            match bit_depth_for_palette_size(palette.len()) {
                 None => {
                     write_true_color_png(image, encoder, png_mode.transparency_mode)?;
                 }
@@ -142,6 +144,10 @@ pub fn into_png(image: MaybeFromPool<Pixmap>, png_mode: PngMode) -> Result<Maybe
                             write_indexed_png(image, palette, encoder, indexed_bit_depth, png_mode.transparency_mode)?;
                         }
                     } else {
+                        if png_mode.transparency_mode == BinaryTransparency {
+                            // Can't designate a transparent color in indexed mode
+                            png_mode.transparency_mode = AlphaChannel;
+                        }
                         write_indexed_png(image, palette, encoder, indexed_bit_depth, png_mode.transparency_mode)?;
                     }
                 }
@@ -268,21 +274,16 @@ pub fn write_indexed_png<T: Write>(image: MaybeFromPool<Pixmap>, palette: Vec<Co
     -> Result<(), CloneableError> {
     encoder.set_color(ColorType::Indexed);
     encoder.set_depth(bit_depth);
-    let real_palette_size = palette.len()
-        + if transparency_mode == BinaryTransparency {1} else {0};
-    let mut sorted_palette: Vec<([u8; 4], ComparableColor)> = Vec::with_capacity(real_palette_size);
-    let mut palette_data: Vec<u8> = Vec::with_capacity(real_palette_size);
-    if transparency_mode == BinaryTransparency {
-        palette_data.extend_from_slice(&RESERVED_TRANSPARENT_COLOR); // color 0 is transparent
-    }
+    let mut sorted_palette: Vec<([u8; 4], ComparableColor)> = Vec::with_capacity(palette.len());
+    let mut palette_data: Vec<u8> = Vec::with_capacity(3 * palette.len());
     for color in palette.iter() {
         sorted_palette.push((cast(PremultipliedColorU8::from(*color)), *color));
     }
     sorted_palette.sort_by_key(|(premult_bytes, _)| *premult_bytes);
     let mut trns: Vec<u8> = match transparency_mode {
         Opaque => vec![],
-        BinaryTransparency => RESERVED_TRANSPARENT_COLOR_TRNS.to_vec(),
-        AlphaChannel => Vec::with_capacity(real_palette_size)
+        BinaryTransparency => panic!("Binary transparency not supported for indexed PNG"),
+        AlphaChannel => Vec::with_capacity(palette.len())
     };
     for (_, color) in sorted_palette.iter() {
         palette_data.extend_from_slice(&[color.red(), color.green(), color.blue()]);
@@ -295,20 +296,16 @@ pub fn write_indexed_png<T: Write>(image: MaybeFromPool<Pixmap>, palette: Vec<Co
         encoder.set_trns(trns);
     }
     if transparency_mode == AlphaChannel {
-        info!("Writing an indexed-color PNG with {} colors and alpha", real_palette_size);
+        info!("Writing an indexed-color PNG with {} colors and alpha", palette.len());
     } else {
-
-        info!("Writing an indexed-color PNG with {} colors", real_palette_size);
+        info!("Writing an indexed-color PNG with {} colors", palette.len());
     }
     let mut writer = encoder.write_header()?;
     let mut bit_writer: BitWriter<_, BigEndian> = BitWriter::new(
         writer.stream_writer()?);
-    let mut palette_premul: Vec<[u8; 4]> = Vec::with_capacity(real_palette_size);
-    if transparency_mode == BinaryTransparency {
-        palette_premul.push([0,0,0,0]);
-    }
+    let mut palette_premul: Vec<[u8; 4]> = Vec::with_capacity(palette.len());
     for (premul_bytes, _) in sorted_palette.iter() {
-        palette_premul.push(premul_bytes);
+        palette_premul.push(*premul_bytes);
     }
     let mut error_corrections = HashMap::new();
     let mut worst_discrepancy: u16 = 0;
@@ -318,19 +315,17 @@ pub fn write_indexed_png<T: Write>(image: MaybeFromPool<Pixmap>, palette: Vec<Co
     for pixel in image.pixels() {
         let index = if prev_pixel == *pixel {
             prev_index
-        } else if transparency_mode == BinaryTransparency && pixel.alpha() != u8::MAX {
-            0
         } else {
             let pixel_bytes: [u8; 4] = cast(*pixel);
-            let index = match palette_premul.binary_search(&pixel_bytes)? as u16 {
+            let index = match palette_premul.binary_search(&pixel_bytes) {
                 Ok(index) => index as u16,
                 Err(_) => match error_corrections.get(&pixel_bytes) {
-                    Some(index) => index,
+                    Some(index) => *index,
                     None => {
                         let pixel_color = ComparableColor::from(pixel.to_owned());
-                        let (index, color)
-                            = palette.iter().enumerate()
-                            .min_by_key(|(_, color)| color.abs_diff(&pixel_color))
+                        let (index, (_, color))
+                            = sorted_palette.iter().enumerate()
+                            .min_by_key(|(_, (_, color))| color.abs_diff(&pixel_color))
                             .unwrap();
                         let index = index as u16;
                         error_corrections.insert(pixel_bytes, index);
