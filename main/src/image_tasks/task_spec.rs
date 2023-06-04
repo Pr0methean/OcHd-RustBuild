@@ -29,7 +29,7 @@ use crate::image_tasks::png_output::{copy_out_to_out, png_output};
 use crate::image_tasks::repaint::{paint, pixmap_to_mask};
 use crate::image_tasks::stack::{stack_alpha_on_alpha, stack_alpha_on_background, stack_alpha_pixel, stack_layer_on_background, stack_layer_on_layer};
 use crate::image_tasks::task_spec::ColorDescription::{Rgb, SpecifiedColors};
-use crate::image_tasks::task_spec::ColorIterable::{MultiplyAlpha, Stacked, Union};
+use crate::image_tasks::task_spec::ColorIterable::{Discrete, MultiplyAlpha, Stacked, Union};
 use crate::image_tasks::task_spec::PngMode::{GrayscaleAlpha, GrayscaleOpaque, GrayscaleWithTransparentShade, IndexedRgba, IndexedRgbOpaque, Rgba, RgbOpaque, RgbWithTransparentShade};
 use crate::image_tasks::task_spec::Transparency::{AlphaChannel, BinaryTransparency, Opaque};
 use crate::TILE_SIZE;
@@ -493,55 +493,18 @@ pub enum ColorIterable {
 
 impl ColorIterable {
     fn transparency(&self) -> Transparency {
-        match self {
-            MultiplyAlpha { color, alphas } => {
-                if color.alpha() == 0 {
-                    BinaryTransparency
-                } else if color.alpha() == u8::MAX {
-                    if alphas.len() > 2
-                        || alphas[0] > 0
-                        || alphas[alphas.len() - 1] < u8::MAX {
-                        AlphaChannel
-                    } else if *alphas == vec![0, u8::MAX] {
-                        BinaryTransparency
-                    } else {
-                        Opaque
-                    }
-                } else if *alphas == vec![0] {
-                    BinaryTransparency
-                } else {
-                    AlphaChannel
-                }
-            }
-            ColorIterable::Discrete(colors) => {
-                let mut have_transparent = false;
-                for color in colors.iter() {
-                    match color.alpha() {
-                        0 => {
-                            have_transparent = true
-                        },
-                        u8::MAX => {},
-                        _ => {
-                            return AlphaChannel;
-                        }
-                    }
-                }
-                if have_transparent {
-                    BinaryTransparency
-                } else {
-                    Opaque
-                }
-            },
-            Stacked { backgrounds, foregrounds } =>
-                foregrounds.transparency().stack_on(&backgrounds.transparency()),
-            Union(left, right) =>
-                left.transparency().put_adjacent(&right.transparency())
+        if self.contains_semitransparency() {
+            AlphaChannel
+        } else if self.contains_alpha(0) {
+            BinaryTransparency
+        } else {
+            Opaque
         }
     }
 
     fn has_non_gray(&self) -> bool {
         match self {
-            ColorIterable::Discrete(vec) => vec.iter().any(|color| !color.is_gray()),
+            Discrete(vec) => vec.iter().any(|color| !color.is_gray()),
             MultiplyAlpha { color, .. } => !color.is_gray(),
             Union(left, right) => left.has_non_gray() || right.has_non_gray(),
             Stacked { backgrounds, foregrounds } =>
@@ -552,13 +515,13 @@ impl ColorIterable {
     fn union(&self, other: &ColorIterable) -> ColorIterable {
         if self == other {
             self.to_owned()
-        } else if let ColorIterable::Discrete(colors) = self
-            && let ColorIterable::Discrete(other_colors) = other {
+        } else if let Discrete(colors) = self
+            && let Discrete(other_colors) = other {
             let mut combined_colors = colors.clone();
             combined_colors.extend(other_colors);
             combined_colors.sort();
             combined_colors.dedup();
-            ColorIterable::Discrete(combined_colors)
+            Discrete(combined_colors)
         } else if let MultiplyAlpha {color, alphas} = self
             && let MultiplyAlpha {color: other_color, alphas: other_alphas} = other
             && color == other_color {
@@ -579,7 +542,7 @@ impl IntoIterator for ColorIterable {
 
     fn into_iter(self) -> Self::IntoIter {
         match self {
-            ColorIterable::Discrete(vec) => Box::new(vec.into_iter()),
+            Discrete(vec) => Box::new(vec.into_iter()),
             MultiplyAlpha { color, alphas } =>
                 Box::new(alphas.into_iter().map(move |alpha| color * (alpha as f32 / 255.0)).unique()),
             Union(left, right) =>
@@ -617,6 +580,89 @@ impl Transparency {
             Opaque
         } else {
             BinaryTransparency
+        }
+    }
+}
+
+const BINARY_SEARCH_THRESHOLD: usize = 1024;
+
+impl ColorIterable {
+    pub fn contains_alpha(&self, needle_alpha: u8) -> bool {
+        match self {
+            Discrete(vec) => {
+                if vec.len() <= BINARY_SEARCH_THRESHOLD {
+                    vec.iter().any(|color| color.alpha() == needle_alpha)
+                } else {
+                    match vec.binary_search(&ComparableColor {
+                        alpha: needle_alpha,
+                        red: 0,
+                        green: 0,
+                        blue: 0
+                    }) {
+                        Ok(_) => true,
+                        Err(insert_black_index) => match vec[insert_black_index..].binary_search(&ComparableColor {
+                            alpha: needle_alpha,
+                            red: u8::MAX,
+                            green: u8::MAX,
+                            blue: u8::MAX
+                        }) {
+                            Ok(_) => true,
+                            Err(insert_white_index) => insert_white_index > 0
+                        }
+                    }
+                }
+            },
+            MultiplyAlpha {color, alphas} => {
+                let alpha_array = create_alpha_array((color.alpha() as f32 / 255.0).into());
+                alphas.iter().any(|alpha| alpha_array[*alpha as usize] == needle_alpha)
+            },
+            Union(left, right) => {
+                left.contains_alpha(needle_alpha) || right.contains_alpha(needle_alpha)
+            },
+            Stacked { backgrounds, foregrounds } => {
+                for background_alpha in needle_alpha..=u8::MAX {
+                    let foreground_alphas: Vec<u8> = (0..=u8::MAX)
+                        .filter(|foreground_alpha| stack_alpha_pixel(background_alpha, *foreground_alpha) == needle_alpha)
+                        .collect();
+                    if !foreground_alphas.is_empty() && backgrounds.contains_alpha(background_alpha)
+                            && foreground_alphas.into_iter().any(|foreground_alpha| foregrounds.contains_alpha(foreground_alpha)){
+                        return true;
+                    }
+                }
+                false
+            }
+        }
+    }
+
+    pub fn contains_semitransparency(&self) -> bool {
+        match self {
+            Discrete(vec) => {
+                match vec[0].alpha {
+                    0 => if vec.len() == 1 {
+                        false
+                    } else { match vec[1].alpha {
+                            0 => panic!("Transparent included in vector twice"),
+                            u8::MAX => false,
+                            _ => true
+                        }
+                    }
+                    u8::MAX => false,
+                    _ => true,
+                }
+            },
+            MultiplyAlpha {color, alphas} => {
+                *alphas != vec![0]
+                    && color.alpha() > 0
+                    && (alphas.len() > 2 || alphas[alphas.len() - 1] != u8::MAX
+                        || color.alpha() != u8::MAX)
+            },
+            Union(left, right) => left.contains_semitransparency()
+                    || right.contains_semitransparency(),
+            Stacked { backgrounds, foregrounds } => {
+                foregrounds.contains_semitransparency() &&
+                    (backgrounds.contains_semitransparency() || backgrounds.contains_alpha(0))
+                || foregrounds.contains_alpha(0) && backgrounds.contains_semitransparency()
+            }
         }
     }
 }
@@ -750,39 +796,24 @@ impl ToAlphaChannelTaskSpec {
                 multiply_alpha_vec(&base.get_possible_alpha_values(ctx), **alpha)
             }
             ToAlphaChannelTaskSpec::FromPixmap { base } => {
-                match base.get_transparency(ctx) {
-                    Opaque => vec![u8::MAX],
-                    BinaryTransparency => vec![0, u8::MAX],
-                    AlphaChannel => {
-                        let base_colors = base.get_color_description(ctx);
-                        match base_colors {
-                            Rgb(_) => (0..=u8::MAX).collect(),
-                            SpecifiedColors(MultiplyAlpha { color, alphas }) =>
-                                multiply_alpha_vec(&alphas, (color.alpha() as f32) / 255.0),
-                            SpecifiedColors(iterable) => {
-                                let mut alphas_found: u16 = 0;
-                                let mut alphas = vec![false; u8::MAX as usize + 1];
-                                // Exit early if all possible values are found
-                                for base_color in iterable.into_iter() {
-                                    let alpha = base_color.alpha() as usize;
-                                    if !alphas[alpha] {
-                                        alphas_found += 1;
-                                        if alphas_found >= u8::MAX as u16 + 1 {
-                                            break;
-                                        }
-                                        alphas[alpha] = true;
-                                    }
-                                }
-                                let mut result = Vec::with_capacity(alphas_found as usize);
-                                for (index, found) in alphas.into_iter().enumerate() {
-                                    if found {
-                                        result.push(index as u8);
-                                    }
-                                }
-                                result
-                            }
+                let base_colors = base.get_color_description(ctx);
+                match base_colors.transparency() {
+                    AlphaChannel => match base_colors {
+                        Rgb(_) => (0..=u8::MAX).collect(),
+                        SpecifiedColors(colors) => if let Discrete(vec) = &colors
+                                && vec.len() <= BINARY_SEARCH_THRESHOLD {
+                            let mut alphas: Vec<u8> = vec.into_iter().map(|color| color.alpha()).collect();
+                            alphas.sort();
+                            alphas.dedup();
+                            alphas
+                        } else {
+                            (0..=u8::MAX)
+                                .filter(|alpha| colors.contains_alpha(*alpha))
+                                .collect()
                         }
-                    }
+                    },
+                    BinaryTransparency => vec![0, u8::MAX],
+                    Opaque => vec![u8::MAX]
                 }
             }
             ToAlphaChannelTaskSpec::StackAlphaOnAlpha { background, foreground } => {
@@ -909,7 +940,7 @@ impl ToPixmapTaskSpec {
                         Rgb(AlphaChannel)
                     }
                 } else if SEMITRANSPARENCY_FREE_SVGS.contains(&source) {
-                    SpecifiedColors(ColorIterable::Discrete(vec![ComparableColor::TRANSPARENT, ComparableColor::BLACK]))
+                    SpecifiedColors(Discrete(vec![ComparableColor::TRANSPARENT, ComparableColor::BLACK]))
                 } else {
                     SpecifiedColors(MultiplyAlpha {color: ComparableColor::BLACK, alphas: (0..=u8::MAX).collect()})
                 }
@@ -919,7 +950,7 @@ impl ToPixmapTaskSpec {
             },
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
                 let background = *background;
-                foreground.get_color_description(ctx).stack_on(&SpecifiedColors(ColorIterable::Discrete(vec![background])))
+                foreground.get_color_description(ctx).stack_on(&SpecifiedColors(Discrete(vec![background])))
             }
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
                 foreground.get_color_description(ctx).stack_on(&background.get_color_description(ctx))
