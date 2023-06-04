@@ -866,6 +866,15 @@ impl ToPixmapTaskSpec {
                 foreground.get_color_description(ctx).stack_on(&background.get_color_description(ctx))
             }
         };
+        let desc: ColorDescription = match color_description_to_mode(desc.to_owned()) {
+            GrayscaleOpaque(BitDepth::Eight) => Grayscale(Opaque),
+            GrayscaleWithTransparentShade { bit_depth: BitDepth::Eight, .. } => Grayscale(BinaryTransparency),
+            GrayscaleAlpha(BitDepth::Eight) => Grayscale(AlphaChannel),
+            RgbOpaque => Rgb(Opaque),
+            RgbWithTransparentShade(_) => Rgb(BinaryTransparency),
+            Rgba => Rgb(AlphaChannel),
+            _ => desc
+        };
         ctx.pixmap_task_to_color_map.insert(self.to_owned(), desc.to_owned());
         desc
     }
