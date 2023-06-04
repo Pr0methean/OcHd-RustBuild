@@ -29,7 +29,7 @@ use crate::image_tasks::MaybeFromPool;
 use crate::image_tasks::png_output::{copy_out_to_out, png_output};
 use crate::image_tasks::repaint::{paint, pixmap_to_mask};
 use crate::image_tasks::stack::{stack_alpha_on_alpha, stack_alpha_on_background, stack_layer_on_background, stack_layer_on_layer};
-use crate::image_tasks::task_spec::ColorDescription::{Grayscale, Rgb, SpecifiedColors};
+use crate::image_tasks::task_spec::ColorDescription::{Rgb, SpecifiedColors};
 use crate::image_tasks::task_spec::PngMode::{GrayscaleAlpha, GrayscaleOpaque, GrayscaleWithTransparentShade, IndexedRgba, IndexedRgbOpaque, Rgba, RgbOpaque, RgbWithTransparentShade};
 use crate::image_tasks::task_spec::Transparency::{AlphaChannel, BinaryTransparency, Opaque};
 use crate::TILE_SIZE;
@@ -462,7 +462,6 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
 #[derive(Clone)]
 pub enum ColorDescription {
     SpecifiedColors(Arc<Box<dyn Fn() -> Box<dyn Iterator<Item=ComparableColor>>>>),
-    #[allow(unused)] Grayscale(Transparency),
     Rgb(Transparency)
 }
 
@@ -506,43 +505,16 @@ impl ColorDescription {
                     Opaque
                 }
             },
-            Grayscale(transparency) => *transparency,
             Rgb(transparency) => *transparency
-        }
-    }
-
-    pub fn grayscale_compatible(&self) -> bool {
-        match self {
-            SpecifiedColors(colors_iter) => colors_iter().all(|color| color.is_gray()),
-            Grayscale(_) => true,
-            Rgb(_) => false
         }
     }
 
     pub fn stack_on(self, background: &ColorDescription) -> ColorDescription {
         match background {
             Rgb(transparency) => Rgb(self.transparency().stack_on(transparency)),
-            Grayscale(Opaque) => if self.grayscale_compatible() {
-                Grayscale(Opaque)
-            } else {
-                Rgb(Opaque)
-            },
-            Grayscale(transparency) => {
-                if self.grayscale_compatible() {
-                    Grayscale(self.transparency().stack_on(transparency))
-                } else {
-                    Rgb(self.transparency().stack_on(transparency))
-                }
-            },
             SpecifiedColors(bg_colors_iter) => {
                 match self {
                     Rgb(transparency) => Rgb(transparency.stack_on(&background.transparency())),
-                    Grayscale(Opaque) => Grayscale(Opaque),
-                    Grayscale(transparency) => if background.grayscale_compatible() {
-                        Grayscale(transparency.stack_on(&background.transparency()))
-                    } else {
-                        Rgb(transparency.stack_on(&background.transparency()))
-                    },
                     SpecifiedColors(self_colors_iter) => {
                         let self_colors_iter = self_colors_iter.to_owned();
                         let bg_colors_iter = bg_colors_iter.to_owned();
@@ -569,21 +541,9 @@ impl ColorDescription {
     pub fn put_adjacent(self, adjacent: &ColorDescription) -> ColorDescription {
         match adjacent {
             Rgb(transparency) => Rgb(self.transparency().put_adjacent(transparency)),
-            Grayscale(transparency) => {
-                if self.grayscale_compatible() {
-                    Grayscale(self.transparency().put_adjacent(transparency))
-                } else {
-                    Rgb(self.transparency().put_adjacent(transparency))
-                }
-            },
             SpecifiedColors(bg_colors_iter) => {
                 match self {
                     Rgb(transparency) => Rgb(transparency.put_adjacent(&adjacent.transparency())),
-                    Grayscale(transparency) => if adjacent.grayscale_compatible() {
-                        Grayscale(transparency.put_adjacent(&adjacent.transparency()))
-                    } else {
-                        Rgb(transparency.put_adjacent(&adjacent.transparency()))
-                    },
                     SpecifiedColors(self_colors_iter) => SpecifiedColors(
                         Arc::new(Box::new({
                                 let bg_colors_iter = bg_colors_iter.to_owned();
@@ -695,8 +655,8 @@ lazy_static!{
 fn color_description_to_mode(description: ColorDescription) -> PngMode {
     match description {
         SpecifiedColors(colors_iter) => {
-            let max_size = u8::MAX as usize + 2;
-            let mut colors: HashSet<ComparableColor> = HashSet::with_capacity(max_size);
+            let max_indexed_size = u8::MAX as usize + 1;
+            let mut colors: HashSet<ComparableColor> = HashSet::with_capacity(max_indexed_size);
             let mut have_partial_alpha = false;
             let mut have_transparent = false;
             let mut have_non_gray = false;
@@ -709,19 +669,25 @@ fn color_description_to_mode(description: ColorDescription) -> PngMode {
                 if !color.is_gray() {
                     have_non_gray = true;
                 }
-                if colors.len() >= max_size {
-                    if have_partial_alpha {
+                if colors.len() >= max_indexed_size {
+                    if have_partial_alpha && have_non_gray {
                         return Rgba;
                     }
                 } else {
                     colors.insert(color);
                 }
             }
-            if colors.len() >= max_size {
+            if colors.len() > max_indexed_size && have_non_gray {
                 if have_transparent {
                     RgbWithTransparentShade(c(0xc0ff3e))
                 } else {
                     RgbOpaque
+                }
+            } else if colors.len() >= max_indexed_size && !have_non_gray {
+                if have_transparent || have_partial_alpha {
+                    GrayscaleAlpha(BitDepth::Eight)
+                } else {
+                    GrayscaleOpaque(BitDepth::Eight)
                 }
             } else {
                 let indexed_mode = if have_transparent || have_partial_alpha {
@@ -760,13 +726,6 @@ fn color_description_to_mode(description: ColorDescription) -> PngMode {
                 } else {
                     indexed_mode
                 }
-            }
-        },
-        Grayscale(transparency) => {
-            if transparency == Opaque {
-                GrayscaleOpaque(BitDepth::Eight)
-            } else {
-                GrayscaleAlpha(BitDepth::Eight)
             }
         },
         Rgb(Opaque) => RgbOpaque,
