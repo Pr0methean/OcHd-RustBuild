@@ -641,7 +641,8 @@ impl ColorIterable {
                     0 => if vec.len() == 1 {
                         false
                     } else { match vec[1].alpha {
-                            0 => debug_assert_unreachable(),
+                            #[cfg(debug_assertions)]
+                            0 => panic!("Transparent color included twice"),
                             u8::MAX => false,
                             _ => true
                         }
