@@ -292,12 +292,12 @@ impl Hash for ComparableColor {
 }
 
 #[test]
-fn test_over() {
+fn test_under() {
     let semi_black = rgba(0, 0, 0, 127);
-    assert_eq!(semi_black.over(&[ComparableColor::TRANSPARENT]), &[semi_black]);
-    assert_eq!(semi_black.over(&[ComparableColor::WHITE]), &[gray(128)]);
-    assert_eq!(ComparableColor::WHITE.over(&[semi_black]), &[ComparableColor::WHITE]);
-    assert_eq!(semi_black.over(&[semi_black]), &[rgba(0, 0, 0, 191)]);
+    assert_eq!(ComparableColor::TRANSPARENT.under(&[semi_black]), &[semi_black]);
+    assert_eq!(ComparableColor::WHITE.under(&[semi_black]), &[gray(128)]);
+    assert_eq!(semi_black.under(&[ComparableColor::WHITE]), &[ComparableColor::WHITE]);
+    assert_eq!(semi_black.under(&[semi_black]), &[rgba(0, 0, 0, 191)]);
 }
 
 #[test]
