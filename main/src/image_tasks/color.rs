@@ -13,16 +13,20 @@ use resvg::tiny_skia::ColorU8;
 use resvg::tiny_skia::PremultipliedColor;
 use resvg::tiny_skia::PremultipliedColorU8;
 use crate::image_tasks::task_spec::bit_depth_to_u32;
+use bytemuck::{cast, Pod, Zeroable};
 
 /// Wrapper around [ColorU8] that implements important missing traits such as [Eq], [Hash], [Copy],
 /// [Clone] and [Ord]. Represents a 24-bit sRGB color + 8-bit alpha value (not premultiplied).
-#[derive(Eq, Debug, Copy, Clone)]
+#[derive(Eq, Debug, Copy, Clone, Pod)]
+#[repr(C)]
 pub struct ComparableColor {
+    pub(crate) alpha: u8,
     pub(crate) red: u8,
     pub(crate) green: u8,
     pub(crate) blue: u8,
-    pub(crate) alpha: u8,
 }
+
+unsafe impl Zeroable for ComparableColor {}
 
 impl PartialOrd for ComparableColor {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -35,17 +39,9 @@ impl Ord for ComparableColor {
         if self.alpha == 0 && other.alpha == 0 {
             return Ordering::Equal;
         }
-        let mut ordering = self.alpha.cmp(&other.alpha);
-        if ordering == Ordering::Equal {
-            ordering = self.blue.cmp(&other.blue);
-            if ordering == Ordering::Equal {
-                ordering = self.green.cmp(&other.green);
-                if ordering == Ordering::Equal {
-                    ordering = self.red.cmp(&other.red);
-                }
-            }
-        }
-        ordering
+        let self_bytes: [u8; 4] = cast(*self);
+        let other_bytes: [u8; 4] = cast(*self);
+        self_bytes.cmp(&other_bytes)
     }
 }
 
