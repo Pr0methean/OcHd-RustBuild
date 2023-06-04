@@ -24,7 +24,7 @@ use resvg::tiny_skia::{Color, ColorU8, Mask, Pixmap};
 use crate::image_tasks::animate::animate;
 use crate::image_tasks::color::{c, ComparableColor, gray};
 use crate::image_tasks::from_svg::{COLOR_SVGS, from_svg, SEMITRANSPARENCY_FREE_SVGS};
-use crate::image_tasks::make_semitransparent::make_semitransparent;
+use crate::image_tasks::make_semitransparent::{create_alpha_array, make_semitransparent};
 use crate::image_tasks::MaybeFromPool;
 use crate::image_tasks::png_output::{copy_out_to_out, png_output};
 use crate::image_tasks::repaint::{paint, pixmap_to_mask};
@@ -633,17 +633,47 @@ pub fn bit_depth_to_u32(depth: &BitDepth) -> u32 {
 }
 
 impl ToAlphaChannelTaskSpec {
-    fn is_semitransparency_free(&self, ctx: &mut TaskGraphBuildingContext) -> bool {
-        match self {
-            ToAlphaChannelTaskSpec::MakeSemitransparent { alpha, base } =>
-                (*alpha == 1.0 && base.is_semitransparency_free(ctx)) || *alpha == 0.0,
-            ToAlphaChannelTaskSpec::FromPixmap { base } => base.get_color_description(ctx).transparency() != AlphaChannel,
-            ToAlphaChannelTaskSpec::StackAlphaOnAlpha { background, foreground } =>
-                background.is_semitransparency_free(ctx) && foreground.is_semitransparency_free(ctx),
-            ToAlphaChannelTaskSpec::StackAlphaOnBackground { background, foreground } => {
-                *background == 1.0 || (*background == 0.0 && foreground.is_semitransparency_free(ctx))
-            }
+    fn get_possible_alpha_values(&self, ctx: &mut TaskGraphBuildingContext) -> Vec<u8> {
+        if let Some(alpha_vec) = ctx.alpha_task_to_alpha_map.get(self) {
+            return alpha_vec.to_owned();
         }
+        let alpha_vec: Vec<u8> = match self {
+            ToAlphaChannelTaskSpec::MakeSemitransparent { alpha, base } => {
+                let alpha_array = create_alpha_array(*alpha);
+                base.get_possible_alpha_values(ctx).into_iter().map(|alpha| alpha_array[alpha as usize]).unique().collect()
+            }
+            ToAlphaChannelTaskSpec::FromPixmap { base } => {
+                let base_color_desc = base.get_color_description(ctx);
+                match base_color_desc.transparency() {
+                    Opaque => vec![u8::MAX],
+                    BinaryTransparency => vec![0, u8::MAX],
+                    AlphaChannel => if let SpecifiedColors(colors) = base_color_desc {
+                        colors().map(|color| color.alpha()).unique().collect()
+                    } else {
+                        (0..=u8::MAX).collect()
+                    }
+                }
+            }
+            ToAlphaChannelTaskSpec::StackAlphaOnAlpha { background, foreground } => {
+                let fg_values = foreground.get_possible_alpha_values(ctx);
+                background.get_possible_alpha_values(ctx).into_iter().flat_map(move |background_alpha| {
+                    let background_alpha = background_alpha as u16;
+                    fg_values.to_owned().iter().map(move |foreground_alpha|
+                        (background_alpha +
+                            (*foreground_alpha as u16) * ((u8::MAX - *foreground_alpha) as u16) / (u8::MAX as u16)) as u8
+                    ).collect::<Vec<u8>>()
+                }.into_iter()).unique().collect()
+            }
+            ToAlphaChannelTaskSpec::StackAlphaOnBackground { background: background_alpha, foreground } => {
+                let background_alpha = (**background_alpha * 255.0) as u16;
+                foreground.get_possible_alpha_values(ctx).into_iter().map(move |foreground_alpha|
+                    (background_alpha +
+                        (foreground_alpha as u16) * ((u8::MAX - foreground_alpha) as u16) / (u8::MAX as u16)) as u8
+                ).unique().collect()
+            }
+        };
+        ctx.alpha_task_to_alpha_map.insert(self.to_owned(), alpha_vec.to_owned());
+        alpha_vec
     }
 }
 
@@ -772,41 +802,14 @@ impl ToPixmapTaskSpec {
                 }
             },
             ToPixmapTaskSpec::PaintAlphaChannel { color, base } => {
-                match &**base {
-                    ToAlphaChannelTaskSpec::FromPixmap { base: base_base } => {
-                        if let SpecifiedColors(colors) = base_base.get_color_description(ctx) {
-                            let colors: Vec<ComparableColor> = colors()
-                                    .map(|color| color.alpha())
-                                    .unique()
-                                    .map(|alpha| *color * (alpha as f32 / 255.0))
-                                    .collect();
-                            return SpecifiedColors(Arc::new(Box::new(move || {
-                                let colors = colors.to_owned();
-                                Box::new(colors.into_iter())
-                            })));
-                        } else if base_base.get_color_description(ctx).transparency() == BinaryTransparency {
-                            let color = *color;
-                            return SpecifiedColors(Arc::new(Box::new(move || Box::new(
-                                vec![color, ComparableColor::TRANSPARENT].into_iter()))));
-                        }
-                    },
-                    ToAlphaChannelTaskSpec::MakeSemitransparent { base: base_base, alpha } => {
-                        return paint_task(*base_base.to_owned(), *color * **alpha).get_color_description(ctx);
-                    },
-                    _ => {}
-                }
-                if base.is_semitransparency_free(ctx) {
-                    let color = *color;
-                    SpecifiedColors(Arc::new(Box::new(move || Box::new(vec![ComparableColor::TRANSPARENT, color].into_iter()))))
-                } else {
-                    let max_alpha = color.alpha();
-                    let red = color.red();
-                    let green = color.green();
-                    let blue = color.blue();
-                    SpecifiedColors(Arc::new(Box::new(move || Box::new((0..=max_alpha).map(move |alpha|
-                                            ComparableColor { red, green, blue, alpha }
-                                        )))))
-                }
+                SpecifiedColors({
+                    let alphas: Vec<ComparableColor> = base
+                        .get_possible_alpha_values(ctx)
+                        .into_iter()
+                        .map(|alpha| *color * (alpha as f32 / 255.0))
+                        .collect();
+                    Arc::new(Box::new(move || Box::new(alphas.to_owned().into_iter())))
+                })
             },
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
                 let background = *background;
@@ -831,7 +834,8 @@ pub struct TaskGraphBuildingContext {
     pixmap_task_to_future_map: HashMap<ToPixmapTaskSpec, CloneableLazyTask<MaybeFromPool<Pixmap>>>,
     alpha_task_to_future_map: HashMap<ToAlphaChannelTaskSpec, CloneableLazyTask<MaybeFromPool<Mask>>>,
     pub output_task_to_future_map: HashMap<FileOutputTaskSpec, CloneableLazyTask<()>>,
-    pixmap_task_to_color_map: HashMap<ToPixmapTaskSpec, ColorDescription>
+    pixmap_task_to_color_map: HashMap<ToPixmapTaskSpec, ColorDescription>,
+    alpha_task_to_alpha_map: HashMap<ToAlphaChannelTaskSpec, Vec<u8>>
 }
 
 impl TaskGraphBuildingContext {
@@ -840,7 +844,8 @@ impl TaskGraphBuildingContext {
             pixmap_task_to_future_map: HashMap::new(),
             alpha_task_to_future_map: HashMap::new(),
             output_task_to_future_map: HashMap::new(),
-            pixmap_task_to_color_map: HashMap::new()
+            pixmap_task_to_color_map: HashMap::new(),
+            alpha_task_to_alpha_map: HashMap::new()
         }
     }
 }
