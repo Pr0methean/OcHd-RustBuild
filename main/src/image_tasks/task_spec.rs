@@ -874,13 +874,7 @@ fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildin
                         break;
                     }
                 }
-                let grayscale_bit_depth = match grayscale_bits {
-                    1 => BitDepth::One,
-                    2 => BitDepth::Two,
-                    4 => BitDepth::Four,
-                    8 => BitDepth::Eight,
-                    _ => debug_assert_unreachable()
-                };
+                let grayscale_bit_depth = u32_to_bit_depth_max_eight(grayscale_bits);
                 let indexed_mode = if transparency == Opaque {
                     IndexedRgbOpaque(colors.to_owned())
                 } else {
