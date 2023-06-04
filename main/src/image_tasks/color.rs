@@ -294,6 +294,8 @@ impl Hash for ComparableColor {
 
 #[test]
 fn test_under() {
+    use std::iter::once;
+
     let semi_black = rgba(0, 0, 0, 127);
     assert_eq!(ComparableColor::TRANSPARENT.under(once(semi_black)), &[semi_black]);
     assert_eq!(ComparableColor::WHITE.under(once(semi_black)), &[gray(128)]);
