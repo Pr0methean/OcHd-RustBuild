@@ -85,7 +85,7 @@ impl ComparableColor {
         }
     }
 
-    pub fn as_f32_srgba(&self) -> Srgba {
+    pub fn as_f32_srgba(&self) -> Srgba<f32> {
         Srgba::<u8>::new(
             self.red,
             self.green,
