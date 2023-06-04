@@ -807,25 +807,7 @@ impl ToAlphaChannelTaskSpec {
                 multiply_alpha_vec(&base.get_possible_alpha_values(ctx), **alpha)
             }
             ToAlphaChannelTaskSpec::FromPixmap { base } => {
-                let base_colors = base.get_color_description(ctx);
-                match base_colors.transparency() {
-                    AlphaChannel => match base_colors {
-                        Rgb(_) => (0..=u8::MAX).collect(),
-                        SpecifiedColors(colors) => if let Discrete(vec) = &colors
-                                && vec.len() <= BINARY_SEARCH_THRESHOLD {
-                            let mut alphas: Vec<u8> = vec.into_iter().map(|color| color.alpha()).collect();
-                            alphas.sort();
-                            alphas.dedup();
-                            alphas
-                        } else {
-                            (0..=u8::MAX)
-                                .filter(|alpha| colors.contains_alpha(*alpha))
-                                .collect()
-                        }
-                    },
-                    BinaryTransparency => vec![0, u8::MAX],
-                    Opaque => vec![u8::MAX]
-                }
+                base.get_possible_alpha_values(ctx)
             }
             ToAlphaChannelTaskSpec::StackAlphaOnAlpha { background, foreground } => {
                 stack_alpha_vecs(&background.get_possible_alpha_values(ctx),
@@ -976,6 +958,34 @@ impl ToPixmapTaskSpec {
         ctx.pixmap_task_to_color_map.insert(self.to_owned(), desc.to_owned());
         desc
     }
+
+    fn get_possible_alpha_values(&self, ctx: &mut TaskGraphBuildingContext) -> Vec<u8> {
+        if let Some(alphas) = ctx.pixmap_task_to_alpha_map.get(self) {
+            alphas.to_owned()
+        } else {
+            let colors = self.get_color_description(ctx);
+            let alphas = match colors.transparency() {
+                AlphaChannel => match colors {
+                    Rgb(_) => (0..=u8::MAX).collect(),
+                    SpecifiedColors(colors) => if let Discrete(vec) = &colors
+                        && vec.len() <= BINARY_SEARCH_THRESHOLD {
+                        let mut alphas: Vec<u8> = vec.into_iter().map(|color| color.alpha()).collect();
+                        alphas.sort();
+                        alphas.dedup();
+                        alphas
+                    } else {
+                        (0..=u8::MAX)
+                            .filter(|alpha| colors.contains_alpha(*alpha))
+                            .collect()
+                    }
+                },
+                BinaryTransparency => vec![0, u8::MAX],
+                Opaque => vec![u8::MAX]
+            };
+            ctx.pixmap_task_to_alpha_map.insert(self.to_owned(), alphas.to_owned());
+            alphas
+        }
+    }
 }
 
 impl From<ToPixmapTaskSpec> for ToAlphaChannelTaskSpec {
@@ -990,6 +1000,7 @@ pub struct TaskGraphBuildingContext {
     pub output_task_to_future_map: HashMap<FileOutputTaskSpec, CloneableLazyTask<()>>,
     pixmap_task_to_color_map: HashMap<ToPixmapTaskSpec, ColorDescription>,
     alpha_task_to_alpha_map: HashMap<ToAlphaChannelTaskSpec, Vec<u8>>,
+    pixmap_task_to_alpha_map: HashMap<ToPixmapTaskSpec, Vec<u8>>,
     pixmap_task_to_transparency_map: HashMap<ToPixmapTaskSpec, Transparency>
 }
 
@@ -1001,6 +1012,7 @@ impl TaskGraphBuildingContext {
             output_task_to_future_map: HashMap::new(),
             pixmap_task_to_color_map: HashMap::new(),
             alpha_task_to_alpha_map: HashMap::new(),
+            pixmap_task_to_alpha_map: HashMap::new(),
             pixmap_task_to_transparency_map: HashMap::new()
         }
     }
