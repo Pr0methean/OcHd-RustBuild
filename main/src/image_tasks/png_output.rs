@@ -284,7 +284,7 @@ pub fn write_indexed_png<T: Write>(image: MaybeFromPool<Pixmap>, palette: Vec<Co
                 Err(_) => match error_corrections.get(&pixel_bytes) {
                     Some(index) => *index,
                     None => {
-                        let pixel_color = ComparableColor::from(pixel.to_owned());
+                        let pixel_color = ComparableColor::from(*pixel);
                         let (index, (_, color))
                             = sorted_palette.iter().enumerate()
                             .min_by_key(|(_, (_, color))| color.abs_diff(&pixel_color))
