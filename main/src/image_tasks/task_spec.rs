@@ -970,7 +970,7 @@ impl ToPixmapTaskSpec {
                 } else if SEMITRANSPARENCY_FREE_SVGS.contains(&source) {
                     SpecifiedColors(ColorIterable::Discrete(vec![ComparableColor::TRANSPARENT, ComparableColor::BLACK]))
                 } else {
-                    SpecifiedColors(ColorIterable::Discrete(SEMITRANSPARENT_BLACK_PALETTE.to_owned()))
+                    SpecifiedColors(MultiplyAlpha {color: ComparableColor::BLACK, alphas: Range {min: 0, max: u8::MAX}})
                 }
             },
             ToPixmapTaskSpec::PaintAlphaChannel { color, base } => {
