@@ -531,15 +531,15 @@ impl ColorDescription {
         }
     }
 
-    pub fn put_adjacent(&self, adjacent: &ColorDescription) -> ColorDescription {
-        match adjacent {
+    pub fn put_adjacent(&self, neighbor: &ColorDescription) -> ColorDescription {
+        match neighbor {
             Rgb(transparency) => Rgb(self.transparency().put_adjacent(transparency)),
-            SpecifiedColors(bg_colors) => {
+            SpecifiedColors(neighbor_colors) => {
                 match self {
-                    Rgb(transparency) => Rgb(transparency.put_adjacent(&adjacent.transparency())),
+                    Rgb(transparency) => Rgb(transparency.put_adjacent(&neighbor.transparency())),
                     SpecifiedColors(self_colors) => {
                         let mut combined_colors = self_colors.to_owned();
-                        combined_colors.extend(bg_colors);
+                        combined_colors.extend(neighbor_colors);
                         combined_colors.sort();
                         combined_colors.dedup();
                         SpecifiedColors(combined_colors)
@@ -643,21 +643,16 @@ impl ToAlphaChannelTaskSpec {
                 values
             }
             ToAlphaChannelTaskSpec::FromPixmap { base } => {
-                if let ToPixmapTaskSpec::FromSvg { source } = &**base
-                        && !SEMITRANSPARENCY_FREE_SVGS.contains(&&*source.to_string_lossy()) {
-                    ALL_ALPHA_VALUES.to_owned()
-                } else {
-                    match base.get_transparency(ctx) {
-                        Opaque => vec![u8::MAX],
-                        BinaryTransparency => vec![0, u8::MAX],
-                        AlphaChannel => if let SpecifiedColors(colors) = base.get_color_description(ctx) {
-                            let mut alphas: Vec<u8> = colors.iter().map(|color| color.alpha()).collect();
-                            alphas.sort();
-                            alphas.dedup();
-                            alphas
-                        } else {
-                            ALL_ALPHA_VALUES.to_owned()
-                        }
+                match base.get_transparency(ctx) {
+                    Opaque => vec![u8::MAX],
+                    BinaryTransparency => vec![0, u8::MAX],
+                    AlphaChannel => if let SpecifiedColors(colors) = base.get_color_description(ctx) {
+                        let mut alphas: Vec<u8> = colors.iter().map(|color| color.alpha()).collect();
+                        alphas.sort();
+                        alphas.dedup();
+                        alphas
+                    } else {
+                        ALL_ALPHA_VALUES.to_owned()
                     }
                 }
             }
@@ -811,14 +806,20 @@ impl ToPixmapTaskSpec {
             },
             ToPixmapTaskSpec::PaintAlphaChannel { color, base } => {
                 SpecifiedColors({
-                    let mut alphas: Vec<ComparableColor> = base
+                    let alpha_array = create_alpha_array(OrderedFloat(color.alpha as f32 / 255.0));
+                    let mut colored_alphas: Vec<ComparableColor> = base
                         .get_possible_alpha_values(ctx)
                         .into_iter()
-                        .map(|alpha| *color * (alpha as f32 / 255.0))
+                        .map(|alpha| ComparableColor {
+                            red: color.red(),
+                            green: color.green(),
+                            blue: color.blue(),
+                            alpha: alpha_array[alpha as usize]
+                        })
                         .collect();
-                    alphas.sort();
-                    alphas.dedup();
-                    alphas
+                    colored_alphas.sort();
+                    colored_alphas.dedup();
+                    colored_alphas
                 })
             },
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
