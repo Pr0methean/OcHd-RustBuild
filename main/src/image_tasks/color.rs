@@ -66,14 +66,14 @@ impl ComparableColor {
     pub fn blue(&self) -> u8 { self.blue}
     pub fn alpha(&self) -> u8 { self.alpha}
 
-    pub(crate) fn blend_atop(self, background: &ComparableColor) -> ComparableColor {
+    pub(crate) fn over(self, background: &ComparableColor) -> ComparableColor {
         if self.alpha == u8::MAX {
             self
         } else if self.alpha == 0 {
             *background
         } else {
             let self_as_f32 = self.as_f32_srgba();
-            let background_as_f32 = self.as_f32_srgba();
+            let background_as_f32 = background.as_f32_srgba();
             let blended_as_srgb8: Srgba<u8>
                 = (self_as_f32.over(background_as_f32)).into_format();
             ComparableColor {
@@ -285,6 +285,15 @@ impl Hash for ComparableColor {
             self.blue.hash(state);
         }
     }
+}
+
+#[test]
+fn test_over() {
+    let semi_black = rgba(0, 0, 0, 127);
+    assert_eq!(semi_black.over(&ComparableColor::TRANSPARENT), semi_black);
+    assert_eq!(semi_black.over(&ComparableColor::WHITE), gray(128));
+    assert_eq!(ComparableColor::WHITE.over(&semi_black), ComparableColor::WHITE);
+    assert_eq!(semi_black.over(&semi_black), rgba(0, 0, 0, 191));
 }
 
 #[test]

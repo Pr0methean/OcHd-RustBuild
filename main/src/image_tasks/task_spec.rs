@@ -523,7 +523,7 @@ impl ColorDescription {
                                 match fg_color.alpha() {
                                     u8::MAX => vec![*fg_color],
                                     0 => bg_colors.to_owned(),
-                                    _ => bg_colors.iter().map(move |bg_color| fg_color.blend_atop(bg_color)).collect()
+                                    _ => bg_colors.iter().map(move |bg_color| fg_color.over(bg_color)).collect()
                                 }.into_iter()
                         }).collect();
                         combined_colors.sort();
