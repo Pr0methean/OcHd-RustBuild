@@ -488,7 +488,7 @@ impl Transparency {
 
 // Should be more than the number of colors allowed in an indexed-mode PNG, since blending over a
 // solid color may narrow the list of distinct colors.
-const MAX_SPECIFIED_COLORS: usize = 1024;
+const MAX_SPECIFIED_COLORS: usize = 512;
 
 impl ColorDescription {
     pub fn transparency(&self) -> Transparency {
