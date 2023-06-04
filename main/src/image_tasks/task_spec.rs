@@ -528,6 +528,21 @@ impl AlphaIterable {
             }
         }
     }
+
+    fn union(&self, other: &AlphaIterable) -> AlphaIterable {
+        if let Range {min, max} = self
+            && let Range {min: other_min, max: other_max} = other {
+            if other_min <= max {
+                return Range {min: *min, max: *other_max};
+            } else if other_max <= min {
+                return Range {min: *other_min, max: *max};
+            }
+        }
+        let mut combined: Vec<u8> = self.to_owned().into_iter().chain(other.to_owned().into_iter()).collect();
+        combined.sort();
+        combined.dedup();
+        Discrete(combined)
+    }
 }
 
 impl IntoIterator for AlphaIterable {
@@ -647,6 +662,10 @@ impl ColorIterable {
             combined_colors.sort();
             combined_colors.dedup();
             ColorIterable::Discrete(combined_colors)
+        } else if let MultiplyAlpha {color, alphas} = self
+            && let MultiplyAlpha {color: other_color, alphas: other_alphas} = other
+            && color == other_color {
+            MultiplyAlpha {color: *color, alphas: alphas.union(other_alphas)}
         } else {
             Union(self.to_owned().into(), other.to_owned().into())
         }
