@@ -669,10 +669,11 @@ impl ToAlphaChannelTaskSpec {
                 combined_alphas
             }
             ToAlphaChannelTaskSpec::StackAlphaOnBackground { background: background_alpha, foreground } => {
-                let background_alpha = (**background_alpha * 255.0) as u8;
+                let background_alpha = **background_alpha * u8::MAX as f32 + 0.5;
+                let foreground_alpha_mul = 1.0 - background_alpha;
                 let mut combined_alphas: Vec<u8> = foreground.get_possible_alpha_values(ctx).into_iter().map(
-                    move |foreground_alpha| (background_alpha as u16 +
-                        (foreground_alpha as u16) * ((u8::MAX - background_alpha) as u16) / (u8::MAX as u16)) as u8
+                    move |foreground_alpha|
+                        (background_alpha + foreground_alpha as f32 * foreground_alpha_mul) as u8
                 ).collect();
                 combined_alphas.sort();
                 combined_alphas.dedup();
