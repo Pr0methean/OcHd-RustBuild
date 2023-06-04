@@ -725,9 +725,9 @@ fn color_description_to_mode(description: ColorDescription) -> PngMode {
                 }
             } else {
                 let indexed_mode = if have_transparent || have_partial_alpha {
-                    IndexedRgba(colors.iter().copied().collect())
+                    IndexedRgba(colors.iter().unique().copied().collect())
                 } else {
-                    IndexedRgbOpaque(colors.iter().copied().collect())
+                    IndexedRgbOpaque(colors.iter().unique().copied().collect())
                 };
                 if have_non_gray {
                     return indexed_mode;
@@ -811,6 +811,7 @@ impl ToPixmapTaskSpec {
                         .get_possible_alpha_values(ctx)
                         .into_iter()
                         .map(|alpha| *color * (alpha as f32 / 255.0))
+                        .unique()
                         .collect();
                     Arc::new(Box::new(move || Box::new(alphas.to_owned().into_iter())))
                 })
