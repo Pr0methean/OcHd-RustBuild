@@ -650,7 +650,7 @@ impl ToAlphaChannelTaskSpec {
                 match base.get_transparency(ctx) {
                     Opaque => vec![u8::MAX],
                     BinaryTransparency => vec![0, u8::MAX],
-                    AlphaChannel => if let SpecifiedColors(colors) = base_color_desc {
+                    AlphaChannel => if let SpecifiedColors(colors) = base.get_color_description(ctx) {
                         colors().map(|color| color.alpha()).unique().collect()
                     } else {
                         ALL_ALPHA_VALUES.to_owned()
@@ -771,10 +771,10 @@ impl ToPixmapTaskSpec {
 
     fn get_transparency(&self, ctx: &mut TaskGraphBuildingContext) -> Transparency {
         if let Some(transparency) = ctx.pixmap_task_to_transparency_map.get(self) {
-            *transparency;
+            *transparency
         } else {
             let transparency = self.get_color_description(ctx).transparency();
-            ctx.pixmap_task_to_transparency_map.insert(*self.to_owned(), transparency);
+            ctx.pixmap_task_to_transparency_map.insert(self.to_owned(), transparency);
             transparency
         }
     }
