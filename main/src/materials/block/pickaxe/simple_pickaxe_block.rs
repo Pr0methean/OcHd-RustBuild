@@ -501,11 +501,11 @@ block_with_colors!(YELLOW_GLAZED_TERRACOTTA = c(0xffb000), c(0xa4764c), c(0xffff
 );
 block_with_colors!(ORANGE_GLAZED_TERRACOTTA = c(0xff8000), c(0x009c9c), c(0x00c6c6),
     highlight!(),
-    paint_stack!(color!(), "bigDotsBottomLeftTopRight", "cornerTwoLobesSolidTopLeft"),
+    paint_svg_task("bigDotsBottomLeftTopRight", color!()),
     paint_svg_task("dots0", shadow!()),
     paint_svg_task("strokeTopLeftBottomRight", ComparableColor::WHITE),
-    paint_stack!(shadow!(), "cornerTwoLobesBorderTopLeft", "cornerRoundBottomRight"),
-    paint_svg_task("cornerRingBottomRight", color!())
+    paint_stack!(shadow!(), "cornerTwoLobesSolidTopLeft", "cornerRoundBottomLeft", "cornerRoundBottomRight"),
+    paint_stack!(color!(), "cornerRingBottomRight", "cornerTwoLobesCutoutTopLeft")
 );
 block_with_colors!(WHITE_GLAZED_TERRACOTTA = c(0x3ab3da), c(0x2389c7), c(0xffd83d),
     ComparableColor::WHITE,
