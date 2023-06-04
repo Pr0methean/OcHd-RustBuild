@@ -767,10 +767,10 @@ fn color_description_to_mode(description: ColorDescription) -> PngMode {
 impl ToPixmapTaskSpec {
     /// Used in [TaskSpec::add_to] to deduplicate certain tasks that are redundant.
     fn get_color_description(&self, ctx: &mut TaskGraphBuildingContext) -> ColorDescription {
-        if let Some(mode) = ctx.pixmap_task_to_color_map.get(self) {
-            return (*mode).to_owned();
+        if let Some(desc) = ctx.pixmap_task_to_color_map.get(self) {
+            return (*desc).to_owned();
         }
-        match self {
+        let desc = match self {
             ToPixmapTaskSpec::None { .. } => panic!("get_discrete_colors() called on None task"),
             ToPixmapTaskSpec::Animate { background, frames } => {
                 let background_desc = background.get_color_description(ctx);
@@ -820,7 +820,9 @@ impl ToPixmapTaskSpec {
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
                 foreground.get_color_description(ctx).stack_on(&background.get_color_description(ctx))
             }
-        }
+        };
+        ctx.pixmap_task_to_color_map.insert(self.to_owned(), desc.to_owned());
+        desc
     }
 }
 
