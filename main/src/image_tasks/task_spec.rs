@@ -9,9 +9,9 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 use cached::lazy_static::lazy_static;
-use crate::anyhoo;
+use crate::{anyhoo, debug_assert_unreachable};
 use include_dir::{Dir, include_dir};
-use itertools::Itertools;
+use itertools::{Itertools};
 
 use log::{info};
 use ordered_float::OrderedFloat;
@@ -641,7 +641,7 @@ impl ColorIterable {
                     0 => if vec.len() == 1 {
                         false
                     } else { match vec[1].alpha {
-                            0 => panic!("Transparent included in vector twice"),
+                            0 => debug_assert_unreachable(),
                             u8::MAX => false,
                             _ => true
                         }
@@ -782,6 +782,16 @@ pub fn bit_depth_to_u32(depth: &BitDepth) -> u32 {
     }
 }
 
+pub fn u32_to_bit_depth_max_eight(depth: u32) -> BitDepth {
+    match depth {
+        1 => BitDepth::One,
+        2 => BitDepth::Two,
+        4 => BitDepth::Four,
+        8 => BitDepth::Eight,
+        _ => debug_assert_unreachable()
+    }
+}
+
 lazy_static! {
     static ref ALL_ALPHA_VALUES: Vec<u8> = (0..=u8::MAX).collect();
 }
@@ -855,9 +865,21 @@ fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildin
                     GrayscaleAlpha(BitDepth::Eight)
                 }
             } else {
-                let grayscale_bit_depth = colors.iter().max_by_key(
-                    |color| bit_depth_to_u32(&color.bit_depth()))
-                    .unwrap().bit_depth();
+                let mut grayscale_bits = 1;
+                for color in colors.iter() {
+                    let color_bit_depth = bit_depth_to_u32(&color.bit_depth());
+                    grayscale_bits = grayscale_bits.max(color_bit_depth);
+                    if grayscale_bits == 8 {
+                        break;
+                    }
+                }
+                let grayscale_bit_depth = match grayscale_bits {
+                    1 => BitDepth::One,
+                    2 => BitDepth::Two,
+                    4 => BitDepth::Four,
+                    8 => BitDepth::Eight,
+                    _ => debug_assert_unreachable()
+                };
                 let indexed_mode = if transparency == Opaque {
                     IndexedRgbOpaque(colors.to_owned())
                 } else {
