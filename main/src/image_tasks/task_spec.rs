@@ -632,6 +632,10 @@ pub fn bit_depth_to_u32(depth: &BitDepth) -> u32 {
     }
 }
 
+lazy_static! {
+    static ref ALL_ALPHA_VALUES: Vec<u8> = (0..=u8::MAX).collect();
+}
+
 impl ToAlphaChannelTaskSpec {
     fn get_possible_alpha_values(&self, ctx: &mut TaskGraphBuildingContext) -> Vec<u8> {
         if let Some(alpha_vec) = ctx.alpha_task_to_alpha_map.get(self) {
@@ -650,7 +654,7 @@ impl ToAlphaChannelTaskSpec {
                     AlphaChannel => if let SpecifiedColors(colors) = base_color_desc {
                         colors().map(|color| color.alpha()).unique().collect()
                     } else {
-                        (0..=u8::MAX).collect()
+                        ALL_ALPHA_VALUES.to_owned()
                     }
                 }
             }
