@@ -493,9 +493,13 @@ impl ColorDescription {
                 let mut have_transparent = false;
                 for color in colors {
                     match color.alpha() {
-                        0 => have_transparent = true,
+                        0 => {
+                            have_transparent = true
+                        },
                         u8::MAX => {},
-                        _ => return AlphaChannel
+                        _ => {
+                            return AlphaChannel;
+                        }
                     }
                 }
                 if have_transparent {
