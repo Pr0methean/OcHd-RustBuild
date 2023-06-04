@@ -695,13 +695,8 @@ fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildin
         SpecifiedColors(colors) => {
             let transparency = task.get_transparency(ctx);
             let max_indexed_size = u8::MAX as usize + 1;
-            let mut have_non_gray = false;
-            for color in &colors {
-                if !color.is_gray() {
-                    have_non_gray = true;
-                }
-            }
-            if colors.len() >= max_indexed_size && have_non_gray {
+            let have_non_gray = colors.iter().any(|color| !color.is_gray());
+            if colors.len() > max_indexed_size && have_non_gray {
                 return match transparency {
                     Opaque => RgbOpaque,
                     BinaryTransparency => RgbWithTransparentShade(c(0xc0ff3e)),
