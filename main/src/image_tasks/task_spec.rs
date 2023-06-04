@@ -486,6 +486,10 @@ impl Transparency {
     }
 }
 
+// Should be more than the number of colors allowed in an indexed-mode PNG, since blending over a
+// solid color may narrow the list of distinct colors.
+const MAX_SPECIFIED_COLORS: usize = 1024;
+
 impl ColorDescription {
     pub fn transparency(&self) -> Transparency {
         match self {
@@ -512,6 +516,14 @@ impl ColorDescription {
         }
     }
 
+    fn collapse_specified(colors: Vec<ComparableColor>) -> ColorDescription {
+        if colors.len() <= MAX_SPECIFIED_COLORS {
+            SpecifiedColors(colors)
+        } else {
+            Rgb(SpecifiedColors(colors).transparency())
+        }
+    }
+
     pub fn stack_on(&self, background: &ColorDescription) -> ColorDescription {
         match background {
             Rgb(transparency) => Rgb(self.transparency().stack_on(transparency)),
@@ -526,14 +538,14 @@ impl ColorDescription {
                                 combined_colors.extend(bg_colors);
                                 combined_colors.sort();
                                 combined_colors.dedup();
-                                SpecifiedColors(combined_colors)
+                                Self::collapse_specified(combined_colors)
                             }
                             AlphaChannel => {
                                 let mut combined_colors: Vec<ComparableColor> = bg_colors.iter().flat_map(|bg_color|
                                     bg_color.under(&fg_colors).into_iter()
                                 ).unique().collect();
                                 combined_colors.sort();
-                                SpecifiedColors(combined_colors)
+                                Self::collapse_specified(combined_colors)
                             }
                         }
                     }
@@ -553,7 +565,7 @@ impl ColorDescription {
                         combined_colors.extend(neighbor_colors);
                         combined_colors.sort();
                         combined_colors.dedup();
-                        SpecifiedColors(combined_colors)
+                        Self::collapse_specified(combined_colors)
                     }
                 }
             }
