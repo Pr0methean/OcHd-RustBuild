@@ -518,9 +518,9 @@ impl ColorDescription {
             SpecifiedColors(bg_colors) => {
                 match self {
                     Rgb(transparency) => Rgb(transparency.stack_on(&background.transparency())),
-                    SpecifiedColors(self_colors) => {
-                        let mut combined_colors: Vec<ComparableColor> = self_colors.iter().flat_map(|fg_color|
-                            fg_color.over(bg_colors).into_iter()
+                    SpecifiedColors(fg_colors) => {
+                        let mut combined_colors: Vec<ComparableColor> = bg_colors.iter().flat_map(|bg_color|
+                            bg_color.under(&fg_colors).into_iter()
                         ).collect();
                         combined_colors.sort();
                         combined_colors.dedup();
