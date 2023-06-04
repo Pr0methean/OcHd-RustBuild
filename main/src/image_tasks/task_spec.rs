@@ -179,7 +179,7 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
             FileOutputTaskSpec::PngOutput {base, destination } => {
                 let destination = destination.to_owned();
                 let base_future = base.add_to(ctx);
-                let png_mode = color_description_to_mode(base.get_color_description(ctx));
+                let png_mode = color_description_to_mode(base, ctx);
                 Box::new(move || {
                     let base_result = base_future.into_result()?;
                     Ok(Box::new(png_output(*Arc::unwrap_or_clone(base_result),
@@ -647,13 +647,18 @@ impl ToAlphaChannelTaskSpec {
                 base.get_possible_alpha_values(ctx).into_iter().map(|alpha| alpha_array[alpha as usize]).unique().collect()
             }
             ToAlphaChannelTaskSpec::FromPixmap { base } => {
-                match base.get_transparency(ctx) {
-                    Opaque => vec![u8::MAX],
-                    BinaryTransparency => vec![0, u8::MAX],
-                    AlphaChannel => if let SpecifiedColors(colors) = base.get_color_description(ctx) {
-                        colors().map(|color| color.alpha()).unique().collect()
-                    } else {
-                        ALL_ALPHA_VALUES.to_owned()
+                if let ToPixmapTaskSpec::FromSvg { source } = &**base
+                        && !SEMITRANSPARENCY_FREE_SVGS.contains(&&*source.to_string_lossy()) {
+                    ALL_ALPHA_VALUES.to_owned()
+                } else {
+                    match base.get_transparency(ctx) {
+                        Opaque => vec![u8::MAX],
+                        BinaryTransparency => vec![0, u8::MAX],
+                        AlphaChannel => if let SpecifiedColors(colors) = base.get_color_description(ctx) {
+                            colors().map(|color| color.alpha()).unique().collect()
+                        } else {
+                            ALL_ALPHA_VALUES.to_owned()
+                        }
                     }
                 }
             }
@@ -685,48 +690,40 @@ lazy_static!{
         ColorU8::from_rgba(0, 0, 0, alpha))).collect();
 }
 
-fn color_description_to_mode(description: ColorDescription) -> PngMode {
-    match description {
+fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildingContext) -> PngMode {
+    match task.get_color_description(ctx) {
         SpecifiedColors(colors_iter) => {
+            let transparency = task.get_transparency(ctx);
             let max_indexed_size = u8::MAX as usize + 1;
             let mut colors: HashSet<ComparableColor> = HashSet::with_capacity(max_indexed_size);
-            let mut have_partial_alpha = false;
-            let mut have_transparent = false;
             let mut have_non_gray = false;
             for color in colors_iter() {
-                match color.alpha() {
-                    0 => have_transparent = true,
-                    u8::MAX => {},
-                    _ => have_partial_alpha = true
-                };
                 if !color.is_gray() {
                     have_non_gray = true;
                 }
                 if colors.len() >= max_indexed_size {
-                    if have_partial_alpha && have_non_gray {
-                        return Rgba;
+                    if have_non_gray {
+                        return match transparency {
+                            Opaque => RgbOpaque,
+                            BinaryTransparency => RgbWithTransparentShade(c(0xc0ff3e)),
+                            AlphaChannel => Rgba
+                        };
                     }
                 } else {
                     colors.insert(color);
                 }
             }
-            if colors.len() > max_indexed_size && have_non_gray {
-                if have_transparent {
-                    RgbWithTransparentShade(c(0xc0ff3e))
-                } else {
-                    RgbOpaque
-                }
-            } else if colors.len() >= max_indexed_size && !have_non_gray {
-                if have_transparent || have_partial_alpha {
-                    GrayscaleAlpha(BitDepth::Eight)
-                } else {
+            if colors.len() >= max_indexed_size && !have_non_gray {
+                if transparency == Opaque {
                     GrayscaleOpaque(BitDepth::Eight)
+                } else {
+                    GrayscaleAlpha(BitDepth::Eight)
                 }
             } else {
-                let indexed_mode = if have_transparent || have_partial_alpha {
-                    IndexedRgba(colors.iter().copied().collect())
-                } else {
+                let indexed_mode = if transparency == Opaque {
                     IndexedRgbOpaque(colors.iter().copied().collect())
+                } else {
+                    IndexedRgba(colors.iter().copied().collect())
                 };
                 if have_non_gray {
                     return indexed_mode;
@@ -734,25 +731,25 @@ fn color_description_to_mode(description: ColorDescription) -> PngMode {
                 let grayscale_bit_depth = colors.iter().max_by_key(
                     |color| bit_depth_to_u32(&color.bit_depth()))
                     .unwrap().bit_depth();
-                let grayscale_mode = if have_partial_alpha {
-                    GrayscaleAlpha(grayscale_bit_depth)
-                } else if have_transparent {
-                    let grayscale_shades = match grayscale_bit_depth {
-                        BitDepth::One => vec![ComparableColor::BLACK, ComparableColor::WHITE],
-                        BitDepth::Two => vec![gray(0x00), gray(0x55), gray(0xAA), gray(0xFF)],
-                        BitDepth::Four => (0..16).map(|n| gray(n * 0x11)).collect(),
-                        BitDepth::Eight => (0..=u8::MAX).map(gray).collect(),
-                        BitDepth::Sixteen => panic!("16-bit greyscale not handled")
-                    };
-                    match grayscale_shades.into_iter().find(|color| !colors.contains(color)) {
-                        Some(unused) => GrayscaleWithTransparentShade {
-                            bit_depth: grayscale_bit_depth,
-                            transparent_shade: unused.red()
-                        },
-                        None => GrayscaleAlpha(grayscale_bit_depth)
-                    }
-                } else {
-                    GrayscaleOpaque(grayscale_bit_depth)
+                let grayscale_mode = match transparency {
+                    AlphaChannel => GrayscaleAlpha(grayscale_bit_depth),
+                    BinaryTransparency => {
+                        let grayscale_shades = match grayscale_bit_depth {
+                            BitDepth::One => vec![ComparableColor::BLACK, ComparableColor::WHITE],
+                            BitDepth::Two => vec![gray(0x00), gray(0x55), gray(0xAA), gray(0xFF)],
+                            BitDepth::Four => (0..16).map(|n| gray(n * 0x11)).collect(),
+                            BitDepth::Eight => (0..=u8::MAX).map(gray).collect(),
+                            BitDepth::Sixteen => panic!("16-bit greyscale not handled")
+                        };
+                        match grayscale_shades.into_iter().find(|color| !colors.contains(color)) {
+                            Some(unused) => GrayscaleWithTransparentShade {
+                                bit_depth: grayscale_bit_depth,
+                                transparent_shade: unused.red()
+                            },
+                            None => GrayscaleAlpha(grayscale_bit_depth)
+                        }
+                    },
+                    Opaque => GrayscaleOpaque(grayscale_bit_depth)
                 };
                 if grayscale_mode.bits_per_pixel() <= indexed_mode.bits_per_pixel() {
                     grayscale_mode
