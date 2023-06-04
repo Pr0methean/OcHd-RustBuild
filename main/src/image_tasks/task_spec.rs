@@ -521,9 +521,8 @@ impl ColorDescription {
                     SpecifiedColors(fg_colors) => {
                         let mut combined_colors: Vec<ComparableColor> = bg_colors.iter().flat_map(|bg_color|
                             bg_color.under(&fg_colors).into_iter()
-                        ).collect();
+                        ).unique().collect();
                         combined_colors.sort();
-                        combined_colors.dedup();
                         SpecifiedColors(combined_colors)
                     }
                 }
