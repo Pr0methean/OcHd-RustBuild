@@ -66,27 +66,6 @@ impl ComparableColor {
     pub fn blue(&self) -> u8 { self.blue}
     pub fn alpha(&self) -> u8 { self.alpha}
 
-    pub(crate) fn over(self, backgrounds: &[ComparableColor]) -> Vec<ComparableColor> {
-        if self.alpha == u8::MAX {
-            vec![self]
-        } else if self.alpha == 0 {
-            Vec::from(backgrounds)
-        } else {
-            let self_as_f32 = self.as_f32_srgba().premultiply();
-            backgrounds.iter().map(|bg_color| {
-                let background_as_f32 = bg_color.as_f32_srgba().premultiply();
-                let blended_as_srgb8: Srgba<u8>
-                    = (self_as_f32.over(background_as_f32)).unpremultiply().into_format();
-                ComparableColor {
-                    red: blended_as_srgb8.red,
-                    green: blended_as_srgb8.green,
-                    blue: blended_as_srgb8.blue,
-                    alpha: blended_as_srgb8.alpha
-                }
-            }).collect()
-        }
-    }
-
     pub fn under(self, foregrounds: &[ComparableColor]) -> Vec<ComparableColor> {
         if self.alpha == 0 {
             Vec::from(foregrounds)
