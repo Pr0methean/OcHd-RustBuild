@@ -637,7 +637,10 @@ impl ToAlphaChannelTaskSpec {
         let alpha_vec: Vec<u8> = match self {
             ToAlphaChannelTaskSpec::MakeSemitransparent { alpha, base } => {
                 let alpha_array = create_alpha_array(*alpha);
-                base.get_possible_alpha_values(ctx).into_iter().map(|alpha| alpha_array[alpha as usize]).unique().collect()
+                let mut values: Vec<u8> = base.get_possible_alpha_values(ctx).into_iter().map(|alpha| alpha_array[alpha as usize]).collect();
+                values.sort();
+                values.dedup();
+                values
             }
             ToAlphaChannelTaskSpec::FromPixmap { base } => {
                 if let ToPixmapTaskSpec::FromSvg { source } = &**base
@@ -648,7 +651,10 @@ impl ToAlphaChannelTaskSpec {
                         Opaque => vec![u8::MAX],
                         BinaryTransparency => vec![0, u8::MAX],
                         AlphaChannel => if let SpecifiedColors(colors) = base.get_color_description(ctx) {
-                            colors.iter().map(|color| color.alpha()).unique().collect()
+                            let mut alphas: Vec<u8> = colors.iter().map(|color| color.alpha()).collect();
+                            alphas.sort();
+                            alphas.dedup();
+                            alphas
                         } else {
                             ALL_ALPHA_VALUES.to_owned()
                         }
@@ -657,20 +663,25 @@ impl ToAlphaChannelTaskSpec {
             }
             ToAlphaChannelTaskSpec::StackAlphaOnAlpha { background, foreground } => {
                 let fg_values = foreground.get_possible_alpha_values(ctx);
-                background.get_possible_alpha_values(ctx).into_iter().flat_map(move |background_alpha| {
-                    let background_alpha = background_alpha as u16;
-                    fg_values.to_owned().iter().map(move |foreground_alpha|
-                        (background_alpha +
-                            (*foreground_alpha as u16) * ((u8::MAX - *foreground_alpha) as u16) / (u8::MAX as u16)) as u8
-                    ).collect::<Vec<u8>>()
-                }.into_iter()).unique().collect()
+                let mut combined_alphas: Vec<u8> = background.get_possible_alpha_values(ctx).into_iter().flat_map(|background_alpha| {
+                    fg_values.iter().map(move |foreground_alpha|
+                        (background_alpha as u16 +
+                        (*foreground_alpha as u16) * ((u8::MAX - background_alpha) as u16) / (u8::MAX as u16)) as u8
+                    )
+                }).collect();
+                combined_alphas.sort();
+                combined_alphas.dedup();
+                combined_alphas
             }
             ToAlphaChannelTaskSpec::StackAlphaOnBackground { background: background_alpha, foreground } => {
-                let background_alpha = (**background_alpha * 255.0) as u16;
-                foreground.get_possible_alpha_values(ctx).into_iter().map(move |foreground_alpha|
-                    (background_alpha +
-                        (foreground_alpha as u16) * ((u8::MAX - foreground_alpha) as u16) / (u8::MAX as u16)) as u8
-                ).unique().collect()
+                let background_alpha = (**background_alpha * 255.0) as u8;
+                let mut combined_alphas: Vec<u8> = foreground.get_possible_alpha_values(ctx).into_iter().map(
+                    move |foreground_alpha| (background_alpha as u16 +
+                        (foreground_alpha as u16) * ((u8::MAX - background_alpha) as u16) / (u8::MAX as u16)) as u8
+                ).collect();
+                combined_alphas.sort();
+                combined_alphas.dedup();
+                combined_alphas
             }
         };
         ctx.alpha_task_to_alpha_map.insert(self.to_owned(), alpha_vec.to_owned());
