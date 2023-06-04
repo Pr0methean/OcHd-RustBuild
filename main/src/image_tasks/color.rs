@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 use std::hint::unreachable_unchecked;
 use std::ops::Mul;
 use lazy_static::lazy_static;
-use palette::{LinSrgba, Srgba};
+use palette::{Srgba};
 use palette::blend::{Compose};
 use png::BitDepth;
 
@@ -13,16 +13,20 @@ use resvg::tiny_skia::ColorU8;
 use resvg::tiny_skia::PremultipliedColor;
 use resvg::tiny_skia::PremultipliedColorU8;
 use crate::image_tasks::task_spec::bit_depth_to_u32;
+use bytemuck::{cast, Pod, Zeroable};
 
 /// Wrapper around [ColorU8] that implements important missing traits such as [Eq], [Hash], [Copy],
 /// [Clone] and [Ord]. Represents a 24-bit sRGB color + 8-bit alpha value (not premultiplied).
-#[derive(Eq, Debug, Copy, Clone)]
+#[derive(Eq, Debug, Copy, Clone, Pod)]
+#[repr(C)]
 pub struct ComparableColor {
+    pub(crate) alpha: u8,
     pub(crate) red: u8,
     pub(crate) green: u8,
     pub(crate) blue: u8,
-    pub(crate) alpha: u8,
 }
+
+unsafe impl Zeroable for ComparableColor {}
 
 impl PartialOrd for ComparableColor {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -35,17 +39,9 @@ impl Ord for ComparableColor {
         if self.alpha == 0 && other.alpha == 0 {
             return Ordering::Equal;
         }
-        let mut ordering = self.alpha.cmp(&other.alpha);
-        if ordering == Ordering::Equal {
-            ordering = self.blue.cmp(&other.blue);
-            if ordering == Ordering::Equal {
-                ordering = self.green.cmp(&other.green);
-                if ordering == Ordering::Equal {
-                    ordering = self.red.cmp(&other.red);
-                }
-            }
-        }
-        ordering
+        let self_bytes: [u8; 4] = cast(*self);
+        let other_bytes: [u8; 4] = cast(*self);
+        self_bytes.cmp(&other_bytes)
     }
 }
 
@@ -76,10 +72,10 @@ impl ComparableColor {
         } else if self.alpha == 0 {
             *background
         } else {
-            let self_as_linrgb = self.to_palette_crate();
-            let background_as_linrgb = self.to_palette_crate();
+            let self_as_f32 = self.as_f32_srgba();
+            let background_as_f32 = self.as_f32_srgba();
             let blended_as_srgb8: Srgba<u8>
-                = Srgba::from_linear(self_as_linrgb.over(background_as_linrgb));
+                = (self_as_f32.over(background_as_f32)).into_format();
             ComparableColor {
                 red: blended_as_srgb8.red,
                 green: blended_as_srgb8.green,
@@ -89,12 +85,12 @@ impl ComparableColor {
         }
     }
 
-    pub fn to_palette_crate(&self) -> LinSrgba {
-        LinSrgba::from(Srgba::<u8>::new(
+    pub fn as_f32_srgba(&self) -> Srgba {
+        Srgba::<u8>::new(
             self.red,
             self.green,
             self.blue,
-            self.alpha))
+            self.alpha).into_format()
     }
 
     pub const TRANSPARENT: ComparableColor = rgba(0,0,0,0);
