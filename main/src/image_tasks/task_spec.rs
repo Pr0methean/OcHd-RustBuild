@@ -52,7 +52,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
         let function: LazyTaskFunction<MaybeFromPool<Pixmap>> = match self {
             ToPixmapTaskSpec::None { .. } => panic!("Tried to add None task to graph"),
             ToPixmapTaskSpec::Animate { background, frames } => {
-                let background_opaque = background.get_color_description(ctx).transparency() == Opaque;
+                let background_opaque = background.get_transparency(ctx) == Opaque;
                 let background_future = background.add_to(ctx);
                 let mut frame_futures: Vec<CloneableLazyTask<MaybeFromPool<Pixmap>>>
                     = Vec::with_capacity(frames.len());
@@ -647,8 +647,7 @@ impl ToAlphaChannelTaskSpec {
                 base.get_possible_alpha_values(ctx).into_iter().map(|alpha| alpha_array[alpha as usize]).unique().collect()
             }
             ToAlphaChannelTaskSpec::FromPixmap { base } => {
-                let base_color_desc = base.get_color_description(ctx);
-                match base_color_desc.transparency() {
+                match base.get_transparency(ctx) {
                     Opaque => vec![u8::MAX],
                     BinaryTransparency => vec![0, u8::MAX],
                     AlphaChannel => if let SpecifiedColors(colors) = base_color_desc {
@@ -769,6 +768,17 @@ fn color_description_to_mode(description: ColorDescription) -> PngMode {
 }
 
 impl ToPixmapTaskSpec {
+
+    fn get_transparency(&self, ctx: &mut TaskGraphBuildingContext) -> Transparency {
+        if let Some(transparency) = ctx.pixmap_task_to_transparency_map.get(self) {
+            *transparency;
+        } else {
+            let transparency = self.get_color_description(ctx).transparency();
+            ctx.pixmap_task_to_transparency_map.insert(*self.to_owned(), transparency);
+            transparency
+        }
+    }
+
     /// Used in [TaskSpec::add_to] to deduplicate certain tasks that are redundant.
     fn get_color_description(&self, ctx: &mut TaskGraphBuildingContext) -> ColorDescription {
         if let Some(desc) = ctx.pixmap_task_to_color_map.get(self) {
@@ -842,7 +852,8 @@ pub struct TaskGraphBuildingContext {
     alpha_task_to_future_map: HashMap<ToAlphaChannelTaskSpec, CloneableLazyTask<MaybeFromPool<Mask>>>,
     pub output_task_to_future_map: HashMap<FileOutputTaskSpec, CloneableLazyTask<()>>,
     pixmap_task_to_color_map: HashMap<ToPixmapTaskSpec, ColorDescription>,
-    alpha_task_to_alpha_map: HashMap<ToAlphaChannelTaskSpec, Vec<u8>>
+    alpha_task_to_alpha_map: HashMap<ToAlphaChannelTaskSpec, Vec<u8>>,
+    pixmap_task_to_transparency_map: HashMap<ToPixmapTaskSpec, Transparency>
 }
 
 impl TaskGraphBuildingContext {
@@ -852,7 +863,8 @@ impl TaskGraphBuildingContext {
             alpha_task_to_future_map: HashMap::new(),
             output_task_to_future_map: HashMap::new(),
             pixmap_task_to_color_map: HashMap::new(),
-            alpha_task_to_alpha_map: HashMap::new()
+            alpha_task_to_alpha_map: HashMap::new(),
+            pixmap_task_to_transparency_map: HashMap::new()
         }
     }
 }
