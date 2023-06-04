@@ -664,8 +664,8 @@ impl ToAlphaChannelTaskSpec {
                 let fg_values = foreground.get_possible_alpha_values(ctx);
                 let mut combined_alphas: Vec<u8> = background.get_possible_alpha_values(ctx).into_iter().flat_map(|background_alpha| {
                     fg_values.iter().map(move |foreground_alpha|
-                        (background_alpha as u16 +
-                        (*foreground_alpha as u16) * ((u8::MAX - background_alpha) as u16) / (u8::MAX as u16)) as u8
+                         ((255.0 - background_alpha as f32) * (*foreground_alpha as f32 / 255.0)
+                             + background_alpha as f32 + 0.5) as u8
                     )
                 }).collect();
                 combined_alphas.sort();

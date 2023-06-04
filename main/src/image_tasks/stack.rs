@@ -21,8 +21,8 @@ pub(crate) fn stack_alpha_on_alpha(background: &mut Mask, foreground: &Mask) {
     let fg_data = foreground.data();
     let bg_data = background.data_mut();
     for (index, pixel) in fg_data.iter().enumerate() {
-        bg_data[index] = (*pixel as u16 +
-            (bg_data[index] as u16) * ((u8::MAX - pixel) as u16) / (u8::MAX as u16)) as u8;
+        bg_data[index] = ((255.0 - bg_data[index] as f32) * (*pixel as f32 / 255.0)
+            + bg_data[index] as f32 + 0.5) as u8;
     }
 }
 
