@@ -512,18 +512,30 @@ impl ColorDescription {
         }
     }
 
-    pub fn stack_on(self, background: &ColorDescription) -> ColorDescription {
+    pub fn stack_on(&self, background: &ColorDescription) -> ColorDescription {
         match background {
             Rgb(transparency) => Rgb(self.transparency().stack_on(transparency)),
             SpecifiedColors(bg_colors) => {
-                match self {
+                match &self {
                     Rgb(transparency) => Rgb(transparency.stack_on(&background.transparency())),
                     SpecifiedColors(fg_colors) => {
-                        let mut combined_colors: Vec<ComparableColor> = bg_colors.iter().flat_map(|bg_color|
-                            bg_color.under(&fg_colors).into_iter()
-                        ).unique().collect();
-                        combined_colors.sort();
-                        SpecifiedColors(combined_colors)
+                        match self.transparency() {
+                            Opaque => SpecifiedColors(fg_colors.clone()),
+                            BinaryTransparency => {
+                                let mut combined_colors = fg_colors.to_owned();
+                                combined_colors.extend(bg_colors);
+                                combined_colors.sort();
+                                combined_colors.dedup();
+                                SpecifiedColors(combined_colors)
+                            }
+                            AlphaChannel => {
+                                let mut combined_colors: Vec<ComparableColor> = bg_colors.iter().flat_map(|bg_color|
+                                    bg_color.under(&fg_colors).into_iter()
+                                ).unique().collect();
+                                combined_colors.sort();
+                                SpecifiedColors(combined_colors)
+                            }
+                        }
                     }
                 }
             }
