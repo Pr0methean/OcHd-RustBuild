@@ -518,19 +518,9 @@ impl ColorDescription {
     pub fn transparency(&self) -> Transparency {
         match self {
             SpecifiedColors(colors) => {
-                let mut have_transparent = false;
-                for color in colors {
-                    match color.alpha() {
-                        0 => {
-                            have_transparent = true
-                        },
-                        u8::MAX => {},
-                        _ => {
-                            return AlphaChannel;
-                        }
-                    }
-                }
-                if have_transparent {
+                if contains_semitransparency(colors) {
+                    AlphaChannel
+                } else if contains_alpha(colors, 0) {
                     BinaryTransparency
                 } else {
                     Opaque
@@ -811,6 +801,21 @@ fn contains_alpha(vec: &Vec<ComparableColor>, needle_alpha: u8) -> bool {
                 Err(insert_white_index) => insert_white_index > 0
             }
         }
+    }
+}
+
+pub fn contains_semitransparency(vec: &Vec<ComparableColor>) -> bool {
+    match vec[0].alpha {
+        0 => if vec.len() == 1 {
+            false
+        } else { match vec[1].alpha {
+            0 => panic!("Transparent color included twice"),
+            u8::MAX => false,
+            _ => true
+        }
+        }
+        u8::MAX => false,
+        _ => true,
     }
 }
 
