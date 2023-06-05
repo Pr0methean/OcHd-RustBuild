@@ -3,12 +3,12 @@ use std::collections::{HashMap};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 
-use std::ops::{Deref, DerefMut, Mul};
+use std::ops::{Deref, DerefMut, Mul, RangeInclusive};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
-use cached::lazy_static::lazy_static;
+use lazy_static::lazy_static;
 use crate::{anyhoo, debug_assert_unreachable};
 use include_dir::{Dir, include_dir};
 use itertools::Itertools;
@@ -18,7 +18,7 @@ use ordered_float::OrderedFloat;
 use png::{BitDepth};
 use replace_with::replace_with_and_return;
 
-use resvg::tiny_skia::{Color, ColorU8, Mask, Pixmap};
+use resvg::tiny_skia::{Color, Mask, Pixmap};
 
 use crate::image_tasks::animate::animate;
 use crate::image_tasks::color::{c, ComparableColor, gray};
@@ -673,9 +673,7 @@ pub fn u32_to_bit_depth_max_eight(depth: u32) -> BitDepth {
     }
 }
 
-lazy_static! {
-    static ref ALL_ALPHA_VALUES: Vec<u8> = (0..=u8::MAX).collect();
-}
+const ALL_ALPHA_VALUES: RangeInclusive<u8> = 0..=u8::MAX;
 
 impl ToAlphaChannelTaskSpec {
     fn get_possible_alpha_values(&self, ctx: &mut TaskGraphBuildingContext) -> Vec<u8> {
@@ -700,11 +698,6 @@ impl ToAlphaChannelTaskSpec {
         ctx.alpha_task_to_alpha_map.insert(self.to_owned(), alpha_vec.to_owned());
         alpha_vec
     }
-}
-
-lazy_static!{
-    pub static ref SEMITRANSPARENT_BLACK_PALETTE: Vec<ComparableColor> = (0..=u8::MAX).map(|alpha| ComparableColor::from(
-        ColorU8::from_rgba(0, 0, 0, alpha))).collect();
 }
 
 fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildingContext) -> PngMode {
@@ -862,7 +855,7 @@ impl ToPixmapTaskSpec {
                 } else if SEMITRANSPARENCY_FREE_SVGS.contains(&source) {
                     SpecifiedColors(vec![ComparableColor::BLACK, ComparableColor::TRANSPARENT])
                 } else {
-                    SpecifiedColors(SEMITRANSPARENT_BLACK_PALETTE.to_owned())
+                    SpecifiedColors(ALL_ALPHA_VALUES.map(|alpha| ComparableColor { red: 0, green: 0, blue: 0, alpha}).collect())
                 }
             },
             ToPixmapTaskSpec::PaintAlphaChannel { color, base } => {
@@ -902,7 +895,7 @@ impl ToPixmapTaskSpec {
             let colors = self.get_color_description(ctx);
             let alphas = match colors.transparency() {
                 AlphaChannel => match colors {
-                    Rgb(_) => (0..=u8::MAX).collect(),
+                    Rgb(_) => ALL_ALPHA_VALUES.collect(),
                     SpecifiedColors(vec) => {
                         let mut alphas: Vec<u8> = vec.into_iter().map(|color| color.alpha()).collect();
                         alphas.sort();
