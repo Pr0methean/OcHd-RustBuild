@@ -9,7 +9,7 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 use cached::lazy_static::lazy_static;
-use crate::anyhoo;
+use crate::{anyhoo, debug_assert_unreachable};
 use include_dir::{Dir, include_dir};
 use itertools::Itertools;
 
@@ -27,7 +27,7 @@ use crate::image_tasks::make_semitransparent::{create_alpha_array, make_semitran
 use crate::image_tasks::MaybeFromPool;
 use crate::image_tasks::png_output::{copy_out_to_out, png_output};
 use crate::image_tasks::repaint::{paint, pixmap_to_mask};
-use crate::image_tasks::stack::{stack_alpha_on_alpha, stack_alpha_on_background, stack_layer_on_background, stack_layer_on_layer};
+use crate::image_tasks::stack::{stack_alpha_on_alpha, stack_alpha_on_background, stack_alpha_pixel, stack_layer_on_background, stack_layer_on_layer};
 use crate::image_tasks::task_spec::ColorDescription::{Rgb, SpecifiedColors};
 use crate::image_tasks::task_spec::PngMode::{GrayscaleAlpha, GrayscaleOpaque, GrayscaleWithTransparentShade, IndexedRgba, IndexedRgbOpaque, Rgba, RgbOpaque, RgbWithTransparentShade};
 use crate::image_tasks::task_spec::Transparency::{AlphaChannel, BinaryTransparency, Opaque};
@@ -458,6 +458,30 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
     }
 }
 
+fn stack_alpha_vecs(background: &[u8], foreground: &[u8]) -> Vec<u8> {
+    let mut combined: Vec<u8> = background.iter().flat_map(|bg_alpha|
+        foreground.iter().map(move |fg_alpha| stack_alpha_pixel(*bg_alpha, *fg_alpha)))
+        .unique().collect();
+    combined.sort();
+    combined.dedup();
+    combined
+}
+
+fn multiply_alpha_vec(alphas: &Vec<u8>, rhs: f32) -> Vec<u8> {
+    if rhs == 0.0 {
+        vec![0]
+    } else if rhs == 1.0 {
+        alphas.to_owned()
+    } else {
+        let alpha_array = create_alpha_array(rhs.into());
+        let mut output: Vec<u8> = alphas.iter().map(|x|
+            alpha_array[*x as usize]).collect();
+        // Don't need to sort because input is sorted
+        output.dedup();
+        output
+    }
+}
+
 #[derive(Clone)]
 pub enum ColorDescription {
     SpecifiedColors(Vec<ComparableColor>),
@@ -542,7 +566,7 @@ impl ColorDescription {
                             }
                             AlphaChannel => {
                                 let mut combined_colors: Vec<ComparableColor> = bg_colors.iter().flat_map(|bg_color|
-                                    bg_color.under(&fg_colors).into_iter()
+                                    bg_color.under(fg_colors.iter().copied()).into_iter()
                                 ).unique().collect();
                                 combined_colors.sort();
                                 Self::collapse_specified(combined_colors)
@@ -648,6 +672,16 @@ pub fn bit_depth_to_u32(depth: &BitDepth) -> u32 {
     }
 }
 
+pub fn u32_to_bit_depth_max_eight(depth: u32) -> BitDepth {
+    match depth {
+        1 => BitDepth::One,
+        2 => BitDepth::Two,
+        4 => BitDepth::Four,
+        8 => BitDepth::Eight,
+        _ => debug_assert_unreachable()
+    }
+}
+
 lazy_static! {
     static ref ALL_ALPHA_VALUES: Vec<u8> = (0..=u8::MAX).collect();
 }
@@ -659,48 +693,17 @@ impl ToAlphaChannelTaskSpec {
         }
         let alpha_vec: Vec<u8> = match self {
             ToAlphaChannelTaskSpec::MakeSemitransparent { alpha, base } => {
-                let alpha_array = create_alpha_array(*alpha);
-                let mut values: Vec<u8> = base.get_possible_alpha_values(ctx).into_iter().map(|alpha| alpha_array[alpha as usize]).collect();
-                values.sort();
-                values.dedup();
-                values
+                multiply_alpha_vec(&base.get_possible_alpha_values(ctx), **alpha)
             }
             ToAlphaChannelTaskSpec::FromPixmap { base } => {
-                match base.get_transparency(ctx) {
-                    Opaque => vec![u8::MAX],
-                    BinaryTransparency => vec![0, u8::MAX],
-                    AlphaChannel => if let SpecifiedColors(colors) = base.get_color_description(ctx) {
-                        let mut alphas: Vec<u8> = colors.iter().map(|color| color.alpha()).collect();
-                        alphas.sort();
-                        alphas.dedup();
-                        alphas
-                    } else {
-                        ALL_ALPHA_VALUES.to_owned()
-                    }
-                }
+                base.get_possible_alpha_values(ctx)
             }
             ToAlphaChannelTaskSpec::StackAlphaOnAlpha { background, foreground } => {
-                let fg_values = foreground.get_possible_alpha_values(ctx);
-                let mut combined_alphas: Vec<u8> = background.get_possible_alpha_values(ctx).into_iter().flat_map(|background_alpha| {
-                    fg_values.iter().map(move |foreground_alpha|
-                         ((255.0 - background_alpha as f32) * (*foreground_alpha as f32 / 255.0)
-                             + background_alpha as f32 + 0.5) as u8
-                    )
-                }).collect();
-                combined_alphas.sort();
-                combined_alphas.dedup();
-                combined_alphas
+                stack_alpha_vecs(&background.get_possible_alpha_values(ctx),
+                                 &foreground.get_possible_alpha_values(ctx))
             }
             ToAlphaChannelTaskSpec::StackAlphaOnBackground { background: background_alpha, foreground } => {
-                let background_alpha = **background_alpha * u8::MAX as f32 + 0.5;
-                let foreground_alpha_mul = 1.0 - background_alpha;
-                let mut combined_alphas: Vec<u8> = foreground.get_possible_alpha_values(ctx).into_iter().map(
-                    move |foreground_alpha|
-                        (background_alpha + foreground_alpha as f32 * foreground_alpha_mul) as u8
-                ).collect();
-                combined_alphas.sort();
-                combined_alphas.dedup();
-                combined_alphas
+                stack_alpha_vecs(&[(**background_alpha * 255.0 + 0.5) as u8], &foreground.get_possible_alpha_values(ctx))
             }
         };
         ctx.alpha_task_to_alpha_map.insert(self.to_owned(), alpha_vec.to_owned());
@@ -717,8 +720,9 @@ fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildin
     match task.get_color_description(ctx) {
         SpecifiedColors(colors) => {
             let transparency = task.get_transparency(ctx);
-            let max_indexed_size = u8::MAX as usize + 1;
             let have_non_gray = colors.iter().any(|color| !color.is_gray());
+            let max_indexed_size = 256;
+            let colors: Vec<ComparableColor> = colors.into_iter().take(max_indexed_size + 1).collect();
             if colors.len() > max_indexed_size && have_non_gray {
                 return match transparency {
                     Opaque => RgbOpaque,
@@ -733,6 +737,15 @@ fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildin
                     GrayscaleAlpha(BitDepth::Eight)
                 }
             } else {
+                let mut grayscale_bits = 1;
+                for color in colors.iter() {
+                    let color_bit_depth = bit_depth_to_u32(&color.bit_depth());
+                    grayscale_bits = grayscale_bits.max(color_bit_depth);
+                    if grayscale_bits == 8 {
+                        break;
+                    }
+                }
+                let grayscale_bit_depth = u32_to_bit_depth_max_eight(grayscale_bits);
                 let indexed_mode = if transparency == Opaque {
                     IndexedRgbOpaque(colors.to_owned())
                 } else {
@@ -741,9 +754,6 @@ fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildin
                 if have_non_gray {
                     return indexed_mode;
                 }
-                let grayscale_bit_depth = colors.iter().max_by_key(
-                    |color| bit_depth_to_u32(&color.bit_depth()))
-                    .unwrap().bit_depth();
                 let grayscale_mode = match transparency {
                     AlphaChannel => GrayscaleAlpha(grayscale_bit_depth),
                     BinaryTransparency => {
@@ -774,6 +784,32 @@ fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildin
         Rgb(Opaque) => RgbOpaque,
         Rgb(BinaryTransparency) => RgbWithTransparentShade(c(0xc0ff3e)),
         Rgb(AlphaChannel) => Rgba
+    }
+}
+
+const BINARY_SEARCH_THRESHOLD: usize = 1024;
+
+fn contains_alpha(vec: &Vec<ComparableColor>, needle_alpha: u8) -> bool {
+    if vec.len() <= BINARY_SEARCH_THRESHOLD {
+        vec.iter().any(|color| color.alpha() == needle_alpha)
+    } else {
+        match vec.binary_search(&ComparableColor {
+            alpha: needle_alpha,
+            red: 0,
+            green: 0,
+            blue: 0
+        }) {
+            Ok(_) => true,
+            Err(insert_black_index) => match vec[insert_black_index..].binary_search(&ComparableColor {
+                alpha: needle_alpha,
+                red: u8::MAX,
+                green: u8::MAX,
+                blue: u8::MAX
+            }) {
+                Ok(_) => true,
+                Err(insert_white_index) => insert_white_index > 0
+            }
+        }
     }
 }
 
@@ -852,6 +888,33 @@ impl ToPixmapTaskSpec {
         ctx.pixmap_task_to_color_map.insert(self.to_owned(), desc.to_owned());
         desc
     }
+
+    fn get_possible_alpha_values(&self, ctx: &mut TaskGraphBuildingContext) -> Vec<u8> {
+        if let Some(alphas) = ctx.pixmap_task_to_alpha_map.get(self) {
+            alphas.to_owned()
+        } else {
+            let colors = self.get_color_description(ctx);
+            let alphas = match colors.transparency() {
+                AlphaChannel => match colors {
+                    Rgb(_) => (0..=u8::MAX).collect(),
+                    SpecifiedColors(vec) => if vec.len() <= BINARY_SEARCH_THRESHOLD {
+                        let mut alphas: Vec<u8> = vec.into_iter().map(|color| color.alpha()).collect();
+                        alphas.sort();
+                        alphas.dedup();
+                        alphas
+                    } else {
+                        (0..=u8::MAX)
+                            .filter(|alpha| contains_alpha(&vec, *alpha))
+                            .collect()
+                    }
+                },
+                BinaryTransparency => vec![0, u8::MAX],
+                Opaque => vec![u8::MAX]
+            };
+            ctx.pixmap_task_to_alpha_map.insert(self.to_owned(), alphas.to_owned());
+            alphas
+        }
+    }
 }
 
 impl From<ToPixmapTaskSpec> for ToAlphaChannelTaskSpec {
@@ -866,6 +929,7 @@ pub struct TaskGraphBuildingContext {
     pub output_task_to_future_map: HashMap<FileOutputTaskSpec, CloneableLazyTask<()>>,
     pixmap_task_to_color_map: HashMap<ToPixmapTaskSpec, ColorDescription>,
     alpha_task_to_alpha_map: HashMap<ToAlphaChannelTaskSpec, Vec<u8>>,
+    pixmap_task_to_alpha_map: HashMap<ToPixmapTaskSpec, Vec<u8>>,
     pixmap_task_to_transparency_map: HashMap<ToPixmapTaskSpec, Transparency>
 }
 
@@ -877,6 +941,7 @@ impl TaskGraphBuildingContext {
             output_task_to_future_map: HashMap::new(),
             pixmap_task_to_color_map: HashMap::new(),
             alpha_task_to_alpha_map: HashMap::new(),
+            pixmap_task_to_alpha_map: HashMap::new(),
             pixmap_task_to_transparency_map: HashMap::new()
         }
     }

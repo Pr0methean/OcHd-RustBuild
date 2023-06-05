@@ -1,7 +1,6 @@
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
-use std::hint::unreachable_unchecked;
 use std::ops::Mul;
 use lazy_static::lazy_static;
 use palette::{Srgba};
@@ -12,7 +11,7 @@ use resvg::tiny_skia::{Color};
 use resvg::tiny_skia::ColorU8;
 use resvg::tiny_skia::PremultipliedColor;
 use resvg::tiny_skia::PremultipliedColorU8;
-use crate::image_tasks::task_spec::bit_depth_to_u32;
+use crate::image_tasks::task_spec::{bit_depth_to_u32, u32_to_bit_depth_max_eight};
 use bytemuck::{cast, Pod, Zeroable};
 
 /// Wrapper around [ColorU8] that implements important missing traits such as [Eq], [Hash], [Copy],
@@ -66,14 +65,15 @@ impl ComparableColor {
     pub fn blue(&self) -> u8 { self.blue}
     pub fn alpha(&self) -> u8 { self.alpha}
 
-    pub fn under(self, foregrounds: &[ComparableColor]) -> Vec<ComparableColor> {
+    pub fn under<T>(self, foregrounds: T) -> Vec<ComparableColor>
+        where T: Iterator<Item=ComparableColor> {
         if self.alpha == 0 {
-            Vec::from(foregrounds)
+            foregrounds.collect()
         } else {
             let self_as_f32 = self.as_f32_srgba().premultiply();
-            foregrounds.iter().map(|fg_color| {
+            foregrounds.map(|fg_color| {
                 if fg_color.alpha() == u8::MAX {
-                    *fg_color
+                    fg_color
                 } else {
                     let foreground_as_f32 = fg_color.as_f32_srgba().premultiply();
                     let blended_as_srgb8: Srgba<u8>
@@ -158,16 +158,10 @@ impl ComparableColor {
         if self.alpha() == 0 {
             BitDepth::One
         } else {
-            match bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL_VALUE[self.red as usize])
+            u32_to_bit_depth_max_eight(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL_VALUE[self.red as usize])
                 .max(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL_VALUE[self.green as usize]))
                 .max(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL_VALUE[self.blue as usize]))
-                .max(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL_VALUE[self.alpha as usize])) {
-                1 => BitDepth::One,
-                2 => BitDepth::Two,
-                4 => BitDepth::Four,
-                8 => BitDepth::Eight,
-                _ => unsafe { unreachable_unchecked() }
-            }
+                .max(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL_VALUE[self.alpha as usize])))
         }
     }
 }
@@ -293,11 +287,13 @@ impl Hash for ComparableColor {
 
 #[test]
 fn test_under() {
+    use std::iter::once;
+
     let semi_black = rgba(0, 0, 0, 127);
-    assert_eq!(ComparableColor::TRANSPARENT.under(&[semi_black]), &[semi_black]);
-    assert_eq!(ComparableColor::WHITE.under(&[semi_black]), &[gray(128)]);
-    assert_eq!(semi_black.under(&[ComparableColor::WHITE]), &[ComparableColor::WHITE]);
-    assert_eq!(semi_black.under(&[semi_black]), &[rgba(0, 0, 0, 191)]);
+    assert_eq!(ComparableColor::TRANSPARENT.under(once(semi_black)), &[semi_black]);
+    assert_eq!(ComparableColor::WHITE.under(once(semi_black)), &[gray(128)]);
+    assert_eq!(semi_black.under(once(ComparableColor::WHITE)), &[ComparableColor::WHITE]);
+    assert_eq!(semi_black.under(once(semi_black)), &[rgba(0, 0, 0, 191)]);
 }
 
 #[test]
