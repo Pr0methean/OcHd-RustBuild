@@ -66,15 +66,14 @@ impl ComparableColor {
     pub fn blue(&self) -> u8 { self.blue}
     pub fn alpha(&self) -> u8 { self.alpha}
 
-    pub fn under<T>(self, foregrounds: T) -> Vec<ComparableColor>
-        where T: Iterator<Item=ComparableColor> {
+    pub fn under(self, foregrounds: &[ComparableColor]) -> Vec<ComparableColor> {
         if self.alpha == 0 {
-            foregrounds.collect()
+            Vec::from(foregrounds)
         } else {
             let self_as_f32 = self.as_f32_srgba().premultiply();
-            foregrounds.map(|fg_color| {
+            foregrounds.iter().map(|fg_color| {
                 if fg_color.alpha() == u8::MAX {
-                    fg_color
+                    *fg_color
                 } else {
                     let foreground_as_f32 = fg_color.as_f32_srgba().premultiply();
                     let blended_as_srgb8: Srgba<u8>
@@ -297,10 +296,10 @@ fn test_under() {
     use std::iter::once;
 
     let semi_black = rgba(0, 0, 0, 127);
-    assert_eq!(ComparableColor::TRANSPARENT.under(once(semi_black)), &[semi_black]);
-    assert_eq!(ComparableColor::WHITE.under(once(semi_black)), &[gray(128)]);
-    assert_eq!(semi_black.under(once(ComparableColor::WHITE)), &[ComparableColor::WHITE]);
-    assert_eq!(semi_black.under(once(semi_black)), &[rgba(0, 0, 0, 191)]);
+    assert_eq!(ComparableColor::TRANSPARENT.under(&[semi_black]), &[semi_black]);
+    assert_eq!(ComparableColor::WHITE.under(&[semi_black]), &[gray(128)]);
+    assert_eq!(semi_black.under(&[ComparableColor::WHITE]), &[ComparableColor::WHITE]);
+    assert_eq!(semi_black.under(&[semi_black]), &[rgba(0, 0, 0, 191)]);
 }
 
 #[test]

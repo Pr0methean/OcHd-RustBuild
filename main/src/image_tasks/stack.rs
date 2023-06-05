@@ -28,13 +28,10 @@ pub(crate) fn stack_alpha_on_alpha(background: &mut Mask, foreground: &Mask) {
 
 pub fn stack_alpha_on_background(background_alpha: f32, foreground: &mut Mask)
 {
-    let background_alpha = (background_alpha * u8::MAX as f32 + 0.5) as u8;
-    for pixel in foreground.data_mut() {
-        *pixel = stack_alpha_pixel(background_alpha, *pixel);
+    let foreground_alpha_mul = 1.0 - background_alpha;
+    let background_alpha = background_alpha * u8::MAX as f32 + 0.5;
+    let output_pixels = foreground.data_mut();
+    for pixel in output_pixels {
+        *pixel = (background_alpha + *pixel as f32 * foreground_alpha_mul) as u8;
     }
-}
-
-pub fn stack_alpha_pixel(background: u8, foreground: u8) -> u8 {
-    let foreground_alpha_mul = (u8::MAX - background) as f32 / 255.0;
-    (foreground as f32 * foreground_alpha_mul + background as f32 + 0.5) as u8
 }
