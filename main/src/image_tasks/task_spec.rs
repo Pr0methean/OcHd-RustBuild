@@ -569,6 +569,7 @@ impl ColorDescription {
                                     bg_color.under(fg_colors.iter().copied()).into_iter()
                                 ).unique().collect();
                                 combined_colors.sort();
+                                combined_colors.dedup();
                                 Self::collapse_specified(combined_colors)
                             }
                         }
