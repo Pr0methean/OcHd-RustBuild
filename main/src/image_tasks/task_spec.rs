@@ -853,7 +853,7 @@ impl ToPixmapTaskSpec {
                         Rgb(AlphaChannel)
                     }
                 } else if SEMITRANSPARENCY_FREE_SVGS.contains(&source) {
-                    SpecifiedColors(vec![ComparableColor::BLACK, ComparableColor::TRANSPARENT])
+                    SpecifiedColors(vec![ComparableColor::TRANSPARENT, ComparableColor::BLACK])
                 } else {
                     SpecifiedColors(ALL_ALPHA_VALUES.map(|alpha| ComparableColor { red: 0, green: 0, blue: 0, alpha}).collect())
                 }
