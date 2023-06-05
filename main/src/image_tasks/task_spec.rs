@@ -512,7 +512,7 @@ impl Transparency {
 
 // Should be more than the number of colors allowed in an indexed-mode PNG, since blending over a
 // solid color may narrow the list of distinct colors.
-const MAX_SPECIFIED_COLORS: usize = 512;
+const MAX_SPECIFIED_COLORS: usize = 384;
 
 impl ColorDescription {
     pub fn transparency(&self) -> Transparency {
@@ -903,15 +903,11 @@ impl ToPixmapTaskSpec {
             let alphas = match colors.transparency() {
                 AlphaChannel => match colors {
                     Rgb(_) => (0..=u8::MAX).collect(),
-                    SpecifiedColors(vec) => if vec.len() <= BINARY_SEARCH_THRESHOLD {
+                    SpecifiedColors(vec) => {
                         let mut alphas: Vec<u8> = vec.into_iter().map(|color| color.alpha()).collect();
                         alphas.sort();
                         alphas.dedup();
                         alphas
-                    } else {
-                        (0..=u8::MAX)
-                            .filter(|alpha| contains_alpha(&vec, *alpha))
-                            .collect()
                     }
                 },
                 BinaryTransparency => vec![0, u8::MAX],
