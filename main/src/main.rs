@@ -20,6 +20,7 @@ mod materials;
 use std::env;
 use std::fs;
 use std::fs::create_dir_all;
+use std::hint::unreachable_unchecked;
 use std::ops::{DerefMut};
 use include_dir::{Dir, DirEntry};
 use lazy_static::lazy_static;
@@ -45,6 +46,13 @@ lazy_static! {
 
 #[global_allocator]
 static ALLOCATOR: Jemalloc = Jemalloc;
+
+#[allow(unreachable_code)]
+pub fn debug_assert_unreachable<T>() -> T {
+    #[cfg(debug_assertions)]
+    unreachable!();
+    unsafe {unreachable_unchecked()}
+}
 
 fn copy_metadata(source_dir: &Dir) {
     source_dir.entries().iter().for_each(
