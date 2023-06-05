@@ -3,7 +3,7 @@ use std::collections::{HashMap};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 
-use std::ops::{Deref, DerefMut, Mul, RangeInclusive};
+use std::ops::{Deref, DerefMut, Mul};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
@@ -673,7 +673,20 @@ pub fn u32_to_bit_depth_max_eight(depth: u32) -> BitDepth {
     }
 }
 
-const ALL_ALPHA_VALUES: RangeInclusive<u8> = 0..=u8::MAX;
+const fn all_u8s() -> [u8; u8::MAX as usize + 1] {
+    let mut x = [0; u8::MAX as usize + 1];
+    let mut i: u8 = 1;
+    loop {
+        x[i as usize] = i;
+        if i == u8::MAX {
+            return x;
+        } else {
+            i += 1;
+        }
+    }
+}
+
+const ALL_U8S: [u8; 256] = all_u8s();
 
 impl ToAlphaChannelTaskSpec {
     fn get_possible_alpha_values(&self, ctx: &mut TaskGraphBuildingContext) -> Vec<u8> {
@@ -745,7 +758,7 @@ fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildin
                             BitDepth::One => vec![ComparableColor::BLACK, ComparableColor::WHITE],
                             BitDepth::Two => vec![gray(0x00), gray(0x55), gray(0xAA), gray(0xFF)],
                             BitDepth::Four => (0..16).map(|n| gray(n * 0x11)).collect(),
-                            BitDepth::Eight => (0..=u8::MAX).map(gray).collect(),
+                            BitDepth::Eight => ALL_U8S.iter().copied().map(gray).collect(),
                             BitDepth::Sixteen => panic!("16-bit greyscale not handled")
                         };
                         match grayscale_shades.into_iter().find(|color| !colors.contains(color)) {
@@ -855,7 +868,8 @@ impl ToPixmapTaskSpec {
                 } else if SEMITRANSPARENCY_FREE_SVGS.contains(&source) {
                     SpecifiedColors(vec![ComparableColor::TRANSPARENT, ComparableColor::BLACK])
                 } else {
-                    SpecifiedColors(ALL_ALPHA_VALUES.map(|alpha| ComparableColor { red: 0, green: 0, blue: 0, alpha}).collect())
+                    SpecifiedColors(ALL_U8S.iter()
+                        .map(|alpha| ComparableColor { red: 0, green: 0, blue: 0, alpha: *alpha}).collect())
                 }
             },
             ToPixmapTaskSpec::PaintAlphaChannel { color, base } => {
@@ -895,7 +909,7 @@ impl ToPixmapTaskSpec {
             let colors = self.get_color_description(ctx);
             let alphas = match colors.transparency() {
                 AlphaChannel => match colors {
-                    Rgb(_) => ALL_ALPHA_VALUES.collect(),
+                    Rgb(_) => ALL_U8S.to_vec(),
                     SpecifiedColors(vec) => {
                         let mut alphas: Vec<u8> = vec.into_iter().map(|color| color.alpha()).collect();
                         alphas.sort();
