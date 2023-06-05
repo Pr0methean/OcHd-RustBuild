@@ -460,7 +460,7 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum AlphaIterable {
     Discrete(Vec<u8>),
     Range {min: u8, max: u8}
@@ -567,13 +567,8 @@ impl Mul<f32> for AlphaIterable {
             self
         } else {
             match self {
-                Discrete(vec) => {
-                    let mut multiplied: Vec<u8> = vec.into_iter().map(|x|
-                        stack_alpha_pixel(0, x)).collect();
-                    multiplied.sort();
-                    multiplied.dedup();
-                    Discrete(multiplied)
-                },
+                Discrete(vec) => Discrete(vec.into_iter().map(|x|
+                    stack_alpha_pixel(0, x)).unique().collect()),
                 Range { min, max } => Range {min: ((min as f32) * rhs + 0.5) as u8,
                     max: ((max as f32) * rhs + 0.5) as u8},
             }
@@ -596,7 +591,7 @@ impl Add<u8> for AlphaIterable {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum ColorIterable {
     Discrete(Vec<ComparableColor>),
     MultiplyAlpha {color: ComparableColor, alphas: AlphaIterable},
@@ -734,13 +729,15 @@ impl ColorDescription {
             SpecifiedColors(bg_colors) => {
                 match &self {
                     Rgb(transparency) => Rgb(transparency.stack_on(&background.transparency())),
-                    SpecifiedColors(fg_colors) => SpecifiedColors(match self.transparency() {
-                            Opaque => fg_colors.clone(),
-                            BinaryTransparency => bg_colors.union(fg_colors),
-                            AlphaChannel => Stacked {
-                                backgrounds: bg_colors.clone().into(), foregrounds: fg_colors.clone().into()
-                            }
-                    })
+                    SpecifiedColors(fg_colors) => {
+                        match self.transparency() {
+                            Opaque => SpecifiedColors(fg_colors.clone()),
+                            BinaryTransparency => SpecifiedColors(Union(
+                                bg_colors.clone().into(), fg_colors.clone().into())),
+                            AlphaChannel => SpecifiedColors(Stacked {
+                                backgrounds: bg_colors.clone().into(), foregrounds: fg_colors.clone().into()})
+                        }
+                    }
                 }
             }
         }
@@ -987,7 +984,7 @@ impl ToPixmapTaskSpec {
                         Rgb(AlphaChannel)
                     }
                 } else if SEMITRANSPARENCY_FREE_SVGS.contains(&source) {
-                    SpecifiedColors(ColorIterable::Discrete(vec![ComparableColor::TRANSPARENT, ComparableColor::BLACK]))
+                    SpecifiedColors(ColorIterable::Discrete(vec![ComparableColor::BLACK, ComparableColor::TRANSPARENT]))
                 } else {
                     SpecifiedColors(MultiplyAlpha {color: ComparableColor::BLACK, alphas: Range {min: 0, max: u8::MAX}})
                 }
