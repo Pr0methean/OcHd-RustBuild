@@ -4,8 +4,6 @@ use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 
 use std::ops::{Deref, DerefMut, Mul};
-use std::path::{PathBuf};
-use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 use crate::{anyhoo, debug_assert_unreachable};
@@ -63,9 +61,9 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                 })
             },
             ToPixmapTaskSpec::FromSvg { source } => {
-                let source = source.to_owned();
+                let source = source.to_string();
                 Box::new(move || {
-                    Ok(Box::new(from_svg(&source, *TILE_SIZE)?))
+                    Ok(Box::new(from_svg(source, *TILE_SIZE)?))
                 })
             },
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
@@ -173,23 +171,23 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
             return existing_future.to_owned();
         }
         let function: LazyTaskFunction<()> = match self {
-            FileOutputTaskSpec::PngOutput {base, destination } => {
-                let destination = destination.to_owned();
+            FileOutputTaskSpec::PngOutput {base, .. } => {
+                let destination_path = self.get_path();
                 let base_future = base.add_to(ctx);
                 let png_mode = color_description_to_mode(base, ctx);
                 Box::new(move || {
                     let base_result = base_future.into_result()?;
                     Ok(Box::new(png_output(*Arc::unwrap_or_clone(base_result),
-                                           png_mode, &destination)?))
+                                           png_mode, destination_path)?))
                 })
             }
-            FileOutputTaskSpec::Copy {original, link} => {
-                let link = link.to_owned();
+            FileOutputTaskSpec::Copy {original, ..} => {
+                let link = self.get_path();
                 let original_path = original.get_path();
                 let base_future = original.add_to(ctx);
                 Box::new(move || {
                     base_future.into_result()?;
-                    Ok(Box::new(copy_out_to_out(&original_path, &link)?))
+                    Ok(Box::new(copy_out_to_out(original_path, link)?))
                 })
             }
         };
@@ -206,7 +204,7 @@ pub type CloneableResult<T> = Result<Arc<Box<T>>, CloneableError>;
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum ToPixmapTaskSpec {
     Animate {background: Box<ToPixmapTaskSpec>, frames: Vec<ToPixmapTaskSpec>},
-    FromSvg {source: PathBuf},
+    FromSvg {source: String},
     PaintAlphaChannel {base: Box<ToAlphaChannelTaskSpec>, color: ComparableColor},
     StackLayerOnColor {background: ComparableColor, foreground: Box<ToPixmapTaskSpec>},
     StackLayerOnLayer {background: Box<ToPixmapTaskSpec>, foreground: Box<ToPixmapTaskSpec>},
@@ -225,15 +223,25 @@ pub enum ToAlphaChannelTaskSpec {
 /// [TaskSpec] for a task that doesn't produce a heap object as output.
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum FileOutputTaskSpec {
-    PngOutput {base: ToPixmapTaskSpec, destination: PathBuf},
-    Copy {original: Box<FileOutputTaskSpec>, link: PathBuf}
+    PngOutput {base: ToPixmapTaskSpec, destination_name: String},
+    Copy {original: Box<FileOutputTaskSpec>, link_name: String}
 }
 
 impl FileOutputTaskSpec {
-    pub(crate) fn get_path(&self) -> PathBuf {
+    pub(crate) fn get_path(&self) -> String {
         match self {
-            FileOutputTaskSpec::PngOutput { destination, .. } => destination.to_owned(),
-            FileOutputTaskSpec::Copy { link, .. } => link.to_owned()
+            FileOutputTaskSpec::PngOutput { destination_name, .. } => {
+                let mut out_path = ASSET_DIR.to_string();
+                out_path.push_str(destination_name);
+                out_path.push_str(".png");
+                out_path
+            },
+            FileOutputTaskSpec::Copy { link_name, .. } => {
+                let mut out_path = ASSET_DIR.to_string();
+                out_path.push_str(link_name);
+                out_path.push_str(".png");
+                out_path
+            }
         }
     }
 }
@@ -301,7 +309,7 @@ impl Display for ToPixmapTaskSpec {
                 write!(f, "animate({};{})", background, frames.iter().join(";"))
             }
             ToPixmapTaskSpec::FromSvg { source } => {
-                write!(f, "{}", source.to_string_lossy())
+                f.write_str(source)
             }
             ToPixmapTaskSpec::PaintAlphaChannel { base, color } => {
                 if let ToAlphaChannelTaskSpec::FromPixmap {base: base_of_base} = &**base {
@@ -326,11 +334,11 @@ impl Display for ToPixmapTaskSpec {
 impl Display for FileOutputTaskSpec {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(&match self {
-            FileOutputTaskSpec::PngOutput { destination, .. } => {
-                destination.to_string_lossy().to_string()
+            FileOutputTaskSpec::PngOutput { .. } => {
+                self.get_path()
             },
-            FileOutputTaskSpec::Copy { original, link } => {
-                format!("symlink({} -> {})", link.to_string_lossy(), original.to_string())
+            FileOutputTaskSpec::Copy { original, .. } => {
+                format!("symlink({} -> {})", self.get_path(), original.get_path())
             }
         })
     }
@@ -856,14 +864,13 @@ impl ToPixmapTaskSpec {
                 current_desc.unwrap()
             },
             ToPixmapTaskSpec::FromSvg { source } => {
-                let source: &str = &source.to_string_lossy();
-                if COLOR_SVGS.contains(&source) {
-                    if SEMITRANSPARENCY_FREE_SVGS.contains(&source) {
+                if COLOR_SVGS.contains(&source.as_str()) {
+                    if SEMITRANSPARENCY_FREE_SVGS.contains(&source.as_str()) {
                         Rgb(BinaryTransparency)
                     } else {
                         Rgb(AlphaChannel)
                     }
-                } else if SEMITRANSPARENCY_FREE_SVGS.contains(&source) {
+                } else if SEMITRANSPARENCY_FREE_SVGS.contains(&source.as_str()) {
                     SpecifiedColors(vec![ComparableColor::TRANSPARENT, ComparableColor::BLACK])
                 } else {
                     SpecifiedColors(ALL_U8S.iter()
@@ -959,20 +966,12 @@ pub const METADATA_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/metadata");
 
 pub const ASSET_DIR: &str = "assets/minecraft/textures/";
 
-pub fn name_to_out_path(name: &str) -> PathBuf {
-    PathBuf::from(ASSET_DIR).join(format!("{}.png", name))
-}
-
-pub fn name_to_svg_path(name: &str) -> PathBuf {
-    PathBuf::from(format!("{}.svg", name))
-}
-
 pub fn from_svg_task(name: &str) -> ToPixmapTaskSpec {
-    ToPixmapTaskSpec::FromSvg {source: name_to_svg_path(name)}
+    ToPixmapTaskSpec::FromSvg {source: name.to_string()}
 }
 
 pub fn svg_alpha_task(name: &str) -> ToAlphaChannelTaskSpec {
-    ToAlphaChannelTaskSpec::from(from_svg_task(name))
+    ToAlphaChannelTaskSpec::FromPixmap { base: from_svg_task(name) }
 }
 
 
@@ -981,7 +980,7 @@ pub fn paint_task(base: ToAlphaChannelTaskSpec, color: ComparableColor) -> ToPix
         match base_base {
             ToPixmapTaskSpec::FromSvg { ref source } => {
                 if color == ComparableColor::BLACK
-                    && !COLOR_SVGS.contains(&&*source.to_string_lossy()) {
+                    && !COLOR_SVGS.contains(&source.as_str()) {
                     info!("Simplified {}@{} -> {}", base, color, base_base);
                     return base_base.to_owned();
                 }
@@ -999,17 +998,20 @@ pub fn paint_task(base: ToAlphaChannelTaskSpec, color: ComparableColor) -> ToPix
 }
 
 pub fn paint_svg_task(name: &str, color: ComparableColor) -> ToPixmapTaskSpec {
-    if color.red() == 0 && color.green() == 0 && color.blue() == 0 && color.alpha() == u8::MAX
-        && !COLOR_SVGS.contains(&&*name_to_svg_path(name).to_string_lossy()) {
+    if color == ComparableColor::BLACK
+        && !COLOR_SVGS.contains(&name) {
         info!("Simplified {}@{} -> {}", name, color, name);
         from_svg_task(name)
     } else {
-        paint_task(ToAlphaChannelTaskSpec::FromPixmap { base: from_svg_task(name) }, color)
+        ToPixmapTaskSpec::PaintAlphaChannel {
+            base: Box::new(ToAlphaChannelTaskSpec::FromPixmap { base: from_svg_task(name) }),
+            color
+        }
     }
 }
 
 pub fn out_task(name: &str, base: ToPixmapTaskSpec) -> FileOutputTaskSpec {
-    FileOutputTaskSpec::PngOutput {base, destination: name_to_out_path(name) }
+    FileOutputTaskSpec::PngOutput {base, destination_name: name.to_string() }
 }
 
 fn stack_alpha_presorted(mut layers: Vec<ToAlphaChannelTaskSpec>) -> ToAlphaChannelTaskSpec {
@@ -1117,16 +1119,6 @@ macro_rules! stack_alpha {
             ),*
         ])
     };
-}
-
-impl FromStr for ToPixmapTaskSpec {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(ToPixmapTaskSpec::FromSvg {
-            source: name_to_svg_path(s)
-        })
-    }
 }
 
 impl Mul<f32> for ToAlphaChannelTaskSpec {

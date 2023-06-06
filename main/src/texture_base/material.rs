@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 use std::hash::Hash;
-use std::path::{PathBuf};
 
 use crate::anyhoo;
 
@@ -15,7 +14,7 @@ pub trait Material: Send {
 
     fn get_output_task_by_name(&self, name: &str) -> Result<FileOutputTaskSpec, CloneableError> {
         for output_task in self.get_output_tasks() {
-            if output_task.get_path().to_string_lossy().contains(name) {
+            if output_task.get_path().contains(name) {
                 return Ok(output_task);
             }
         }
@@ -140,12 +139,20 @@ macro_rules! single_texture_material {
 #[macro_export]
 macro_rules! single_layer_material {
     ($name:ident = $directory:expr, $layer_name:expr, $color:expr ) => {
-        $crate::material!($name = $directory,
-            $crate::image_tasks::task_spec::paint_svg_task($layer_name, $color));
+        pub const $name: $crate::texture_base::material::SingleLayerMaterial =
+            $crate::texture_base::material::SingleLayerMaterial {
+            name: const_format::concatcp!(
+                const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
+                "/",
+                $directory
+            ),
+            layer_name: $layer_name,
+            color: $color
+        };
     };
     ($name:ident = $directory:expr, $layer_name:expr) => {
-        $crate::material!($name = $directory,
-            $crate::image_tasks::task_spec::from_svg_task($layer_name));
+        $crate::single_layer_material!($name = $directory, $layer_name,
+        $crate::image_tasks::color::ComparableColor::BLACK);
     };
 }
 
@@ -211,7 +218,7 @@ macro_rules! single_layer_particle {
 }
 
 pub struct CopiedMaterial {
-    pub name: PathBuf,
+    pub name: &'static str,
     pub source: FileOutputTaskSpec
 }
 
@@ -219,7 +226,7 @@ impl Material for CopiedMaterial {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         vec![FileOutputTaskSpec::Copy {
             original: Box::new(self.source.to_owned()),
-            link: self.name.to_owned()
+            link_name: self.name.to_string()
         }]
     }
 }
@@ -229,9 +236,7 @@ macro_rules! copy_block {
     ($name:ident = $base:expr, $base_name:expr) => {
         lazy_static::lazy_static! {pub static ref $name: $crate::texture_base::material::CopiedMaterial =
         $crate::texture_base::material::CopiedMaterial {
-            name: $crate::image_tasks::task_spec::name_to_out_path(
-                const_format::formatcp!("block/{}", const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)))
-            ),
+            name: const_format::formatcp!("block/{}", const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name))),
             source: {
                 use $crate::texture_base::material::Material;
                 $base.get_output_task_by_name($base_name).unwrap()

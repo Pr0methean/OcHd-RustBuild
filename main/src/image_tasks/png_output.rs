@@ -3,7 +3,6 @@ use include_dir::{File};
 use std::io::{Cursor, Write};
 use std::mem::transmute;
 use std::ops::{Deref, DerefMut};
-use std::path::{Path};
 use std::sync::{Arc, Mutex};
 use bitstream_io::{BigEndian, BitWrite, BitWriter};
 use bytemuck::{cast};
@@ -82,25 +81,25 @@ pub fn prewarm_png_buffer_pool() {
     PNG_BUFFER_POOL.pull();
 }
 
-pub fn png_output(image: MaybeFromPool<Pixmap>, png_mode: PngMode, file: &Path) -> Result<(),CloneableError> {
+pub fn png_output(image: MaybeFromPool<Pixmap>, png_mode: PngMode, file_path: String) -> Result<(),CloneableError> {
     let data = into_png(image, png_mode)?;
     let mut zip = ZIP.lock()?;
     let writer = zip.deref_mut();
-    writer.start_file(file.to_string_lossy(), PNG_ZIP_OPTIONS.to_owned())?;
+    writer.start_file(file_path, PNG_ZIP_OPTIONS.to_owned())?;
     writer.write_all(&data)?;
     drop(zip);
     Ok(())
 }
 
-pub fn copy_out_to_out(source: &Path, dest: &Path) -> Result<(),CloneableError> {
-    ZIP.lock()?.deep_copy_file(&source.to_string_lossy(), &dest.to_string_lossy())?;
+pub fn copy_out_to_out(source_path: String, dest_path: String) -> Result<(),CloneableError> {
+    ZIP.lock()?.deep_copy_file(&source_path, &dest_path)?;
     Ok(())
 }
 
-pub fn copy_in_to_out(source: &File, dest: &Path) -> Result<(),CloneableError> {
+pub fn copy_in_to_out(source: &File, dest_path: String) -> Result<(),CloneableError> {
     let mut zip = ZIP.lock()?;
     let writer = zip.deref_mut();
-    writer.start_file(dest.to_string_lossy(), METADATA_ZIP_OPTIONS.to_owned())?;
+    writer.start_file(dest_path, METADATA_ZIP_OPTIONS.to_owned())?;
     writer.write_all(source.contents())?;
     Ok(())
 }
