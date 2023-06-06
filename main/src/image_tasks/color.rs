@@ -2,7 +2,6 @@ use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::ops::Mul;
-use lazy_static::lazy_static;
 use palette::{Srgba};
 use palette::blend::{Compose};
 use png::BitDepth;
@@ -44,20 +43,21 @@ impl Ord for ComparableColor {
     }
 }
 
-lazy_static!{
-    static ref BIT_DEPTH_FOR_CHANNEL_VALUE: [BitDepth; u8::MAX as usize + 1] = {
-        let mut depth = [BitDepth::Eight; u8::MAX as usize + 1];
-        for x in 1..=0xE {
-            depth[x * 0x11] = BitDepth::Four;
-        }
-        for x in 1..3 {
-            depth[x * 0x55] = BitDepth::Two;
-        }
-        depth[0] = BitDepth::One;
-        depth[u8::MAX as usize] = BitDepth::One;
-        depth
-    };
+const fn bit_depth_for_channel_value() -> [BitDepth; u8::MAX as usize + 1] {
+    let mut depth = [BitDepth::Eight; u8::MAX as usize + 1];
+    let mut x = 1;
+    while x <= 0xE {
+        depth[x * 0x11] = BitDepth::Four;
+        x += 1;
+    }
+    depth[0x55] = BitDepth::Two;
+    depth[0xAA] = BitDepth::Two;
+    depth[0] = BitDepth::One;
+    depth[u8::MAX as usize] = BitDepth::One;
+    depth
 }
+
+pub const BIT_DEPTH_FOR_CHANNEL: [BitDepth; u8::MAX as usize + 1] = bit_depth_for_channel_value();
 
 impl ComparableColor {
     pub fn red(&self) -> u8 { self.red}
@@ -158,10 +158,10 @@ impl ComparableColor {
         if self.alpha() == 0 {
             BitDepth::One
         } else {
-            u32_to_bit_depth_max_eight(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL_VALUE[self.red as usize])
-                .max(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL_VALUE[self.green as usize]))
-                .max(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL_VALUE[self.blue as usize]))
-                .max(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL_VALUE[self.alpha as usize])))
+            u32_to_bit_depth_max_eight(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL[self.red as usize])
+                .max(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL[self.green as usize]))
+                .max(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL[self.blue as usize]))
+                .max(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL[self.alpha as usize])))
         }
     }
 }

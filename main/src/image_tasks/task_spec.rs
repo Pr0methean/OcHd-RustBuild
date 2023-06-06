@@ -21,7 +21,7 @@ use replace_with::replace_with_and_return;
 use resvg::tiny_skia::{Color, Mask, Pixmap};
 
 use crate::image_tasks::animate::animate;
-use crate::image_tasks::color::{c, ComparableColor, gray};
+use crate::image_tasks::color::{BIT_DEPTH_FOR_CHANNEL, c, ComparableColor, gray};
 use crate::image_tasks::from_svg::{COLOR_SVGS, from_svg, SEMITRANSPARENCY_FREE_SVGS};
 use crate::image_tasks::make_semitransparent::{create_alpha_array, make_semitransparent};
 use crate::image_tasks::MaybeFromPool;
@@ -736,7 +736,8 @@ fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildin
             } else {
                 let mut grayscale_bits = 1;
                 for color in colors.iter() {
-                    let color_bit_depth = bit_depth_to_u32(&color.bit_depth());
+                    let color_bit_depth = bit_depth_to_u32(
+                        &BIT_DEPTH_FOR_CHANNEL[color.red() as usize]);
                     grayscale_bits = grayscale_bits.max(color_bit_depth);
                     if grayscale_bits == 8 {
                         break;
