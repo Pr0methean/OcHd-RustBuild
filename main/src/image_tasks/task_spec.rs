@@ -596,7 +596,7 @@ pub enum PngMode {
         bit_depth: BitDepth,
         transparent_shade: u8,
     },
-    GrayscaleAlpha(BitDepth),
+    GrayscaleAlpha,
     RgbOpaque,
     RgbWithTransparentShade(ComparableColor),
     Rgba
@@ -630,7 +630,7 @@ impl PngMode {
             IndexedRgba(palette) => palette_bits_per_pixel(palette.len()),
             GrayscaleOpaque(bit_depth) => bit_depth_to_u32(bit_depth) as usize,
             GrayscaleWithTransparentShade { bit_depth, .. } => bit_depth_to_u32(bit_depth) as usize,
-            GrayscaleAlpha(bit_depth) => 2 * bit_depth_to_u32(bit_depth) as usize,
+            GrayscaleAlpha => 16,
             RgbOpaque => 24,
             RgbWithTransparentShade(_) => 24,
             Rgba => 32
@@ -730,7 +730,7 @@ fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildin
                 if transparency == Opaque {
                     GrayscaleOpaque(BitDepth::Eight)
                 } else {
-                    GrayscaleAlpha(BitDepth::Eight)
+                    GrayscaleAlpha
                 }
             } else {
                 let mut grayscale_bits = 1;
@@ -752,21 +752,33 @@ fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildin
                     return indexed_mode;
                 }
                 let grayscale_mode = match transparency {
-                    AlphaChannel => GrayscaleAlpha(grayscale_bit_depth),
+                    AlphaChannel => GrayscaleAlpha,
                     BinaryTransparency => {
                         let grayscale_shades = match grayscale_bit_depth {
                             BitDepth::One => vec![ComparableColor::BLACK, ComparableColor::WHITE],
                             BitDepth::Two => vec![gray(0x00), gray(0x55), gray(0xAA), gray(0xFF)],
                             BitDepth::Four => (0..16).map(|n| gray(n * 0x11)).collect(),
                             BitDepth::Eight => ALL_U8S.iter().copied().map(gray).collect(),
-                            BitDepth::Sixteen => panic!("16-bit greyscale not handled")
+                            BitDepth::Sixteen => debug_assert_unreachable()
                         };
                         match grayscale_shades.into_iter().find(|color| !colors.contains(color)) {
                             Some(unused) => GrayscaleWithTransparentShade {
                                 bit_depth: grayscale_bit_depth,
                                 transparent_shade: unused.red()
                             },
-                            None => GrayscaleAlpha(grayscale_bit_depth)
+                            None => match grayscale_bit_depth {
+                                BitDepth::One => GrayscaleWithTransparentShade {
+                                    bit_depth: BitDepth::Two, transparent_shade: 0x55
+                                },
+                                BitDepth::Two => GrayscaleWithTransparentShade {
+                                    bit_depth: BitDepth::Four, transparent_shade: 0x22
+                                },
+                                BitDepth::Four => GrayscaleWithTransparentShade {
+                                    bit_depth: BitDepth::Eight, transparent_shade: 0x08
+                                },
+                                BitDepth::Eight => GrayscaleAlpha,
+                                BitDepth::Sixteen => debug_assert_unreachable()
+                            }
                         }
                     },
                     Opaque => GrayscaleOpaque(grayscale_bit_depth)

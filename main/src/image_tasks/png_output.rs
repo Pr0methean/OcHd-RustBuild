@@ -182,21 +182,18 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>, png_mode: PngMode) -> Result<M
             }
             writer.flush()?;
         }
-        PngMode::GrayscaleAlpha(bit_depth) => {
-            let depth_bits: u32 = bit_depth_to_u32(&bit_depth);
-            info!("Writing {}-bit grayscale PNG with alpha channel", depth_bits);
+        PngMode::GrayscaleAlpha => {
+            info!("Writing 8-bit grayscale PNG with alpha channel");
             encoder.set_color(ColorType::GrayscaleAlpha);
-            encoder.set_depth(bit_depth);
+            encoder.set_depth(BitDepth::Eight);
             let mut writer = encoder.write_header()?;
-            let mut writer: BitWriter<_, BigEndian>
-                = BitWriter::new(writer.stream_writer()?);
+            let mut data = Vec::with_capacity(
+                image.width() as usize * image.height() as usize * 2);
             for pixel in image.pixels() {
-                writer.write(depth_bits,
-                             channel_to_bit_depth(pixel.demultiply().red(), bit_depth))?;
-                writer.write(depth_bits,
-                             channel_to_bit_depth(pixel.alpha(), bit_depth))?;
+                data.extend_from_slice(&[pixel.demultiply().red(), pixel.alpha()]);
             }
-            writer.flush()?;
+            writer.write_image_data(&data)?;
+            writer.finish()?;
         }
         PngMode::IndexedRgbOpaque(palette) => {
             let len = palette.len();
