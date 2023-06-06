@@ -60,10 +60,10 @@ const fn bit_depth_for_channel_value() -> [BitDepth; u8::MAX as usize + 1] {
 pub const BIT_DEPTH_FOR_CHANNEL: [BitDepth; u8::MAX as usize + 1] = bit_depth_for_channel_value();
 
 impl ComparableColor {
-    pub fn red(&self) -> u8 { self.red}
-    pub fn green(&self) -> u8 { self.green}
-    pub fn blue(&self) -> u8 { self.blue}
-    pub fn alpha(&self) -> u8 { self.alpha}
+    pub const fn red(&self) -> u8 { self.red}
+    pub const fn green(&self) -> u8 { self.green}
+    pub const fn blue(&self) -> u8 { self.blue}
+    pub const fn alpha(&self) -> u8 { self.alpha}
 
     pub fn under<T>(self, foregrounds: T) -> Vec<ComparableColor>
         where T: Iterator<Item=ComparableColor> {

@@ -217,7 +217,7 @@ pub enum ToPixmapTaskSpec {
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum ToAlphaChannelTaskSpec {
     MakeSemitransparent {base: Box<ToAlphaChannelTaskSpec>, alpha: u8},
-    FromPixmap {base: Box<ToPixmapTaskSpec>},
+    FromPixmap {base: ToPixmapTaskSpec},
     StackAlphaOnAlpha {background: Box<ToAlphaChannelTaskSpec>, foreground: Box<ToAlphaChannelTaskSpec>},
     StackAlphaOnBackground {background: u8, foreground: Box<ToAlphaChannelTaskSpec>}
 }
@@ -926,7 +926,7 @@ impl ToPixmapTaskSpec {
 
 impl From<ToPixmapTaskSpec> for ToAlphaChannelTaskSpec {
     fn from(value: ToPixmapTaskSpec) -> Self {
-        ToAlphaChannelTaskSpec::FromPixmap {base: Box::new(value)}
+        ToAlphaChannelTaskSpec::FromPixmap {base: value}
     }
 }
 
@@ -957,7 +957,7 @@ impl TaskGraphBuildingContext {
 pub const SVG_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/svg");
 pub const METADATA_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/metadata");
 
-pub const ASSET_DIR: &str = "assets/minecraft/textures";
+pub const ASSET_DIR: &str = "assets/minecraft/textures/";
 
 pub fn name_to_out_path(name: &str) -> PathBuf {
     PathBuf::from(ASSET_DIR).join(format!("{}.png", name))
@@ -978,12 +978,12 @@ pub fn svg_alpha_task(name: &str) -> ToAlphaChannelTaskSpec {
 
 pub fn paint_task(base: ToAlphaChannelTaskSpec, color: ComparableColor) -> ToPixmapTaskSpec {
     if let ToAlphaChannelTaskSpec::FromPixmap {base: ref base_base} = base {
-        match &**base_base {
+        match base_base {
             ToPixmapTaskSpec::FromSvg { ref source } => {
                 if color == ComparableColor::BLACK
                     && !COLOR_SVGS.contains(&&*source.to_string_lossy()) {
                     info!("Simplified {}@{} -> {}", base, color, base_base);
-                    return *base_base.to_owned();
+                    return base_base.to_owned();
                 }
             },
             ToPixmapTaskSpec::PaintAlphaChannel {base: base_base_base, color: base_color } => {
@@ -999,12 +999,12 @@ pub fn paint_task(base: ToAlphaChannelTaskSpec, color: ComparableColor) -> ToPix
 }
 
 pub fn paint_svg_task(name: &str, color: ComparableColor) -> ToPixmapTaskSpec {
-    if color == ComparableColor::BLACK && !COLOR_SVGS.contains(&&*name_to_svg_path(name).to_string_lossy()) {
+    if color.red() == 0 && color.green() == 0 && color.blue() == 0 && color.alpha() == u8::MAX
+        && !COLOR_SVGS.contains(&&*name_to_svg_path(name).to_string_lossy()) {
         info!("Simplified {}@{} -> {}", name, color, name);
         from_svg_task(name)
     } else {
-        paint_task(ToAlphaChannelTaskSpec::FromPixmap { base: Box::new(from_svg_task(name)) },
-                   color)
+        paint_task(ToAlphaChannelTaskSpec::FromPixmap { base: from_svg_task(name) }, color)
     }
 }
 
@@ -1163,8 +1163,7 @@ impl Mul<ComparableColor> for ToPixmapTaskSpec {
                 }
             },
             _ => ToPixmapTaskSpec::PaintAlphaChannel {
-                base: Box::new(ToAlphaChannelTaskSpec::FromPixmap { base: Box::new(self) }),
-                color: rhs
+                base: Box::new(ToAlphaChannelTaskSpec::FromPixmap { base: self }), color: rhs
             }
         }
     }
