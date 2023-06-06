@@ -108,10 +108,10 @@ impl ComparableColor {
     pub const WHITE: ComparableColor = gray(u8::MAX);
 
     pub const STONE_EXTREME_SHADOW: ComparableColor = gray(0x55);
-    pub const STONE_SHADOW: ComparableColor = gray(0x74);
-    pub const STONE: ComparableColor = gray(0x85);
+    pub const STONE_SHADOW: ComparableColor = gray(0x77);
+    pub const STONE: ComparableColor = gray(0x88);
     pub const STONE_HIGHLIGHT: ComparableColor = gray(0xaa);
-    pub const STONE_EXTREME_HIGHLIGHT: ComparableColor = gray(0xba);
+    pub const STONE_EXTREME_HIGHLIGHT: ComparableColor = gray(0xbb);
 
     pub const DEEPSLATE_SHADOW: ComparableColor = c(0x2f2f3f);
     pub const DEEPSLATE: ComparableColor = ComparableColor::STONE_EXTREME_SHADOW;
@@ -119,9 +119,9 @@ impl ComparableColor {
 
     pub const EXTRA_DARK_BIOME_COLORABLE: ComparableColor = ComparableColor::STONE_SHADOW;
     pub const DARK_BIOME_COLORABLE: ComparableColor = ComparableColor::STONE;
-    pub const MEDIUM_BIOME_COLORABLE: ComparableColor = gray(0x9d);
+    pub const MEDIUM_BIOME_COLORABLE: ComparableColor = gray(0x99);
     pub const LIGHT_BIOME_COLORABLE: ComparableColor = ComparableColor::STONE_EXTREME_HIGHLIGHT;
-    pub const EXTRA_LIGHT_BIOME_COLORABLE: ComparableColor = gray(0xc3);
+    pub const EXTRA_LIGHT_BIOME_COLORABLE: ComparableColor = gray(0xcc);
 
     /// If I'm gonna use a gray any darker than this, I may as well just use
     /// [ComparableColor::BLACK] instead.
@@ -129,7 +129,7 @@ impl ComparableColor {
 
     /// If I'm gonna use a gray any lighter than this, I may as well just use
     /// [ComparableColor::WHITE] instead.
-    pub const LIGHTEST_GRAY: ComparableColor = gray(0xdc);
+    pub const LIGHTEST_GRAY: ComparableColor = gray(0xdd);
 
     pub const RESERVED_FOR_TRANSPARENCY: ComparableColor = c(0xc0ff3e);
 
