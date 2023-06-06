@@ -6,7 +6,7 @@ const fn create_alpha_multiplication_table() -> [[u8; u8::MAX as usize + 1]; u8:
     loop {
         let mut y = 1;
         loop {
-            table[x as usize][y as usize] = (((x as u16) * (y as u16) + 180 as u16) / 255 as u16) as u8;
+            table[x as usize][y as usize] = (((x as u16) * (y as u16) + 128) / 255) as u8;
             if y == u8::MAX {
                 break;
             } else {
