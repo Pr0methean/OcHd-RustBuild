@@ -5,13 +5,13 @@ use crate::image_tasks::color::{c, ComparableColor};
 use crate::image_tasks::task_spec::{from_svg_task, paint_svg_task, paint_task, stack_alpha, svg_alpha_task, ToAlphaChannelTaskSpec};
 use crate::texture_base::material::SingleLayerMaterial;
 
-lazy_static! {
-    static ref GLASS_PANE_TOP: SingleLayerMaterial = SingleLayerMaterial {
-        name: "block/glass_pane_top",
-        layer_name: "paneTop",
-        color: c(0xa8d5d5)
-    };
+const GLASS_PANE_TOP: SingleLayerMaterial = SingleLayerMaterial {
+    name: "block/glass_pane_top",
+    layer_name: "paneTop",
+    color: c(0xa8d5d5)
+};
 
+lazy_static! {
     static ref STAINED_GLASS_BASE: ToAlphaChannelTaskSpec = ToAlphaChannelTaskSpec::StackAlphaOnBackground {
         background: OrderedFloat(0.25),
         foreground: Box::new(stack_alpha(vec![

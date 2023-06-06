@@ -3,24 +3,36 @@ use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::task_spec::{out_task, FileOutputTaskSpec, ToPixmapTaskSpec};
 use crate::texture_base::material::Material;
 
-pub static DYES: &[(&str, ComparableColor)] = &[
-    ("black",       ComparableColor::BLACK),
-    ("red",         c(0xba0000)),
-    ("green",       c(0x007c00)),
-    ("brown",       c(0x835400)),
-    ("blue",        c(0x0000aa)),
-    ("purple",      c(0x8900b8)),
-    ("cyan",        c(0x009c9c)),
-    ("light_gray",  ComparableColor::STONE_HIGHLIGHT),
-    ("gray",        ComparableColor::STONE_EXTREME_SHADOW),
-    ("pink",        c(0xff9a9a)),
-    ("lime",        c(0x80ff00)),
-    ("yellow",      ComparableColor::YELLOW),
-    ("light_blue",  c(0x7777ff)),
-    ("magenta",     c(0xff4eff)),
-    ("orange",      c(0xff8000)),
-    ("white",       ComparableColor::WHITE)
-];
+macro_rules! dyes {
+    ($($name:tt = $color:expr),+) => {
+        $(pub const $name: (&str, ComparableColor) = (
+            const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
+            $color
+        );)+
+        pub const DYES: &[(&str, ComparableColor)] = &[
+            $($name),+
+        ];
+    }
+}
+
+dyes!(
+    BLACK = ComparableColor::BLACK,
+    RED = c(0xba0000),
+    GREEN = c(0x007c00),
+    BROWN = c(0x835400),
+    BLUE = c(0x0000aa),
+    PURPLE = c(0x8900b8),
+    CYAN = c(0x009c9c),
+    LIGHT_GRAY = ComparableColor::STONE_HIGHLIGHT,
+    GRAY = ComparableColor::STONE_EXTREME_SHADOW,
+    PINK = c(0xff9a9a),
+    LIME = c(0x80ff00),
+    YELLOW = ComparableColor::YELLOW,
+    LIGHT_BLUE = c(0x7777ff),
+    MAGENTA = c(0xff4eff),
+    ORANGE = c(0xff8000),
+    WHITE = ComparableColor::WHITE
+);
 
 pub struct DyedBlock {
     pub name: &'static str,

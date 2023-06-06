@@ -4,11 +4,10 @@ use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 
 use std::ops::{Deref, DerefMut, Mul};
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
-use lazy_static::lazy_static;
 use crate::{anyhoo, debug_assert_unreachable};
 use include_dir::{Dir, include_dir};
 use itertools::Itertools;
@@ -960,12 +959,10 @@ impl TaskGraphBuildingContext {
 pub const SVG_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/svg");
 pub const METADATA_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/metadata");
 
-lazy_static! {
-    pub static ref ASSET_DIR: &'static Path = Path::new("assets/minecraft/textures");
-}
+pub const ASSET_DIR: &str = "assets/minecraft/textures";
 
 pub fn name_to_out_path(name: &str) -> PathBuf {
-    ASSET_DIR.join(format!("{}.png", name))
+    PathBuf::from(ASSET_DIR).join(format!("{}.png", name))
 }
 
 pub fn name_to_svg_path(name: &str) -> PathBuf {
