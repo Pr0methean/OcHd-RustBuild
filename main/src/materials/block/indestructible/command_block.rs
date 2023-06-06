@@ -86,7 +86,7 @@ impl Material for CommandBlocks {
             } else {
                 background
             };
-            SIDE_TYPES.iter().map(|side_type| {
+            SIDE_TYPES.iter().map(move |side_type| {
                 out_task(&format!("block/{}command_block_{}", color_type.prefix, side_type.name),
                          stack!(
                     decorated_background.to_owned(),
