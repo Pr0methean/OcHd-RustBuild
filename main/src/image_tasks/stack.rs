@@ -1,5 +1,6 @@
 use resvg::tiny_skia::{BlendMode, Color, Mask, Paint, Pixmap, PixmapPaint, Rect, Transform};
 use crate::anyhoo;
+use crate::image_tasks::make_semitransparent::ALPHA_MULTIPLICATION_TABLE;
 use crate::image_tasks::task_spec::CloneableError;
 
 pub fn stack_layer_on_layer(background: &mut Pixmap, foreground: &Pixmap) {
@@ -26,15 +27,13 @@ pub(crate) fn stack_alpha_on_alpha(background: &mut Mask, foreground: &Mask) {
     }
 }
 
-pub fn stack_alpha_on_background(background_alpha: f32, foreground: &mut Mask)
+pub fn stack_alpha_on_background(background_alpha: u8, foreground: &mut Mask)
 {
-    let background_alpha = (background_alpha * u8::MAX as f32 + 0.5) as u8;
     for pixel in foreground.data_mut() {
         *pixel = stack_alpha_pixel(background_alpha, *pixel);
     }
 }
 
 pub fn stack_alpha_pixel(background: u8, foreground: u8) -> u8 {
-    let foreground_alpha_mul = (u8::MAX - background) as f32 / 255.0;
-    (foreground as f32 * foreground_alpha_mul + background as f32 + 0.5) as u8
+    background + ALPHA_MULTIPLICATION_TABLE[(u8::MAX - background) as usize][foreground as usize]
 }

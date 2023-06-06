@@ -13,7 +13,6 @@ use include_dir::{Dir, include_dir};
 use itertools::Itertools;
 
 use log::{info};
-use ordered_float::OrderedFloat;
 use png::{BitDepth};
 use replace_with::replace_with_and_return;
 
@@ -22,7 +21,7 @@ use resvg::tiny_skia::{Color, Mask, Pixmap};
 use crate::image_tasks::animate::animate;
 use crate::image_tasks::color::{BIT_DEPTH_FOR_CHANNEL, c, ComparableColor, gray};
 use crate::image_tasks::from_svg::{COLOR_SVGS, from_svg, SEMITRANSPARENCY_FREE_SVGS};
-use crate::image_tasks::make_semitransparent::{create_alpha_array, make_semitransparent};
+use crate::image_tasks::make_semitransparent::{ALPHA_MULTIPLICATION_TABLE, make_semitransparent};
 use crate::image_tasks::MaybeFromPool;
 use crate::image_tasks::png_output::{copy_out_to_out, png_output};
 use crate::image_tasks::repaint::{paint, pixmap_to_mask};
@@ -118,8 +117,8 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
         }
         let function: LazyTaskFunction<MaybeFromPool<Mask>> = match self {
             ToAlphaChannelTaskSpec::MakeSemitransparent { base, alpha } => {
-                let alpha: f32 = (*alpha).into();
                 let base_future = base.add_to(ctx);
+                let alpha = *alpha;
                 Box::new(move || {
                     let base_result: Arc<Box<MaybeFromPool<Mask>>> = base_future.into_result()?;
                     let mut channel = Arc::unwrap_or_clone(base_result);
@@ -146,7 +145,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                 })
             },
             ToAlphaChannelTaskSpec::StackAlphaOnBackground { background, foreground } => {
-                let background = background.0;
+                let background = *background;
                 let fg_future = foreground.add_to(ctx);
                 Box::new(move || {
                     let fg_arc: Arc<Box<MaybeFromPool<Mask>>> = fg_future.into_result()?;
@@ -217,10 +216,10 @@ pub enum ToPixmapTaskSpec {
 /// [TaskSpec] for a task that produces an [AlphaChannel].
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum ToAlphaChannelTaskSpec {
-    MakeSemitransparent {base: Box<ToAlphaChannelTaskSpec>, alpha: OrderedFloat<f32>},
+    MakeSemitransparent {base: Box<ToAlphaChannelTaskSpec>, alpha: u8},
     FromPixmap {base: Box<ToPixmapTaskSpec>},
     StackAlphaOnAlpha {background: Box<ToAlphaChannelTaskSpec>, foreground: Box<ToAlphaChannelTaskSpec>},
-    StackAlphaOnBackground {background: OrderedFloat<f32>, foreground: Box<ToAlphaChannelTaskSpec>}
+    StackAlphaOnBackground {background: u8, foreground: Box<ToAlphaChannelTaskSpec>}
 }
 
 /// [TaskSpec] for a task that doesn't produce a heap object as output.
@@ -466,13 +465,13 @@ fn stack_alpha_vecs(background: &[u8], foreground: &[u8]) -> Vec<u8> {
     combined
 }
 
-fn multiply_alpha_vec(alphas: &Vec<u8>, rhs: f32) -> Vec<u8> {
-    if rhs == 0.0 {
+fn multiply_alpha_vec(alphas: &Vec<u8>, rhs: u8) -> Vec<u8> {
+    if rhs == 0 {
         vec![0]
-    } else if rhs == 1.0 {
+    } else if rhs == u8::MAX {
         alphas.to_owned()
     } else {
-        let alpha_array = create_alpha_array(rhs.into());
+        let alpha_array = &ALPHA_MULTIPLICATION_TABLE[rhs as usize];
         let mut output: Vec<u8> = alphas.iter().map(|x|
             alpha_array[*x as usize]).collect();
         // Don't need to sort because input is sorted
@@ -672,20 +671,7 @@ pub fn u32_to_bit_depth_max_eight(depth: u32) -> BitDepth {
     }
 }
 
-const fn all_u8s() -> [u8; u8::MAX as usize + 1] {
-    let mut x = [0; u8::MAX as usize + 1];
-    let mut i: u8 = 1;
-    loop {
-        x[i as usize] = i;
-        if i == u8::MAX {
-            return x;
-        } else {
-            i += 1;
-        }
-    }
-}
-
-const ALL_U8S: [u8; 256] = all_u8s();
+const ALL_U8S: &[u8; u8::MAX as usize + 1] = &ALPHA_MULTIPLICATION_TABLE[u8::MAX as usize];
 
 impl ToAlphaChannelTaskSpec {
     fn get_possible_alpha_values(&self, ctx: &mut TaskGraphBuildingContext) -> Vec<u8> {
@@ -694,7 +680,7 @@ impl ToAlphaChannelTaskSpec {
         }
         let alpha_vec: Vec<u8> = match self {
             ToAlphaChannelTaskSpec::MakeSemitransparent { alpha, base } => {
-                multiply_alpha_vec(&base.get_possible_alpha_values(ctx), **alpha)
+                multiply_alpha_vec(&base.get_possible_alpha_values(ctx), *alpha)
             }
             ToAlphaChannelTaskSpec::FromPixmap { base } => {
                 base.get_possible_alpha_values(ctx)
@@ -704,7 +690,7 @@ impl ToAlphaChannelTaskSpec {
                                  &foreground.get_possible_alpha_values(ctx))
             }
             ToAlphaChannelTaskSpec::StackAlphaOnBackground { background: background_alpha, foreground } => {
-                stack_alpha_vecs(&[(**background_alpha * 255.0 + 0.5) as u8], &foreground.get_possible_alpha_values(ctx))
+                stack_alpha_vecs(&[*background_alpha], &foreground.get_possible_alpha_values(ctx))
             }
         };
         ctx.alpha_task_to_alpha_map.insert(self.to_owned(), alpha_vec.to_owned());
@@ -886,7 +872,7 @@ impl ToPixmapTaskSpec {
             },
             ToPixmapTaskSpec::PaintAlphaChannel { color, base } => {
                 SpecifiedColors({
-                    let alpha_array = create_alpha_array(OrderedFloat(color.alpha as f32 / 255.0));
+                    let alpha_array = ALPHA_MULTIPLICATION_TABLE[color.alpha() as usize];
                     let mut colored_alphas: Vec<ComparableColor> = base
                         .get_possible_alpha_values(ctx)
                         .into_iter()
@@ -1152,7 +1138,7 @@ impl Mul<f32> for ToAlphaChannelTaskSpec {
         } else {
             ToAlphaChannelTaskSpec::MakeSemitransparent {
                 base: Box::new(self),
-                alpha: OrderedFloat::from(rhs)
+                alpha: (rhs * 255.0 + 0.5) as u8
             }
         }
     }

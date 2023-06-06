@@ -8,8 +8,6 @@ edition = "2021"
 [dependencies]
 resvg = "0.34.1"
 anyhow = "1.0.71"
-cached = "0.44.0"
-ordered-float = "3.7.0"
 lazy_static = "1.4.0"
 const_format = {version = "0.2.31", features = ["fmt", "rust_1_64"]}
 rayon = "1.7.0"
