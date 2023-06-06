@@ -714,11 +714,11 @@ impl ToAlphaChannelTaskSpec {
 
 fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildingContext) -> PngMode {
     match task.get_color_description(ctx) {
-        SpecifiedColors(colors) => {
+        SpecifiedColors(mut colors) => {
             let transparency = task.get_transparency(ctx);
             let have_non_gray = colors.iter().any(|color| !color.is_gray());
             let max_indexed_size = 256;
-            let colors: Vec<ComparableColor> = colors.into_iter().take(max_indexed_size + 1).collect();
+            colors.truncate(max_indexed_size + 1);
             if colors.len() > max_indexed_size && have_non_gray {
                 return match transparency {
                     Opaque => RgbOpaque,
