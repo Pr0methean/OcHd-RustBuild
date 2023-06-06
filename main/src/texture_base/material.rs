@@ -62,7 +62,6 @@ macro_rules! group {
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct SingleTextureMaterial {
     pub name: &'static str,
-    pub directory: &'static str,
     texture: ToPixmapTaskSpec
 }
 
@@ -70,8 +69,8 @@ impl SingleTextureMaterial {
     pub fn texture(&self) -> ToPixmapTaskSpec {
         self.texture.to_owned()
     }
-    pub fn new(name: &'static str, directory: &'static str, texture: ToPixmapTaskSpec) -> Self {
-        SingleTextureMaterial {name, directory, texture}
+    pub fn new(name: &'static str, texture: ToPixmapTaskSpec) -> Self {
+        SingleTextureMaterial {name, texture}
     }
 }
 
@@ -109,8 +108,7 @@ impl From<SingleTextureMaterial> for ToPixmapTaskSpec {
 
 impl Material for SingleTextureMaterial {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
-        vec![out_task(&format!("{}/{}", self.directory, self.name),
-                          self.texture())]
+        vec![out_task(self.name, self.texture())]
     }
 }
 
@@ -120,9 +118,10 @@ macro_rules! material {
         lazy_static::lazy_static! {
             pub static ref $name: $crate::texture_base::material::SingleTextureMaterial =
                     $crate::texture_base::material::SingleTextureMaterial::new(
-                const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
-                $directory,
-                $texture.into()
+                        const_format::concatcp!($directory, "/",
+                            const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name))
+                        ),
+                        $texture.into()
             );
         }
     }
@@ -142,9 +141,8 @@ macro_rules! single_layer_material {
         pub const $name: $crate::texture_base::material::SingleLayerMaterial =
             $crate::texture_base::material::SingleLayerMaterial {
             name: const_format::concatcp!(
+                $directory, "/",
                 const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
-                "/",
-                $directory
             ),
             layer_name: $layer_name,
             color: $color
@@ -154,11 +152,6 @@ macro_rules! single_layer_material {
         $crate::single_layer_material!($name = $directory, $layer_name,
         $crate::image_tasks::color::ComparableColor::BLACK);
     };
-}
-
-#[allow(dead_code)]
-pub fn item(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMaterial {
-    SingleTextureMaterial::new(name, "item", texture)
 }
 
 #[macro_export]
@@ -177,10 +170,6 @@ macro_rules! single_layer_item {
     }
 }
 
-pub fn block(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMaterial {
-    SingleTextureMaterial::new(name, "block", texture)
-}
-
 #[macro_export]
 macro_rules! single_texture_block {
     ($name:ident = $background:expr, $( $layers:expr ),* ) => {
@@ -196,11 +185,6 @@ macro_rules! single_layer_block {
     ($name:ident = $layer_name:expr) => {
         $crate::single_layer_material!($name = "block", $layer_name);
     };
-}
-
-#[allow(dead_code)]
-pub fn particle(name: &'static str, texture: ToPixmapTaskSpec) -> SingleTextureMaterial {
-    SingleTextureMaterial::new(name, "particle", texture)
 }
 
 #[macro_export]
@@ -236,7 +220,7 @@ macro_rules! copy_block {
     ($name:ident = $base:expr, $base_name:expr) => {
         lazy_static::lazy_static! {pub static ref $name: $crate::texture_base::material::CopiedMaterial =
         $crate::texture_base::material::CopiedMaterial {
-            name: const_format::formatcp!("block/{}", const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name))),
+            name: const_format::concatcp!("block/", const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name))),
             source: {
                 use $crate::texture_base::material::Material;
                 $base.get_output_task_by_name($base_name).unwrap()
@@ -266,8 +250,9 @@ macro_rules! block_with_colors {
                     highlight: highlight!()
                 },
                 material: $crate::texture_base::material::SingleTextureMaterial::new(
-                    const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
-                    "block",
+                    const_format::concatcp!("block/",
+                        const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name))
+                    ),
                     $crate::stack_on!($background, $($layers),*).into()
                 )
             };
