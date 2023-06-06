@@ -1,6 +1,6 @@
 use crate::image_tasks::color::c;
 use crate::image_tasks::task_spec::{FileOutputTaskSpec, from_svg_task, out_task, paint_svg_task, ToPixmapTaskSpec};
-use crate::{group, stack, stack_on};
+use crate::{stack, stack_on};
 use crate::texture_base::material::{ColorTriad, Material};
 
 struct CommandBlockSideType {
@@ -68,26 +68,32 @@ pub const REPEATING_COMMAND_BLOCK: CommandBlockColorType = CommandBlockColorType
     decoration: Some("loopArrow4x")
 };
 
-impl Material for CommandBlockColorType {
+const COLOR_TYPES: &[CommandBlockColorType] = &[COMMAND_BLOCK, CHAIN_COMMAND_BLOCK, REPEATING_COMMAND_BLOCK];
+
+pub enum CommandBlocks {
+    CommandBlocks
+}
+
+impl Material for CommandBlocks {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
-        let background = stack_on!(
-                    self.colors.color,
-                    paint_svg_task("diagonalChecks4x", self.colors.shadow),
-                    paint_svg_task("diagonalChecksFill4x", self.colors.highlight));
-        let decorated_background = if let Some(decoration) = &self.decoration {
-            stack!(background, from_svg_task(decoration))
-        } else {
-            background
-        };
-        SIDE_TYPES.iter().map(|side_type| {
-            out_task(&format!("block/{}command_block_{}", self.prefix, side_type.name),
-                stack!(
+        COLOR_TYPES.iter().flat_map(|color_type| {
+            let background = stack_on!(
+                    color_type.colors.color,
+                    paint_svg_task("diagonalChecks4x", color_type.colors.shadow),
+                    paint_svg_task("diagonalChecksFill4x", color_type.colors.highlight));
+            let decorated_background = if let Some(decoration) = &color_type.decoration {
+                stack!(background, from_svg_task(decoration))
+            } else {
+                background
+            };
+            SIDE_TYPES.iter().map(|side_type| {
+                out_task(&format!("block/{}command_block_{}", color_type.prefix, side_type.name),
+                         stack!(
                     decorated_background.to_owned(),
-                    side_type.grid_layers(&self.colors)
+                    side_type.grid_layers(&color_type.colors)
                 )
-            )
+                )
+            })
         }).collect()
     }
 }
-
-group!(COMMAND_BLOCKS = COMMAND_BLOCK, CHAIN_COMMAND_BLOCK, REPEATING_COMMAND_BLOCK);
