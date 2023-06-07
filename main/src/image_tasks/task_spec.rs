@@ -551,6 +551,7 @@ impl ColorDescription {
                                 SpecifiedColors(combined_colors)
                             }
                             AlphaChannel => {
+                                // Using dedup() rather than unique() would use too much memory
                                 let mut combined_colors: Vec<ComparableColor> = bg_colors.iter().flat_map(|bg_color|
                                     bg_color.under(fg_colors.iter().copied()).into_iter()
                                 ).unique().collect();
