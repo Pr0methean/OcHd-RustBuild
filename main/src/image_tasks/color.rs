@@ -72,17 +72,19 @@ impl ComparableColor {
         } else {
             let self_as_f32 = self.as_f32_srgba().premultiply();
             foregrounds.map(|fg_color| {
-                if fg_color.alpha() == u8::MAX {
-                    fg_color
-                } else {
-                    let foreground_as_f32 = fg_color.as_f32_srgba().premultiply();
-                    let blended_as_srgb8: Srgba<u8>
-                        = (foreground_as_f32.over(self_as_f32)).unpremultiply().into_format();
-                    ComparableColor {
-                        red: blended_as_srgb8.red,
-                        green: blended_as_srgb8.green,
-                        blue: blended_as_srgb8.blue,
-                        alpha: blended_as_srgb8.alpha
+                match fg_color.alpha() {
+                    0 => self,
+                    u8::MAX => fg_color,
+                    _ => {
+                        let foreground_as_f32 = fg_color.as_f32_srgba().premultiply();
+                        let blended_as_srgb8: Srgba<u8>
+                            = (foreground_as_f32.over(self_as_f32)).unpremultiply().into_format();
+                        ComparableColor {
+                            red: blended_as_srgb8.red,
+                            green: blended_as_srgb8.green,
+                            blue: blended_as_srgb8.blue,
+                            alpha: blended_as_srgb8.alpha
+                        }
                     }
                 }
             }).collect()
