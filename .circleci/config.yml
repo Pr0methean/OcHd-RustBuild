@@ -9,7 +9,7 @@ orbs:
 jobs:
   build:
     docker:
-      - image: cimg/base:current
+      - image: circleci/rust:latest
     resource_class: pr0methean/isengard-m7g-xlarge
     steps:
       - checkout
