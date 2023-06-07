@@ -24,22 +24,60 @@ const fn create_alpha_multiplication_table() -> [[u8; u8::MAX as usize + 1]; u8:
 pub const ALPHA_MULTIPLICATION_TABLE: [[u8; u8::MAX as usize + 1]; u8::MAX as usize + 1]
     = create_alpha_multiplication_table();
 
+#[test]
+fn test_alpha_multiplication_table() {
+    for first in 0..=u8::MAX {
+        assert_eq!(ALPHA_MULTIPLICATION_TABLE[0][first as usize], 0);
+        assert_eq!(ALPHA_MULTIPLICATION_TABLE[u8::MAX as usize][first as usize], first);
+        for second in first..=u8::MAX {
+            assert_eq!(ALPHA_MULTIPLICATION_TABLE[first as usize][second as usize],
+                       ALPHA_MULTIPLICATION_TABLE[second as usize][first as usize],)
+        }
+    }
+}
+
+const fn create_alpha_stacking_table() -> [[u8; u8::MAX as usize + 1]; u8::MAX as usize + 1] {
+    let mut table = [[u8::MAX; u8::MAX as usize + 1]; u8::MAX as usize + 1];
+    let mut x = 0;
+    loop {
+        let mut y = 0;
+        loop {
+            table[x as usize][y as usize] = x + ALPHA_MULTIPLICATION_TABLE[(u8::MAX - x) as usize][y as usize];
+            if y == u8::MAX - 1 {
+                break;
+            } else {
+                y += 1;
+            }
+        }
+        if x == u8::MAX - 1 {
+            return table;
+        } else {
+            x += 1;
+        }
+    }
+}
+
+pub const ALPHA_STACKING_TABLE: [[u8; u8::MAX as usize + 1]; u8::MAX as usize + 1]
+    = create_alpha_stacking_table();
+
+#[test]
+fn test_alpha_stacking_table() {
+    for first in 0..=u8::MAX {
+        assert_eq!(ALPHA_STACKING_TABLE[0][first as usize], first);
+        assert_eq!(ALPHA_STACKING_TABLE[first as usize][u8::MAX as usize], u8::MAX);
+        for second in first..=u8::MAX {
+            assert_eq!(ALPHA_STACKING_TABLE[first as usize][second as usize],
+                       ALPHA_STACKING_TABLE[second as usize][first as usize]);
+        }
+    }
+}
+
 /// Multiplies the opacity of all pixels in the [input](given pixmap) by a given [alpha].
 pub fn make_semitransparent(input: &mut Mask, alpha: u8) {
     let alpha_array = &ALPHA_MULTIPLICATION_TABLE[alpha as usize];
     let pixels = input.data_mut();
     for pixel in pixels {
         *pixel = alpha_array[*pixel as usize];
-    }
-}
-
-#[test]
-fn test_alpha_multiplication_table() {
-    for index in 0..=u8::MAX {
-        assert_eq!(ALPHA_MULTIPLICATION_TABLE[0][index as usize], 0);
-        assert_eq!(ALPHA_MULTIPLICATION_TABLE[index as usize][0], 0);
-        assert_eq!(ALPHA_MULTIPLICATION_TABLE[u8::MAX as usize][index as usize], index);
-        assert_eq!(ALPHA_MULTIPLICATION_TABLE[index as usize][u8::MAX as usize], index);
     }
 }
 

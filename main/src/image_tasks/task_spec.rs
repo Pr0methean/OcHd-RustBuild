@@ -19,11 +19,11 @@ use resvg::tiny_skia::{Color, Mask, Pixmap};
 use crate::image_tasks::animate::animate;
 use crate::image_tasks::color::{BIT_DEPTH_FOR_CHANNEL, c, ComparableColor, gray};
 use crate::image_tasks::from_svg::{COLOR_SVGS, from_svg, SEMITRANSPARENCY_FREE_SVGS};
-use crate::image_tasks::make_semitransparent::{ALPHA_MULTIPLICATION_TABLE, make_semitransparent};
+use crate::image_tasks::make_semitransparent::{ALPHA_MULTIPLICATION_TABLE, ALPHA_STACKING_TABLE, make_semitransparent};
 use crate::image_tasks::MaybeFromPool;
 use crate::image_tasks::png_output::{copy_out_to_out, png_output};
 use crate::image_tasks::repaint::{paint, pixmap_to_mask};
-use crate::image_tasks::stack::{stack_alpha_on_alpha, stack_alpha_on_background, stack_alpha_pixel, stack_layer_on_background, stack_layer_on_layer};
+use crate::image_tasks::stack::{stack_alpha_on_alpha, stack_alpha_on_background, stack_layer_on_background, stack_layer_on_layer};
 use crate::image_tasks::task_spec::ColorDescription::{Rgb, SpecifiedColors};
 use crate::image_tasks::task_spec::PngMode::{GrayscaleAlpha, GrayscaleOpaque, GrayscaleWithTransparentShade, IndexedRgba, IndexedRgbOpaque, Rgba, RgbOpaque, RgbWithTransparentShade};
 use crate::image_tasks::task_spec::Transparency::{AlphaChannel, BinaryTransparency, Opaque};
@@ -466,8 +466,9 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
 
 fn stack_alpha_vecs(background: &[u8], foreground: &[u8]) -> Vec<u8> {
     let mut combined: Vec<u8> = background.iter().flat_map(|bg_alpha|
-        foreground.iter().map(move |fg_alpha| stack_alpha_pixel(*bg_alpha, *fg_alpha)))
-        .collect();
+        foreground.iter().map(move |fg_alpha| {
+            ALPHA_STACKING_TABLE[*bg_alpha as usize][*fg_alpha as usize]
+        })).collect();
     combined.sort();
     combined.dedup();
     combined
