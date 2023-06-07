@@ -141,6 +141,7 @@ pub fn empty_task() -> Box<dyn (Fn(&Wood) -> ToPixmapTaskSpec) + Sync + Send> {
     Box::new(/*door_common_layers*/ |_wood| ToPixmapTaskSpec::None {})
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn overworld_wood(name: &'static str, color: ComparableColor,
                       highlight: ComparableColor, shadow: ComparableColor,
                       bark_color: ComparableColor, bark_highlight: ComparableColor,
@@ -180,6 +181,7 @@ pub fn overworld_wood(name: &'static str, color: ComparableColor,
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn nether_fungus(name: &'static str, color: ComparableColor,
                      highlight: ComparableColor, shadow: ComparableColor,
                      bark_color: ComparableColor, bark_highlight: ComparableColor,

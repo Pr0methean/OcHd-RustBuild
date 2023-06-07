@@ -68,7 +68,7 @@ jobs:
           version: nightly
       - run: |
           cd main
-          cargo clippy || true
+          cargo clippy
       - rust/test:
           with_cache: false
           working_directory: main

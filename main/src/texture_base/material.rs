@@ -344,6 +344,7 @@ impl TricolorMaterial for GroundCoverBlock {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn ground_cover_block(name: &'static str,
                           top_name_suffix: &'static str,
                           base: &SingleTextureMaterial,
