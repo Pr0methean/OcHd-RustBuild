@@ -467,9 +467,7 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
 fn stack_alpha_vecs(background: &[u8], foreground: &[u8]) -> Vec<u8> {
     let mut combined: Vec<u8> = background.iter().flat_map(|bg_alpha|
         foreground.iter().map(move |fg_alpha| {
-            let background1 = *bg_alpha;
-            let foreground1 = *fg_alpha;
-            ALPHA_STACKING_TABLE[background1 as usize][foreground1 as usize]
+            ALPHA_STACKING_TABLE[*bg_alpha as usize][*fg_alpha as usize]
         })).collect();
     combined.sort();
     combined.dedup();
