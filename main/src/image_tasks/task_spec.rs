@@ -563,7 +563,7 @@ impl ColorDescription {
                             AlphaChannel => {
                                 let mut combined_colors: Vec<ComparableColor> = bg_colors.iter().flat_map(|bg_color|
                                     bg_color.under(fg_colors.iter().copied()).into_iter()
-                                ).unique().collect();
+                                ).collect();
                                 combined_colors.sort();
                                 combined_colors.dedup();
                                 Self::collapse_specified(combined_colors)
