@@ -646,7 +646,7 @@ impl PngMode {
     }
 }
 
-pub fn channel_to_bit_depth(input: u8, depth: BitDepth) -> u16 {
+pub const fn channel_to_bit_depth(input: u8, depth: BitDepth) -> u16 {
     match depth {
         BitDepth::One => if input < 0x80 { 0 } else { 1 },
         BitDepth::Two => {
@@ -656,21 +656,21 @@ pub fn channel_to_bit_depth(input: u8, depth: BitDepth) -> u16 {
             (input as u16 + (0x011/2)) / 0x11
         },
         BitDepth::Eight => input as u16,
-        BitDepth::Sixteen => input as u16 * 0x101
+        BitDepth::Sixteen => debug_assert_unreachable()
     }
 }
 
-pub fn bit_depth_to_u32(depth: &BitDepth) -> u32 {
+pub const fn bit_depth_to_u32(depth: &BitDepth) -> u32 {
     match depth {
         BitDepth::One => 1,
         BitDepth::Two => 2,
         BitDepth::Four => 4,
         BitDepth::Eight => 8,
-        BitDepth::Sixteen => 16
+        BitDepth::Sixteen => debug_assert_unreachable()
     }
 }
 
-pub fn u32_to_bit_depth_max_eight(depth: u32) -> BitDepth {
+pub const fn u32_to_bit_depth_max_eight(depth: u32) -> BitDepth {
     match depth {
         1 => BitDepth::One,
         2 => BitDepth::Two,

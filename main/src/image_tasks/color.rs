@@ -135,17 +135,17 @@ impl ComparableColor {
 
     pub const RESERVED_FOR_TRANSPARENCY: ComparableColor = c(0xc0ff3e);
 
-    pub fn is_gray(&self) -> bool {
+    pub const fn is_gray(&self) -> bool {
         self.alpha == 0
             || (self.green == self.red
             && self.blue == self.red)
     }
 
-    pub fn is_binary_alpha(&self) -> bool {
+    pub const fn is_binary_alpha(&self) -> bool {
         self.alpha == 0 || self.alpha == u8::MAX
     }
 
-    pub fn abs_diff(&self, other: &ComparableColor) -> u16 {
+    pub const fn abs_diff(&self, other: &ComparableColor) -> u16 {
         if self.alpha == 0 && other.alpha == 0 {
             0
         } else {
@@ -366,24 +366,4 @@ fn test_c() {
     assert_eq!(c(0xc0ffee),
                ComparableColor { red: 0xc0, green: 0xff, blue: 0xee, alpha: u8::MAX }
     )
-}
-
-impl ComparableColor {
-    /** True if this color is black, transparent, or semitransparent black. */
-    pub fn is_black_or_transparent(&self) -> bool {
-        self.alpha == 0 || (self.red == 0 && self.green == 0 && self.blue == 0)
-    }
-}
-
-#[test]
-fn test_is_black_or_transparent() {
-    assert!(ComparableColor::BLACK.is_black_or_transparent());
-    assert!(ComparableColor::TRANSPARENT.is_black_or_transparent());
-    assert!(rgba(0,0,0,0xcc).is_black_or_transparent()); // semitransparent black
-    assert!(rgba(0xff,0xff,0xff,0).is_black_or_transparent()); // transparent but with r, g and b > 0
-
-    assert!(!ComparableColor::RED.is_black_or_transparent());
-    assert!(!ComparableColor::GREEN.is_black_or_transparent());
-    assert!(!ComparableColor::BLUE.is_black_or_transparent());
-    assert!(!(rgba(0xff,0x00,0x00,0xcc).is_black_or_transparent())); // semitransparent red
 }

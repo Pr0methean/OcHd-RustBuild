@@ -69,7 +69,7 @@ impl SingleTextureMaterial {
     pub fn texture(&self) -> ToPixmapTaskSpec {
         self.texture.to_owned()
     }
-    pub fn new(name: &'static str, texture: ToPixmapTaskSpec) -> Self {
+    pub const fn new(name: &'static str, texture: ToPixmapTaskSpec) -> Self {
         SingleTextureMaterial {name, texture}
     }
 }
