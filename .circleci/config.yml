@@ -8,9 +8,9 @@ orbs:
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
 jobs:
   build:
-    machine:
-      image: ubuntu-2004:current
-    resource_class: arm.large
+    docker:
+      - image: cimg/base:current
+    resource_class: pr0methean/isengard-m7g-xlarge
     steps:
       - checkout
       - restore_cache:
