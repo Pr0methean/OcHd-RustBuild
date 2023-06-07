@@ -4,7 +4,7 @@ use std::hash::Hash;
 use crate::anyhoo;
 
 use crate::image_tasks::color::{c, ComparableColor};
-use crate::image_tasks::task_spec::{out_task, paint_svg_task, FileOutputTaskSpec, ToPixmapTaskSpec, CloneableError};
+use crate::image_tasks::task_spec::{out_task, paint_svg_task, FileOutputTaskSpec, ToPixmapTaskSpec, CloneableError, from_svg_task};
 
 /// Specification in DSL form of how one or more texture images are to be generated.
 pub trait Material: Send {
@@ -145,12 +145,19 @@ macro_rules! single_layer_material {
                 const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
             ),
             layer_name: $layer_name,
-            color: $color
+            color: Some($color)
         };
     };
     ($name:ident = $directory:expr, $layer_name:expr) => {
-        $crate::single_layer_material!($name = $directory, $layer_name,
-        $crate::image_tasks::color::ComparableColor::BLACK);
+        pub const $name: $crate::texture_base::material::SingleLayerMaterial =
+            $crate::texture_base::material::SingleLayerMaterial {
+            name: const_format::concatcp!(
+                $directory, "/",
+                const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
+            ),
+            layer_name: $layer_name,
+            color: None
+        };
     };
 }
 
@@ -357,13 +364,17 @@ pub fn ground_cover_block(name: &'static str,
 pub struct SingleLayerMaterial {
     pub name: &'static str,
     pub layer_name: &'static str,
-    pub color: ComparableColor,
+    pub color: Option<ComparableColor>,
 }
 
 impl Material for SingleLayerMaterial {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         vec![out_task(self.name,
-             paint_svg_task(self.layer_name, self.color))]
+             if let Some(color) = self.color {
+                 paint_svg_task(self.layer_name, color)
+             } else {
+                 from_svg_task(self.layer_name)
+             })]
     }
 }
 
