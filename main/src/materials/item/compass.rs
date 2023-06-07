@@ -1,4 +1,3 @@
-use lazy_static::lazy_static;
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::task_spec::{FileOutputTaskSpec, from_svg_task, out_task, paint_svg_task};
 use crate::{group, stack};
@@ -34,20 +33,18 @@ impl Material for Compass {
     }
 }
 
-lazy_static!(
-    pub static ref COMPASS: Compass = Compass {
-        rim_color: ComparableColor::WHITE,
-        dial_color: ComparableColor::DEEPSLATE_SHADOW,
-        needle_color: ComparableColor::RED,
-        base_name: "compass"
-    };
+const COMPASS: Compass = Compass {
+    rim_color: ComparableColor::WHITE,
+    dial_color: ComparableColor::DEEPSLATE_SHADOW,
+    needle_color: ComparableColor::RED,
+    base_name: "compass"
+};
 
-    pub static ref RECOVERY_COMPASS: Compass = Compass {
-        rim_color: ComparableColor::CYAN,
-        dial_color: ComparableColor::BLACK,
-        needle_color: ComparableColor::CYAN,
-        base_name: "recovery_compass"
-    };
-);
+const RECOVERY_COMPASS: Compass = Compass {
+    rim_color: ComparableColor::CYAN,
+    dial_color: ComparableColor::BLACK,
+    needle_color: ComparableColor::CYAN,
+    base_name: "recovery_compass"
+};
 
 group!(COMPASSES = COMPASS, RECOVERY_COMPASS);

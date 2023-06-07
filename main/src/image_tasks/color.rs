@@ -2,7 +2,6 @@ use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::ops::Mul;
-use lazy_static::lazy_static;
 use palette::{Srgba};
 use palette::blend::{Compose};
 use png::BitDepth;
@@ -44,26 +43,27 @@ impl Ord for ComparableColor {
     }
 }
 
-lazy_static!{
-    static ref BIT_DEPTH_FOR_CHANNEL_VALUE: [BitDepth; u8::MAX as usize + 1] = {
-        let mut depth = [BitDepth::Eight; u8::MAX as usize + 1];
-        for x in 1..=0xE {
-            depth[x * 0x11] = BitDepth::Four;
-        }
-        for x in 1..3 {
-            depth[x * 0x55] = BitDepth::Two;
-        }
-        depth[0] = BitDepth::One;
-        depth[u8::MAX as usize] = BitDepth::One;
-        depth
-    };
+const fn bit_depth_for_channel_value() -> [BitDepth; u8::MAX as usize + 1] {
+    let mut depth = [BitDepth::Eight; u8::MAX as usize + 1];
+    let mut x = 1;
+    while x <= 0xE {
+        depth[x * 0x11] = BitDepth::Four;
+        x += 1;
+    }
+    depth[0x55] = BitDepth::Two;
+    depth[0xAA] = BitDepth::Two;
+    depth[0] = BitDepth::One;
+    depth[u8::MAX as usize] = BitDepth::One;
+    depth
 }
 
+pub const BIT_DEPTH_FOR_CHANNEL: [BitDepth; u8::MAX as usize + 1] = bit_depth_for_channel_value();
+
 impl ComparableColor {
-    pub fn red(&self) -> u8 { self.red}
-    pub fn green(&self) -> u8 { self.green}
-    pub fn blue(&self) -> u8 { self.blue}
-    pub fn alpha(&self) -> u8 { self.alpha}
+    pub const fn red(&self) -> u8 { self.red}
+    pub const fn green(&self) -> u8 { self.green}
+    pub const fn blue(&self) -> u8 { self.blue}
+    pub const fn alpha(&self) -> u8 { self.alpha}
 
     pub fn under<T>(self, foregrounds: T) -> Vec<ComparableColor>
         where T: Iterator<Item=ComparableColor> {
@@ -108,10 +108,10 @@ impl ComparableColor {
     pub const WHITE: ComparableColor = gray(u8::MAX);
 
     pub const STONE_EXTREME_SHADOW: ComparableColor = gray(0x55);
-    pub const STONE_SHADOW: ComparableColor = gray(0x74);
-    pub const STONE: ComparableColor = gray(0x85);
+    pub const STONE_SHADOW: ComparableColor = gray(0x77);
+    pub const STONE: ComparableColor = gray(0x88);
     pub const STONE_HIGHLIGHT: ComparableColor = gray(0xaa);
-    pub const STONE_EXTREME_HIGHLIGHT: ComparableColor = gray(0xba);
+    pub const STONE_EXTREME_HIGHLIGHT: ComparableColor = gray(0xbb);
 
     pub const DEEPSLATE_SHADOW: ComparableColor = c(0x2f2f3f);
     pub const DEEPSLATE: ComparableColor = ComparableColor::STONE_EXTREME_SHADOW;
@@ -119,9 +119,9 @@ impl ComparableColor {
 
     pub const EXTRA_DARK_BIOME_COLORABLE: ComparableColor = ComparableColor::STONE_SHADOW;
     pub const DARK_BIOME_COLORABLE: ComparableColor = ComparableColor::STONE;
-    pub const MEDIUM_BIOME_COLORABLE: ComparableColor = gray(0x9d);
+    pub const MEDIUM_BIOME_COLORABLE: ComparableColor = gray(0x99);
     pub const LIGHT_BIOME_COLORABLE: ComparableColor = ComparableColor::STONE_EXTREME_HIGHLIGHT;
-    pub const EXTRA_LIGHT_BIOME_COLORABLE: ComparableColor = gray(0xc3);
+    pub const EXTRA_LIGHT_BIOME_COLORABLE: ComparableColor = gray(0xcc);
 
     /// If I'm gonna use a gray any darker than this, I may as well just use
     /// [ComparableColor::BLACK] instead.
@@ -129,7 +129,7 @@ impl ComparableColor {
 
     /// If I'm gonna use a gray any lighter than this, I may as well just use
     /// [ComparableColor::WHITE] instead.
-    pub const LIGHTEST_GRAY: ComparableColor = gray(0xdc);
+    pub const LIGHTEST_GRAY: ComparableColor = gray(0xdd);
 
     pub const RESERVED_FOR_TRANSPARENCY: ComparableColor = c(0xc0ff3e);
 
@@ -158,10 +158,10 @@ impl ComparableColor {
         if self.alpha() == 0 {
             BitDepth::One
         } else {
-            u32_to_bit_depth_max_eight(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL_VALUE[self.red as usize])
-                .max(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL_VALUE[self.green as usize]))
-                .max(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL_VALUE[self.blue as usize]))
-                .max(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL_VALUE[self.alpha as usize])))
+            u32_to_bit_depth_max_eight(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL[self.red as usize])
+                .max(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL[self.green as usize]))
+                .max(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL[self.blue as usize]))
+                .max(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL[self.alpha as usize])))
         }
     }
 }

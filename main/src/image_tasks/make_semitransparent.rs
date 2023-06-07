@@ -1,23 +1,45 @@
-use cached::proc_macro::cached;
-use ordered_float::OrderedFloat;
 use resvg::tiny_skia::{Mask};
 
-#[cached(sync_writes = true)]
-pub(crate) fn create_alpha_array(out_alpha: OrderedFloat<f32>) -> [u8; 256] {
-    let mut alpha_array = [0u8; 256];
-    for in_alpha in 1..256u16 {
-        alpha_array[in_alpha as usize] = (*out_alpha * f32::from(in_alpha) + 0.5) as u8
+const fn create_alpha_multiplication_table() -> [[u8; u8::MAX as usize + 1]; u8::MAX as usize + 1] {
+    let mut table = [[0u8; u8::MAX as usize + 1]; u8::MAX as usize + 1];
+    let mut x = 1;
+    loop {
+        let mut y = 1;
+        loop {
+            table[x as usize][y as usize] = (((x as u16) * (y as u16) + 128) / 255) as u8;
+            if y == u8::MAX {
+                break;
+            } else {
+                y += 1;
+            }
+        }
+        if x == u8::MAX {
+            return table;
+        } else {
+            x += 1;
+        }
     }
-    alpha_array
 }
 
-/// Multiplies the opacity of all pixels in the [input](given pixmap) by a given [alpha].
-pub fn make_semitransparent(input: &mut Mask, alpha: f32) {
+pub const ALPHA_MULTIPLICATION_TABLE: [[u8; u8::MAX as usize + 1]; u8::MAX as usize + 1]
+    = create_alpha_multiplication_table();
 
-    let alpha_array = create_alpha_array(alpha.into());
+/// Multiplies the opacity of all pixels in the [input](given pixmap) by a given [alpha].
+pub fn make_semitransparent(input: &mut Mask, alpha: u8) {
+    let alpha_array = &ALPHA_MULTIPLICATION_TABLE[alpha as usize];
     let pixels = input.data_mut();
     for pixel in pixels {
         *pixel = alpha_array[*pixel as usize];
+    }
+}
+
+#[test]
+fn test_alpha_multiplication_table() {
+    for index in 0..=u8::MAX {
+        assert_eq!(ALPHA_MULTIPLICATION_TABLE[0][index as usize], 0);
+        assert_eq!(ALPHA_MULTIPLICATION_TABLE[index as usize][0], 0);
+        assert_eq!(ALPHA_MULTIPLICATION_TABLE[u8::MAX as usize][index as usize], index);
+        assert_eq!(ALPHA_MULTIPLICATION_TABLE[index as usize][u8::MAX as usize], index);
     }
 }
 
@@ -30,8 +52,7 @@ fn test_make_semitransparent() {
     use crate::image_tasks::repaint::pixmap_to_mask;
     use crate::image_tasks::color::ComparableColor;
 
-    let alpha = 0.5;
-    let alpha_multiplier = (alpha * f32::from(u8::MAX)) as u16;
+    let alpha = 128;
     let side_length = 128;
     let pixmap = &mut Pixmap::new(side_length, side_length).unwrap();
     let circle = PathBuilder::from_circle(64.0, 64.0, 50.0).unwrap();
@@ -47,8 +68,8 @@ fn test_make_semitransparent() {
         paint(&semitransparent_circle, ComparableColor::RED).unwrap();
     let semitransparent_pixels = semitransparent_red_circle.pixels();
     for index in 0usize..((side_length * side_length) as usize) {
-        let expected_alpha: u8 = (u16::from(alpha_multiplier
-            * u16::from(pixmap_pixels[index].alpha()) / 0xff)) as u8;
+        let expected_alpha: u8 = (alpha as u16
+            * pixmap_pixels[index].alpha() as u16 / u8::MAX as u16) as u8;
         assert!(semitransparent_pixels[index].alpha().abs_diff(expected_alpha) <= 1);
         if expected_alpha > 0 {
             assert!(semitransparent_pixels[index].red().abs_diff(expected_alpha) <= 1);

@@ -62,7 +62,8 @@ fn copy_metadata(source_dir: &Dir) {
                     copy_metadata(dir);
                 }
                 DirEntry::File(file) => {
-                    copy_in_to_out(file, file.path()).expect("Failed to copy a file");
+                    copy_in_to_out(file, file.path().to_string_lossy().into())
+                        .expect("Failed to copy a file");
                 }
             }
         }

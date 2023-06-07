@@ -3,7 +3,6 @@ use include_dir::{File};
 use std::io::{Cursor, Write};
 use std::mem::transmute;
 use std::ops::{Deref, DerefMut};
-use std::path::{Path};
 use std::sync::{Arc, Mutex};
 use bitstream_io::{BigEndian, BitWrite, BitWriter};
 use bytemuck::{cast};
@@ -62,25 +61,25 @@ pub fn prewarm_png_buffer_pool() {
     PNG_BUFFER_POOL.pull();
 }
 
-pub fn png_output(image: MaybeFromPool<Pixmap>, png_mode: PngMode, file: &Path) -> Result<(),CloneableError> {
+pub fn png_output(image: MaybeFromPool<Pixmap>, png_mode: PngMode, file_path: String) -> Result<(),CloneableError> {
     let data = into_png(image, png_mode)?;
     let mut zip = ZIP.lock()?;
     let writer = zip.deref_mut();
-    writer.start_file(file.to_string_lossy(), PNG_ZIP_OPTIONS.to_owned())?;
+    writer.start_file(file_path, PNG_ZIP_OPTIONS.to_owned())?;
     writer.write_all(&data)?;
     drop(zip);
     Ok(())
 }
 
-pub fn copy_out_to_out(source: &Path, dest: &Path) -> Result<(),CloneableError> {
-    ZIP.lock()?.deep_copy_file(&source.to_string_lossy(), &dest.to_string_lossy())?;
+pub fn copy_out_to_out(source_path: String, dest_path: String) -> Result<(),CloneableError> {
+    ZIP.lock()?.deep_copy_file(&source_path, &dest_path)?;
     Ok(())
 }
 
-pub fn copy_in_to_out(source: &File, dest: &Path) -> Result<(),CloneableError> {
+pub fn copy_in_to_out(source: &File, dest_path: String) -> Result<(),CloneableError> {
     let mut zip = ZIP.lock()?;
     let writer = zip.deref_mut();
-    writer.start_file(dest.to_string_lossy(), METADATA_ZIP_OPTIONS.to_owned())?;
+    writer.start_file(dest_path, METADATA_ZIP_OPTIONS.to_owned())?;
     writer.write_all(source.contents())?;
     Ok(())
 }
@@ -162,21 +161,18 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>, png_mode: PngMode) -> Result<M
             }
             writer.flush()?;
         }
-        PngMode::GrayscaleAlpha(bit_depth) => {
-            let depth_bits: u32 = bit_depth_to_u32(&bit_depth);
-            info!("Writing {}-bit grayscale PNG with alpha channel", depth_bits);
+        PngMode::GrayscaleAlpha => {
+            info!("Writing 8-bit grayscale PNG with alpha channel");
             encoder.set_color(ColorType::GrayscaleAlpha);
-            encoder.set_depth(bit_depth);
+            encoder.set_depth(BitDepth::Eight);
             let mut writer = encoder.write_header()?;
-            let mut writer: BitWriter<_, BigEndian>
-                = BitWriter::new(writer.stream_writer()?);
+            let mut data = Vec::with_capacity(
+                image.width() as usize * image.height() as usize * 2);
             for pixel in image.pixels() {
-                writer.write(depth_bits,
-                             channel_to_bit_depth(pixel.demultiply().red(), bit_depth))?;
-                writer.write(depth_bits,
-                             channel_to_bit_depth(pixel.alpha(), bit_depth))?;
+                data.extend_from_slice(&[pixel.demultiply().red(), pixel.alpha()]);
             }
-            writer.flush()?;
+            writer.write_image_data(&data)?;
+            writer.finish()?;
         }
         PngMode::IndexedRgbOpaque(palette) => {
             let len = palette.len();

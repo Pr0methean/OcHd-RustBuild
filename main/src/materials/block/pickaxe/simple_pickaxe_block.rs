@@ -7,7 +7,6 @@ use crate::materials::block::pickaxe::ore::{QUARTZ, COPPER};
 use crate::materials::block::pickaxe::polishable::BLACKSTONE;
 use crate::materials::block::shovel::simple_soft_earth::{MOSS_BLOCK, SAND, RED_SAND, MUD, PACKED_MUD};
 use crate::texture_base::material::{SingleTextureMaterial, TricolorMaterial};
-use crate::texture_base::material::block;
 
 single_texture_block!(DEEPSLATE_BRICKS = ComparableColor::TRANSPARENT,
     DEEPSLATE.material.texture(),
@@ -30,10 +29,10 @@ quartz!(QUARTZ_BLOCK_TOP = color!(),
 );
 
 lazy_static! {
-    pub static ref QUARTZ_BLOCK_BOTTOM: SingleTextureMaterial = block("quartz_block_bottom",
-            (QUARTZ.refined_block)(&QUARTZ));
-    pub static ref QUARTZ_BLOCK_SIDE: SingleTextureMaterial = block("quartz_block_side",
-            (QUARTZ.raw_block)(&QUARTZ));
+    pub static ref QUARTZ_BLOCK_BOTTOM: SingleTextureMaterial =
+        SingleTextureMaterial::new("block/quartz_block_bottom", (QUARTZ.refined_block)(&QUARTZ));
+    pub static ref QUARTZ_BLOCK_SIDE: SingleTextureMaterial =
+        SingleTextureMaterial::new("block/quartz_block_side", (QUARTZ.raw_block)(&QUARTZ));
 }
 
 macro_rules! stone {

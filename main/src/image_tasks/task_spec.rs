@@ -4,26 +4,22 @@ use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 
 use std::ops::{Deref, DerefMut, Mul};
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
-use cached::lazy_static::lazy_static;
 use crate::{anyhoo, debug_assert_unreachable};
 use include_dir::{Dir, include_dir};
 use itertools::{Itertools};
 
 use log::{info};
-use ordered_float::OrderedFloat;
 use png::{BitDepth};
 use replace_with::replace_with_and_return;
 
-use resvg::tiny_skia::{Color, ColorU8, Mask, Pixmap};
+use resvg::tiny_skia::{Color, Mask, Pixmap};
 
 use crate::image_tasks::animate::animate;
-use crate::image_tasks::color::{c, ComparableColor, gray};
+use crate::image_tasks::color::{BIT_DEPTH_FOR_CHANNEL, c, ComparableColor, gray};
 use crate::image_tasks::from_svg::{COLOR_SVGS, from_svg, SEMITRANSPARENCY_FREE_SVGS};
-use crate::image_tasks::make_semitransparent::{create_alpha_array, make_semitransparent};
+use crate::image_tasks::make_semitransparent::{ALPHA_MULTIPLICATION_TABLE, make_semitransparent};
 use crate::image_tasks::MaybeFromPool;
 use crate::image_tasks::png_output::{copy_out_to_out, png_output};
 use crate::image_tasks::repaint::{paint, pixmap_to_mask};
@@ -66,9 +62,9 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                 })
             },
             ToPixmapTaskSpec::FromSvg { source } => {
-                let source = source.to_owned();
+                let source = source.to_string();
                 Box::new(move || {
-                    Ok(Box::new(from_svg(&source, *TILE_SIZE)?))
+                    Ok(Box::new(from_svg(source, *TILE_SIZE)?))
                 })
             },
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
@@ -120,8 +116,8 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
         }
         let function: LazyTaskFunction<MaybeFromPool<Mask>> = match self {
             ToAlphaChannelTaskSpec::MakeSemitransparent { base, alpha } => {
-                let alpha: f32 = (*alpha).into();
                 let base_future = base.add_to(ctx);
+                let alpha = *alpha;
                 Box::new(move || {
                     let base_result: Arc<Box<MaybeFromPool<Mask>>> = base_future.into_result()?;
                     let mut channel = Arc::unwrap_or_clone(base_result);
@@ -148,7 +144,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                 })
             },
             ToAlphaChannelTaskSpec::StackAlphaOnBackground { background, foreground } => {
-                let background = background.0;
+                let background = *background;
                 let fg_future = foreground.add_to(ctx);
                 Box::new(move || {
                     let fg_arc: Arc<Box<MaybeFromPool<Mask>>> = fg_future.into_result()?;
@@ -176,23 +172,23 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
             return existing_future.to_owned();
         }
         let function: LazyTaskFunction<()> = match self {
-            FileOutputTaskSpec::PngOutput {base, destination } => {
-                let destination = destination.to_owned();
+            FileOutputTaskSpec::PngOutput {base, .. } => {
+                let destination_path = self.get_path();
                 let base_future = base.add_to(ctx);
                 let png_mode = color_description_to_mode(base, ctx);
                 Box::new(move || {
                     let base_result = base_future.into_result()?;
                     Ok(Box::new(png_output(*Arc::unwrap_or_clone(base_result),
-                                           png_mode, &destination)?))
+                                           png_mode, destination_path)?))
                 })
             }
-            FileOutputTaskSpec::Copy {original, link} => {
-                let link = link.to_owned();
+            FileOutputTaskSpec::Copy {original, ..} => {
+                let link = self.get_path();
                 let original_path = original.get_path();
                 let base_future = original.add_to(ctx);
                 Box::new(move || {
                     base_future.into_result()?;
-                    Ok(Box::new(copy_out_to_out(&original_path, &link)?))
+                    Ok(Box::new(copy_out_to_out(original_path, link)?))
                 })
             }
         };
@@ -209,7 +205,7 @@ pub type CloneableResult<T> = Result<Arc<Box<T>>, CloneableError>;
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum ToPixmapTaskSpec {
     Animate {background: Box<ToPixmapTaskSpec>, frames: Vec<ToPixmapTaskSpec>},
-    FromSvg {source: PathBuf},
+    FromSvg {source: String},
     PaintAlphaChannel {base: Box<ToAlphaChannelTaskSpec>, color: ComparableColor},
     StackLayerOnColor {background: ComparableColor, foreground: Box<ToPixmapTaskSpec>},
     StackLayerOnLayer {background: Box<ToPixmapTaskSpec>, foreground: Box<ToPixmapTaskSpec>},
@@ -219,24 +215,34 @@ pub enum ToPixmapTaskSpec {
 /// [TaskSpec] for a task that produces an [AlphaChannel].
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum ToAlphaChannelTaskSpec {
-    MakeSemitransparent {base: Box<ToAlphaChannelTaskSpec>, alpha: OrderedFloat<f32>},
-    FromPixmap {base: Box<ToPixmapTaskSpec>},
+    MakeSemitransparent {base: Box<ToAlphaChannelTaskSpec>, alpha: u8},
+    FromPixmap {base: ToPixmapTaskSpec},
     StackAlphaOnAlpha {background: Box<ToAlphaChannelTaskSpec>, foreground: Box<ToAlphaChannelTaskSpec>},
-    StackAlphaOnBackground {background: OrderedFloat<f32>, foreground: Box<ToAlphaChannelTaskSpec>}
+    StackAlphaOnBackground {background: u8, foreground: Box<ToAlphaChannelTaskSpec>}
 }
 
 /// [TaskSpec] for a task that doesn't produce a heap object as output.
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum FileOutputTaskSpec {
-    PngOutput {base: ToPixmapTaskSpec, destination: PathBuf},
-    Copy {original: Box<FileOutputTaskSpec>, link: PathBuf}
+    PngOutput {base: ToPixmapTaskSpec, destination_name: String},
+    Copy {original: Box<FileOutputTaskSpec>, link_name: String}
 }
 
 impl FileOutputTaskSpec {
-    pub(crate) fn get_path(&self) -> PathBuf {
+    pub(crate) fn get_path(&self) -> String {
         match self {
-            FileOutputTaskSpec::PngOutput { destination, .. } => destination.to_owned(),
-            FileOutputTaskSpec::Copy { link, .. } => link.to_owned()
+            FileOutputTaskSpec::PngOutput { destination_name, .. } => {
+                let mut out_path = ASSET_DIR.to_string();
+                out_path.push_str(destination_name);
+                out_path.push_str(".png");
+                out_path
+            },
+            FileOutputTaskSpec::Copy { link_name, .. } => {
+                let mut out_path = ASSET_DIR.to_string();
+                out_path.push_str(link_name);
+                out_path.push_str(".png");
+                out_path
+            }
         }
     }
 }
@@ -304,7 +310,7 @@ impl Display for ToPixmapTaskSpec {
                 write!(f, "animate({};{})", background, frames.iter().join(";"))
             }
             ToPixmapTaskSpec::FromSvg { source } => {
-                write!(f, "{}", source.to_string_lossy())
+                f.write_str(source)
             }
             ToPixmapTaskSpec::PaintAlphaChannel { base, color } => {
                 if let ToAlphaChannelTaskSpec::FromPixmap {base: base_of_base} = &**base {
@@ -329,11 +335,11 @@ impl Display for ToPixmapTaskSpec {
 impl Display for FileOutputTaskSpec {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(&match self {
-            FileOutputTaskSpec::PngOutput { destination, .. } => {
-                destination.to_string_lossy().to_string()
+            FileOutputTaskSpec::PngOutput { .. } => {
+                self.get_path()
             },
-            FileOutputTaskSpec::Copy { original, link } => {
-                format!("symlink({} -> {})", link.to_string_lossy(), original.to_string())
+            FileOutputTaskSpec::Copy { original, .. } => {
+                format!("symlink({} -> {})", self.get_path(), original.get_path())
             }
         })
     }
@@ -459,22 +465,22 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
     }
 }
 
-fn stack_alpha_vecs(background: &Vec<u8>, foreground: &Vec<u8>) -> Vec<u8> {
+fn stack_alpha_vecs(background: &[u8], foreground: &[u8]) -> Vec<u8> {
     let mut combined: Vec<u8> = background.iter().flat_map(|bg_alpha|
         foreground.iter().map(move |fg_alpha| stack_alpha_pixel(*bg_alpha, *fg_alpha)))
-        .unique().collect();
+        .collect();
     combined.sort();
     combined.dedup();
     combined
 }
 
-fn multiply_alpha_vec(alphas: &Vec<u8>, rhs: f32) -> Vec<u8> {
-    if rhs == 0.0 {
+fn multiply_alpha_vec(alphas: &Vec<u8>, rhs: u8) -> Vec<u8> {
+    if rhs == 0 {
         vec![0]
-    } else if rhs == 1.0 {
+    } else if rhs == u8::MAX {
         alphas.to_owned()
     } else {
-        let alpha_array = create_alpha_array(rhs.into());
+        let alpha_array = &ALPHA_MULTIPLICATION_TABLE[rhs as usize];
         let mut output: Vec<u8> = alphas.iter().map(|x|
             alpha_array[*x as usize]).collect();
         // Don't need to sort because input is sorted
@@ -558,7 +564,7 @@ impl IntoIterator for ColorIterable {
 
 #[derive(Clone)]
 pub enum ColorDescription {
-    SpecifiedColors(ColorIterable),
+    SpecifiedColors(Vec<ComparableColor>),
     Rgb(Transparency)
 }
 
@@ -671,8 +677,24 @@ impl ColorIterable {
 impl ColorDescription {
     pub fn transparency(&self) -> Transparency {
         match self {
-            SpecifiedColors(colors) => colors.transparency(),
+            SpecifiedColors(colors) => {
+                if contains_semitransparency(colors) {
+                    AlphaChannel
+                } else if contains_alpha(colors, 0) {
+                    BinaryTransparency
+                } else {
+                    Opaque
+                }
+            },
             Rgb(transparency) => *transparency
+        }
+    }
+
+    fn collapse_specified(colors: Vec<ComparableColor>) -> ColorDescription {
+        if colors.len() <= MAX_SPECIFIED_COLORS {
+            SpecifiedColors(colors)
+        } else {
+            Rgb(SpecifiedColors(colors).transparency())
         }
     }
 
@@ -682,13 +704,26 @@ impl ColorDescription {
             SpecifiedColors(bg_colors) => {
                 match &self {
                     Rgb(transparency) => Rgb(transparency.stack_on(&background.transparency())),
-                    SpecifiedColors(fg_colors) => SpecifiedColors(match self.transparency() {
-                            Opaque => fg_colors.clone(),
-                            BinaryTransparency => bg_colors.union(fg_colors),
-                            AlphaChannel => Stacked {
-                                backgrounds: bg_colors.clone().into(), foregrounds: fg_colors.clone().into()
+                    SpecifiedColors(fg_colors) => {
+                        match self.transparency() {
+                            Opaque => SpecifiedColors(fg_colors.clone()),
+                            BinaryTransparency => {
+                                let mut combined_colors = fg_colors.to_owned();
+                                combined_colors.extend(bg_colors);
+                                combined_colors.sort();
+                                combined_colors.dedup();
+                                Self::collapse_specified(combined_colors)
                             }
-                    })
+                            AlphaChannel => {
+                                let mut combined_colors: Vec<ComparableColor> = bg_colors.iter().flat_map(|bg_color|
+                                    bg_color.under(fg_colors.iter().copied()).into_iter()
+                                ).unique().collect();
+                                combined_colors.sort();
+                                combined_colors.dedup();
+                                Self::collapse_specified(combined_colors)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -700,8 +735,13 @@ impl ColorDescription {
             SpecifiedColors(neighbor_colors) => {
                 match self {
                     Rgb(transparency) => Rgb(transparency.put_adjacent(&neighbor.transparency())),
-                    SpecifiedColors(self_colors) => SpecifiedColors(Union(
-                        self_colors.clone().into(), neighbor_colors.clone().into()))
+                    SpecifiedColors(self_colors) => {
+                        let mut combined_colors = self_colors.to_owned();
+                        combined_colors.extend(neighbor_colors);
+                        combined_colors.sort();
+                        combined_colors.dedup();
+                        Self::collapse_specified(combined_colors)
+                    }
                 }
             }
         }
@@ -717,7 +757,7 @@ pub enum PngMode {
         bit_depth: BitDepth,
         transparent_shade: u8,
     },
-    GrayscaleAlpha(BitDepth),
+    GrayscaleAlpha,
     RgbOpaque,
     RgbWithTransparentShade(ComparableColor),
     Rgba
@@ -751,7 +791,7 @@ impl PngMode {
             IndexedRgba(palette) => palette_bits_per_pixel(palette.len()),
             GrayscaleOpaque(bit_depth) => bit_depth_to_u32(bit_depth) as usize,
             GrayscaleWithTransparentShade { bit_depth, .. } => bit_depth_to_u32(bit_depth) as usize,
-            GrayscaleAlpha(bit_depth) => 2 * bit_depth_to_u32(bit_depth) as usize,
+            GrayscaleAlpha => 16,
             RgbOpaque => 24,
             RgbWithTransparentShade(_) => 24,
             Rgba => 32
@@ -793,9 +833,7 @@ pub fn u32_to_bit_depth_max_eight(depth: u32) -> BitDepth {
     }
 }
 
-lazy_static! {
-    static ref ALL_ALPHA_VALUES: Vec<u8> = (0..=u8::MAX).collect();
-}
+const ALL_U8S: &[u8; u8::MAX as usize + 1] = &ALPHA_MULTIPLICATION_TABLE[u8::MAX as usize];
 
 impl ToAlphaChannelTaskSpec {
     fn get_possible_alpha_values(&self, ctx: &mut TaskGraphBuildingContext) -> Vec<u8> {
@@ -804,7 +842,7 @@ impl ToAlphaChannelTaskSpec {
         }
         let alpha_vec: Vec<u8> = match self {
             ToAlphaChannelTaskSpec::MakeSemitransparent { alpha, base } => {
-                multiply_alpha_vec(&base.get_possible_alpha_values(ctx), **alpha)
+                multiply_alpha_vec(&base.get_possible_alpha_values(ctx), *alpha)
             }
             ToAlphaChannelTaskSpec::FromPixmap { base } => {
 
@@ -815,7 +853,7 @@ impl ToAlphaChannelTaskSpec {
                                  &foreground.get_possible_alpha_values(ctx))
             }
             ToAlphaChannelTaskSpec::StackAlphaOnBackground { background: background_alpha, foreground } => {
-                stack_alpha_vecs(&foreground.get_possible_alpha_values(ctx), &vec![(**background_alpha * 255.0 + 0.5) as u8])
+                stack_alpha_vecs(&[*background_alpha], &foreground.get_possible_alpha_values(ctx))
             }
         };
         ctx.alpha_task_to_alpha_map.insert(self.to_owned(), alpha_vec.to_owned());
@@ -823,18 +861,13 @@ impl ToAlphaChannelTaskSpec {
     }
 }
 
-lazy_static!{
-    pub static ref SEMITRANSPARENT_BLACK_PALETTE: Vec<ComparableColor> = (0..=u8::MAX).map(|alpha| ComparableColor::from(
-        ColorU8::from_rgba(0, 0, 0, alpha))).collect();
-}
-
 fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildingContext) -> PngMode {
     match task.get_color_description(ctx) {
-        SpecifiedColors(colors) => {
+        SpecifiedColors(mut colors) => {
             let transparency = task.get_transparency(ctx);
-            let have_non_gray = colors.has_non_gray();
+            let have_non_gray = colors.iter().any(|color| !color.is_gray());
             let max_indexed_size = 256;
-            let colors: Vec<ComparableColor> = colors.into_iter().take(max_indexed_size + 1).collect();
+            colors.truncate(max_indexed_size + 1);
             if colors.len() > max_indexed_size && have_non_gray {
                 return match transparency {
                     Opaque => RgbOpaque,
@@ -846,12 +879,13 @@ fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildin
                 if transparency == Opaque {
                     GrayscaleOpaque(BitDepth::Eight)
                 } else {
-                    GrayscaleAlpha(BitDepth::Eight)
+                    GrayscaleAlpha
                 }
             } else {
                 let mut grayscale_bits = 1;
                 for color in colors.iter() {
-                    let color_bit_depth = bit_depth_to_u32(&color.bit_depth());
+                    let color_bit_depth = bit_depth_to_u32(
+                        &BIT_DEPTH_FOR_CHANNEL[color.red() as usize]);
                     grayscale_bits = grayscale_bits.max(color_bit_depth);
                     if grayscale_bits == 8 {
                         break;
@@ -867,21 +901,33 @@ fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildin
                     return indexed_mode;
                 }
                 let grayscale_mode = match transparency {
-                    AlphaChannel => GrayscaleAlpha(grayscale_bit_depth),
+                    AlphaChannel => GrayscaleAlpha,
                     BinaryTransparency => {
                         let grayscale_shades = match grayscale_bit_depth {
                             BitDepth::One => vec![ComparableColor::BLACK, ComparableColor::WHITE],
                             BitDepth::Two => vec![gray(0x00), gray(0x55), gray(0xAA), gray(0xFF)],
                             BitDepth::Four => (0..16).map(|n| gray(n * 0x11)).collect(),
-                            BitDepth::Eight => (0..=u8::MAX).map(gray).collect(),
-                            BitDepth::Sixteen => panic!("16-bit greyscale not handled")
+                            BitDepth::Eight => ALL_U8S.iter().copied().map(gray).collect(),
+                            BitDepth::Sixteen => debug_assert_unreachable()
                         };
                         match grayscale_shades.into_iter().find(|color| !colors.contains(color)) {
                             Some(unused) => GrayscaleWithTransparentShade {
                                 bit_depth: grayscale_bit_depth,
                                 transparent_shade: unused.red()
                             },
-                            None => GrayscaleAlpha(grayscale_bit_depth)
+                            None => match grayscale_bit_depth {
+                                BitDepth::One => GrayscaleWithTransparentShade {
+                                    bit_depth: BitDepth::Two, transparent_shade: 0x55
+                                },
+                                BitDepth::Two => GrayscaleWithTransparentShade {
+                                    bit_depth: BitDepth::Four, transparent_shade: 0x22
+                                },
+                                BitDepth::Four => GrayscaleWithTransparentShade {
+                                    bit_depth: BitDepth::Eight, transparent_shade: 0x08
+                                },
+                                BitDepth::Eight => GrayscaleAlpha,
+                                BitDepth::Sixteen => debug_assert_unreachable()
+                            }
                         }
                     },
                     Opaque => GrayscaleOpaque(grayscale_bit_depth)
@@ -896,6 +942,47 @@ fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildin
         Rgb(Opaque) => RgbOpaque,
         Rgb(BinaryTransparency) => RgbWithTransparentShade(c(0xc0ff3e)),
         Rgb(AlphaChannel) => Rgba
+    }
+}
+
+const BINARY_SEARCH_THRESHOLD: usize = 1024;
+
+fn contains_alpha(vec: &Vec<ComparableColor>, needle_alpha: u8) -> bool {
+    if vec.len() <= BINARY_SEARCH_THRESHOLD {
+        vec.iter().any(|color| color.alpha() == needle_alpha)
+    } else {
+        match vec.binary_search(&ComparableColor {
+            alpha: needle_alpha,
+            red: 0,
+            green: 0,
+            blue: 0
+        }) {
+            Ok(_) => true,
+            Err(insert_black_index) => match vec[insert_black_index..].binary_search(&ComparableColor {
+                alpha: needle_alpha,
+                red: u8::MAX,
+                green: u8::MAX,
+                blue: u8::MAX
+            }) {
+                Ok(_) => true,
+                Err(insert_white_index) => insert_white_index > 0
+            }
+        }
+    }
+}
+
+pub fn contains_semitransparency(vec: &Vec<ComparableColor>) -> bool {
+    match vec[0].alpha {
+        0 => if vec.len() == 1 {
+            false
+        } else { match vec[1].alpha {
+            0 => panic!("Transparent color included twice"),
+            u8::MAX => false,
+            _ => true
+        }
+        }
+        u8::MAX => false,
+        _ => true,
     }
 }
 
@@ -932,9 +1019,8 @@ impl ToPixmapTaskSpec {
                 current_desc.unwrap()
             },
             ToPixmapTaskSpec::FromSvg { source } => {
-                let source: &str = &source.to_string_lossy();
-                if COLOR_SVGS.contains(&source) {
-                    if SEMITRANSPARENCY_FREE_SVGS.contains(&source) {
+                if COLOR_SVGS.contains(&source.as_str()) {
+                    if SEMITRANSPARENCY_FREE_SVGS.contains(&source.as_str()) {
                         Rgb(BinaryTransparency)
                     } else {
                         Rgb(AlphaChannel)
@@ -942,11 +1028,27 @@ impl ToPixmapTaskSpec {
                 } else if SEMITRANSPARENCY_FREE_SVGS.contains(&source) {
                     SpecifiedColors(Discrete(vec![ComparableColor::TRANSPARENT, ComparableColor::BLACK]))
                 } else {
-                    SpecifiedColors(MultiplyAlpha {color: ComparableColor::BLACK, alphas: (0..=u8::MAX).collect()})
+                    SpecifiedColors(Discrete(ALL_U8S.iter()
+                        .map(|alpha| ComparableColor { red: 0, green: 0, blue: 0, alpha: *alpha}).collect()))
                 }
             },
             ToPixmapTaskSpec::PaintAlphaChannel { color, base } => {
-                SpecifiedColors(MultiplyAlpha {color: *color, alphas: base.get_possible_alpha_values(ctx)})
+                SpecifiedColors({
+                    let alpha_array = ALPHA_MULTIPLICATION_TABLE[color.alpha() as usize];
+                    let mut colored_alphas: Vec<ComparableColor> = base
+                        .get_possible_alpha_values(ctx)
+                        .into_iter()
+                        .map(|alpha| ComparableColor {
+                            red: color.red(),
+                            green: color.green(),
+                            blue: color.blue(),
+                            alpha: alpha_array[alpha as usize]
+                        })
+                        .collect();
+                    colored_alphas.sort();
+                    colored_alphas.dedup();
+                    colored_alphas
+                })
             },
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
                 let background = *background;
@@ -967,7 +1069,7 @@ impl ToPixmapTaskSpec {
             let colors = self.get_color_description(ctx);
             let alphas = match colors.transparency() {
                 AlphaChannel => match colors {
-                    Rgb(_) => (0..=u8::MAX).collect(),
+                    Rgb(_) => ALL_U8S.to_vec(),
                     SpecifiedColors(colors) => if let Discrete(vec) = &colors
                         && vec.len() <= BINARY_SEARCH_THRESHOLD {
                         let mut alphas: Vec<u8> = vec.into_iter().map(|color| color.alpha()).collect();
@@ -975,7 +1077,7 @@ impl ToPixmapTaskSpec {
                         alphas.dedup();
                         alphas
                     } else {
-                        (0..=u8::MAX)
+                        ALL_U8S
                             .filter(|alpha| colors.contains_alpha(*alpha))
                             .collect()
                     }
@@ -991,7 +1093,7 @@ impl ToPixmapTaskSpec {
 
 impl From<ToPixmapTaskSpec> for ToAlphaChannelTaskSpec {
     fn from(value: ToPixmapTaskSpec) -> Self {
-        ToAlphaChannelTaskSpec::FromPixmap {base: Box::new(value)}
+        ToAlphaChannelTaskSpec::FromPixmap {base: value}
     }
 }
 
@@ -1022,35 +1124,25 @@ impl TaskGraphBuildingContext {
 pub const SVG_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/svg");
 pub const METADATA_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/metadata");
 
-lazy_static! {
-    pub static ref ASSET_DIR: &'static Path = Path::new("assets/minecraft/textures");
-}
-
-pub fn name_to_out_path(name: &str) -> PathBuf {
-    ASSET_DIR.join(format!("{}.png", name))
-}
-
-pub fn name_to_svg_path(name: &str) -> PathBuf {
-    PathBuf::from(format!("{}.svg", name))
-}
+pub const ASSET_DIR: &str = "assets/minecraft/textures/";
 
 pub fn from_svg_task(name: &str) -> ToPixmapTaskSpec {
-    ToPixmapTaskSpec::FromSvg {source: name_to_svg_path(name)}
+    ToPixmapTaskSpec::FromSvg {source: name.to_string()}
 }
 
 pub fn svg_alpha_task(name: &str) -> ToAlphaChannelTaskSpec {
-    ToAlphaChannelTaskSpec::from(from_svg_task(name))
+    ToAlphaChannelTaskSpec::FromPixmap { base: from_svg_task(name) }
 }
 
 
 pub fn paint_task(base: ToAlphaChannelTaskSpec, color: ComparableColor) -> ToPixmapTaskSpec {
     if let ToAlphaChannelTaskSpec::FromPixmap {base: ref base_base} = base {
-        match &**base_base {
+        match base_base {
             ToPixmapTaskSpec::FromSvg { ref source } => {
                 if color == ComparableColor::BLACK
-                    && !COLOR_SVGS.contains(&&*source.to_string_lossy()) {
+                    && !COLOR_SVGS.contains(&source.as_str()) {
                     info!("Simplified {}@{} -> {}", base, color, base_base);
-                    return *base_base.to_owned();
+                    return base_base.to_owned();
                 }
             },
             ToPixmapTaskSpec::PaintAlphaChannel {base: base_base_base, color: base_color } => {
@@ -1066,17 +1158,20 @@ pub fn paint_task(base: ToAlphaChannelTaskSpec, color: ComparableColor) -> ToPix
 }
 
 pub fn paint_svg_task(name: &str, color: ComparableColor) -> ToPixmapTaskSpec {
-    if color == ComparableColor::BLACK && !COLOR_SVGS.contains(&&*name_to_svg_path(name).to_string_lossy()) {
+    if color == ComparableColor::BLACK
+        && !COLOR_SVGS.contains(&name) {
         info!("Simplified {}@{} -> {}", name, color, name);
         from_svg_task(name)
     } else {
-        paint_task(ToAlphaChannelTaskSpec::FromPixmap { base: Box::new(from_svg_task(name)) },
-                   color)
+        ToPixmapTaskSpec::PaintAlphaChannel {
+            base: Box::new(ToAlphaChannelTaskSpec::FromPixmap { base: from_svg_task(name) }),
+            color
+        }
     }
 }
 
 pub fn out_task(name: &str, base: ToPixmapTaskSpec) -> FileOutputTaskSpec {
-    FileOutputTaskSpec::PngOutput {base, destination: name_to_out_path(name) }
+    FileOutputTaskSpec::PngOutput {base, destination_name: name.to_string() }
 }
 
 fn stack_alpha_presorted(mut layers: Vec<ToAlphaChannelTaskSpec>) -> ToAlphaChannelTaskSpec {
@@ -1186,16 +1281,6 @@ macro_rules! stack_alpha {
     };
 }
 
-impl FromStr for ToPixmapTaskSpec {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(ToPixmapTaskSpec::FromSvg {
-            source: name_to_svg_path(s)
-        })
-    }
-}
-
 impl Mul<f32> for ToAlphaChannelTaskSpec {
     type Output = ToAlphaChannelTaskSpec;
 
@@ -1205,7 +1290,7 @@ impl Mul<f32> for ToAlphaChannelTaskSpec {
         } else {
             ToAlphaChannelTaskSpec::MakeSemitransparent {
                 base: Box::new(self),
-                alpha: OrderedFloat::from(rhs)
+                alpha: (rhs * 255.0 + 0.5) as u8
             }
         }
     }
@@ -1230,8 +1315,7 @@ impl Mul<ComparableColor> for ToPixmapTaskSpec {
                 }
             },
             _ => ToPixmapTaskSpec::PaintAlphaChannel {
-                base: Box::new(ToAlphaChannelTaskSpec::FromPixmap { base: Box::new(self) }),
-                color: rhs
+                base: Box::new(ToAlphaChannelTaskSpec::FromPixmap { base: self }), color: rhs
             }
         }
     }
