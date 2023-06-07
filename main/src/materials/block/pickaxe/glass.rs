@@ -7,7 +7,7 @@ use crate::texture_base::material::SingleLayerMaterial;
 const GLASS_PANE_TOP: SingleLayerMaterial = SingleLayerMaterial {
     name: "block/glass_pane_top",
     layer_name: "paneTop",
-    color: c(0xa8d5d5)
+    color: Some(c(0xa8d5d5))
 };
 
 lazy_static! {
