@@ -54,8 +54,8 @@ impl Ore {
 
     fn basic_raw_ore(&self) -> ToPixmapTaskSpec {
         stack!(
-            paint_svg_task("bigCircle", self.colors.shadow),
-            paint_svg_task("bigCircleTwoQuarters", self.colors.color),
+            paint_svg_task("circle32BottomLeftTopRight", self.colors.shadow),
+            paint_svg_task("circle32TopLeftBottomRight", self.colors.color),
             paint_svg_task(self.svg_name, self.colors.highlight)
         )
     }
@@ -272,8 +272,8 @@ lazy_static! {
         gold.needs_refining = true;
         gold.substrates = ALL_SUBSTRATES.to_owned();
         gold.raw_item = Box::new(|_| stack!(
-            paint_svg_task("bigCircle", GOLD.colors.highlight),
-            paint_svg_task("bigCircleTwoQuarters", GOLD.colors.color),
+            paint_svg_task("circle24BottomLeftTopRight", GOLD.colors.highlight),
+            paint_svg_task("circle24TopLeftBottomRight", GOLD.colors.color),
             paint_svg_task("gold", GOLD.colors.shadow)
         ));
         gold

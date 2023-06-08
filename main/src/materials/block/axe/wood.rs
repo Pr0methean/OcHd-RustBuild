@@ -327,8 +327,8 @@ lazy_static! {pub static ref DARK_OAK: Wood = overworld_wood(
     )),
     Box::new(/*sapling*/ |_wood| stack!(
         paint_svg_task("saplingStem", DARK_OAK.bark_color),
-        paint_svg_task("bigCircle", c(0x005c00)),
-        paint_svg_task("bigCircleTwoQuarters", c(0x57ad3f))
+        paint_svg_task("circle24BottomLeftTopRight", c(0x005c00)),
+        paint_svg_task("circle24TopLeftBottomRight", c(0x57ad3f))
     )),
 );}
 lazy_static!{pub static ref JUNGLE: Wood = {
