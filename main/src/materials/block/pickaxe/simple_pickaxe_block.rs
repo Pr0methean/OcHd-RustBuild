@@ -372,19 +372,19 @@ amethyst!(SMALL_AMETHYST_BUD = ComparableColor::TRANSPARENT,
 make_tricolor_block_macro!(purpur, c(0xac7bac), c(0x906590), c(0xc7a8c7));
 
 purpur!(PURPUR_BLOCK = color!(),
-    paint_svg_task("bigCircle", highlight!() * 0.25),
+    paint_svg_task("circle24", highlight!() * 0.25),
     paint_svg_task("borderSolid", shadow!()),
     paint_svg_task("2x2TopLeft", highlight!())
 );
 
 purpur!(PURPUR_PILLAR = color!(),
-    paint_svg_task("bigCircle", highlight!() * 0.25),
+    paint_svg_task("circle24", highlight!() * 0.25),
     paint_stack!(shadow!(), "borderSolid", "stripesVerticalThick"),
     paint_svg_task("borderSolidTopLeft", highlight!())
 );
 
 purpur!(PURPUR_PILLAR_TOP = highlight!(),
-    paint_svg_task("bigCircle", color!() * 0.75),
+    paint_svg_task("circle24", color!() * 0.75),
     paint_svg_task("borderSolidThick", color!()),
     paint_svg_task("borderSolid", shadow!()),
     paint_svg_task("borderSolidTopLeft", highlight!())
