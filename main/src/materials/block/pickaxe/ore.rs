@@ -205,7 +205,7 @@ lazy_static! {
     };
     pub static ref IRON: Ore = {
         let mut iron = Ore::new("iron",
-                            c(0xd8af93),
+                            c(0xffaf93),
                             c(0xaf8e77),
                             c(0xFFCDB2));
         iron.needs_refining = true;
