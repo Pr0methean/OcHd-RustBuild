@@ -218,14 +218,11 @@ lazy_static! {
                             REDSTONE_ON);
         redstone.raw_item = Box::new(Ore::basic_raw_ore);
         redstone.ore_block_for_substrate = Box::new(|_, substrate| {
-            if substrate == STONE.material.texture() {
-                stack!(
-                    STONE.material.texture(),
-                    paint_svg_task("redstone", REDSTONE.colors.shadow)
-                )
-            } else {
-                REDSTONE.basic_ore_block_for_substrate(substrate)
-            }
+            stack!(
+                substrate,
+                paint_svg_task("redstoneShadows", REDSTONE.colors.shadow),
+                paint_svg_task("redstoneHighlights", REDSTONE.colors.highlight)
+            )
         });
         redstone
     };
