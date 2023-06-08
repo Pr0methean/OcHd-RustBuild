@@ -215,7 +215,7 @@ block_with_colors!(GLOWSTONE = c(0xcc8654), c(0x6f4522), c(0xffda74),
     color!(),
     paint_svg_task("borderSolid", shadow!()),
     paint_svg_task("checksSmall", highlight!()),
-    paint_svg_task("lampOn", ComparableColor::WHITE)
+    paint_svg_task("glow", ComparableColor::WHITE)
 );
 
 block_with_colors!(END_STONE = c(0xdeffa4),c(0xc5be8b),c(0xffffb4),
