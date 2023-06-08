@@ -274,8 +274,8 @@ lazy_static! {
         gold.needs_refining = true;
         gold.substrates = ALL_SUBSTRATES.to_owned();
         gold.raw_item = Box::new(|_| stack!(
-            paint_svg_task("circle24BottomLeftTopRight", GOLD.colors.highlight),
-            paint_svg_task("circle24TopLeftBottomRight", GOLD.colors.color),
+            paint_svg_task("circle32BottomLeftTopRight", GOLD.colors.highlight),
+            paint_svg_task("circle32TopLeftBottomRight", GOLD.colors.color),
             paint_svg_task("gold", GOLD.colors.shadow)
         ));
         gold
