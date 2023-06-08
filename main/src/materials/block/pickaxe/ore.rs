@@ -3,7 +3,7 @@ use lazy_static::lazy_static;
 use crate::image_tasks::color::{ComparableColor, c};
 use crate::image_tasks::task_spec::{out_task, paint_svg_task, FileOutputTaskSpec, ToPixmapTaskSpec};
 use crate::{group, paint_stack, stack, stack_on};
-use crate::materials::block::pickaxe::ore_base::{DEEPSLATE, DEEPSLATE_BASE, NETHERRACK_BASE, OreBase, STONE, STONE_BASE};
+use crate::materials::block::pickaxe::ore_base::{DEEPSLATE, DEEPSLATE_BASE, NETHERRACK_BASE, OreBase, STONE_BASE};
 use crate::texture_base::material::{TextureSupplier, TextureUnaryFunc, ColorTriad, Material, TricolorMaterial, REDSTONE_ON};
 
 lazy_static! {
@@ -54,8 +54,8 @@ impl Ore {
 
     fn basic_raw_ore(&self) -> ToPixmapTaskSpec {
         stack!(
-            paint_svg_task("bigCircle", self.colors.shadow),
-            paint_svg_task("bigCircleTwoQuarters", self.colors.color),
+            paint_svg_task("circle32BottomLeftTopRight", self.colors.shadow),
+            paint_svg_task("circle32TopLeftBottomRight", self.colors.color),
             paint_svg_task(self.svg_name, self.colors.highlight)
         )
     }
@@ -192,15 +192,20 @@ lazy_static! {
     };
     pub static ref COPPER: Ore = {
         let mut copper = Ore::new("copper",
-                                  c(0xe0734d),
-                                  c(0x915431),
-                                  c(0xff8268));
+                                  c(0xff8000),
+                                  c(0x915400),
+                                  c(0xffa268));
         copper.needs_refining = true;
+        copper.refined_colors = ColorTriad {
+            color: c(0xe0734d),
+            shadow: c(0x915431),
+            highlight: c(0xff8268)
+        };
         copper
     };
     pub static ref IRON: Ore = {
         let mut iron = Ore::new("iron",
-                            c(0xd8af93),
+                            c(0xffaf93),
                             c(0xaf8e77),
                             c(0xFFCDB2));
         iron.needs_refining = true;
@@ -218,14 +223,11 @@ lazy_static! {
                             REDSTONE_ON);
         redstone.raw_item = Box::new(Ore::basic_raw_ore);
         redstone.ore_block_for_substrate = Box::new(|_, substrate| {
-            if substrate == STONE.material.texture() {
-                stack!(
-                    STONE.material.texture(),
-                    paint_svg_task("redstone", REDSTONE.colors.shadow)
-                )
-            } else {
-                REDSTONE.basic_ore_block_for_substrate(substrate)
-            }
+            stack!(
+                substrate,
+                paint_svg_task("redstoneShadows", REDSTONE.colors.shadow),
+                paint_svg_task("redstoneHighlights", REDSTONE.colors.highlight)
+            )
         });
         redstone
     };
@@ -272,8 +274,8 @@ lazy_static! {
         gold.needs_refining = true;
         gold.substrates = ALL_SUBSTRATES.to_owned();
         gold.raw_item = Box::new(|_| stack!(
-            paint_svg_task("bigCircle", GOLD.colors.highlight),
-            paint_svg_task("bigCircleTwoQuarters", GOLD.colors.color),
+            paint_svg_task("circle32BottomLeftTopRight", GOLD.colors.highlight),
+            paint_svg_task("circle32TopLeftBottomRight", GOLD.colors.color),
             paint_svg_task("gold", GOLD.colors.shadow)
         ));
         gold

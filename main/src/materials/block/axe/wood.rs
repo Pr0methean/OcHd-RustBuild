@@ -141,6 +141,7 @@ pub fn empty_task() -> Box<dyn (Fn(&Wood) -> ToPixmapTaskSpec) + Sync + Send> {
     Box::new(/*door_common_layers*/ |_wood| ToPixmapTaskSpec::None {})
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn overworld_wood(name: &'static str, color: ComparableColor,
                       highlight: ComparableColor, shadow: ComparableColor,
                       bark_color: ComparableColor, bark_highlight: ComparableColor,
@@ -180,6 +181,7 @@ pub fn overworld_wood(name: &'static str, color: ComparableColor,
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn nether_fungus(name: &'static str, color: ComparableColor,
                      highlight: ComparableColor, shadow: ComparableColor,
                      bark_color: ComparableColor, bark_highlight: ComparableColor,
@@ -325,8 +327,8 @@ lazy_static! {pub static ref DARK_OAK: Wood = overworld_wood(
     )),
     Box::new(/*sapling*/ |_wood| stack!(
         paint_svg_task("saplingStem", DARK_OAK.bark_color),
-        paint_svg_task("bigCircle", c(0x005c00)),
-        paint_svg_task("bigCircleTwoQuarters", c(0x57ad3f))
+        paint_svg_task("circle24BottomLeftTopRight", c(0x005c00)),
+        paint_svg_task("circle24TopLeftBottomRight", c(0x57ad3f))
     )),
 );}
 lazy_static!{pub static ref JUNGLE: Wood = {

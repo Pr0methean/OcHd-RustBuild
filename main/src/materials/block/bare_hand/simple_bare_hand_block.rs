@@ -19,7 +19,7 @@ single_texture_block!(RED_MUSHROOM = ComparableColor::TRANSPARENT,
     paint_svg_task("mushroomCapRed", RED_MUSHROOM_BACKGROUND)
 );
 
-single_layer_block!(REDSTONE_DUST_DOT = "redstoneDot", ComparableColor::WHITE);
+single_layer_block!(REDSTONE_DUST_DOT = "redstone", ComparableColor::WHITE);
 single_layer_block!(REDSTONE_DUST_LINE0 = "redstoneLine", ComparableColor::WHITE);
 copy_block!(REDSTONE_DUST_LINE1 = REDSTONE_DUST_LINE0, "");
 

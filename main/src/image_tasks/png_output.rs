@@ -197,7 +197,7 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>, png_mode: PngMode) -> Result<M
     }
 }
 
-fn bit_depth_for_palette_size(size: usize) -> Option<BitDepth> {
+const fn bit_depth_for_palette_size(size: usize) -> Option<BitDepth> {
     if size <= 2 {
         Some(BitDepth::One)
     } else if size <= 4 {

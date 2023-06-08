@@ -215,7 +215,7 @@ block_with_colors!(GLOWSTONE = c(0xcc8654), c(0x6f4522), c(0xffda74),
     color!(),
     paint_svg_task("borderSolid", shadow!()),
     paint_svg_task("checksSmall", highlight!()),
-    paint_svg_task("lampOn", ComparableColor::WHITE)
+    paint_svg_task("glow", ComparableColor::WHITE)
 );
 
 block_with_colors!(END_STONE = c(0xdeffa4),c(0xc5be8b),c(0xffffb4),
@@ -372,25 +372,26 @@ amethyst!(SMALL_AMETHYST_BUD = ComparableColor::TRANSPARENT,
 make_tricolor_block_macro!(purpur, c(0xac7bac), c(0x906590), c(0xc7a8c7));
 
 purpur!(PURPUR_BLOCK = color!(),
-    paint_svg_task("bigCircle", highlight!() * 0.25),
+    paint_svg_task("circle24", highlight!() * 0.25),
     paint_svg_task("borderSolid", shadow!()),
     paint_svg_task("2x2TopLeft", highlight!())
 );
 
 purpur!(PURPUR_PILLAR = color!(),
-    paint_svg_task("bigCircle", highlight!() * 0.25),
+    paint_svg_task("circle24", highlight!() * 0.25),
     paint_stack!(shadow!(), "borderSolid", "stripesVerticalThick"),
     paint_svg_task("borderSolidTopLeft", highlight!())
 );
 
 purpur!(PURPUR_PILLAR_TOP = highlight!(),
-    paint_svg_task("bigCircle", color!() * 0.75),
+    paint_svg_task("circle24", color!() * 0.75),
     paint_svg_task("borderSolidThick", color!()),
     paint_svg_task("borderSolid", shadow!()),
     paint_svg_task("borderSolidTopLeft", highlight!())
 );
 
-block_with_colors!(CUT_COPPER = COPPER.color(), COPPER.shadow(), COPPER.highlight(),
+block_with_colors!(CUT_COPPER = COPPER.refined_colors.color,
+        COPPER.refined_colors.shadow, COPPER.refined_colors.highlight,
     color!(),
     paint_svg_task("streaks", highlight!()),
     paint_stack!(shadow!(), "borderSolid", "cross"),

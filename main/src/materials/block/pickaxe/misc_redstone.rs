@@ -24,16 +24,18 @@ redstone_off_on_block!(COMPARATOR = stack!(
 ));
 
 single_texture_block!(REDSTONE_LAMP =
-    REDSTONE.shadow(),
-    paint_svg_task("lamp", REDSTONE.highlight()),
+    REDSTONE.color(),
     from_svg_task("borderSolid"),
-    paint_svg_task("borderSolidTopLeft", REDSTONE.highlight())
+    paint_svg_task("borderSolidTopLeft", REDSTONE.highlight()),
+    paint_stack!(REDSTONE.shadow(), "glow", "redstone")
 );
 
 block_with_colors!(REDSTONE_LAMP_ON = c(0xe6994a), c(0x946931), c(0xFFCDB2),
     color!(),
     paint_svg_task("borderSolid", shadow!()),
-    paint_stack!(highlight!(), "lampOn", "borderSolidTopLeft")
+    paint_svg_task("borderSolidTopLeft", highlight!()),
+    paint_svg_task("redstone", shadow!()),
+    paint_svg_task("glow", highlight!())
 );
 
 group!(MISC_REDSTONE = REPEATER, COMPARATOR, REDSTONE_LAMP, REDSTONE_LAMP_ON);

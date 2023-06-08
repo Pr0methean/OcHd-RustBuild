@@ -21,7 +21,7 @@ macro_rules! sjs {
 sjs!(JIGSAW_TOP = "jigsaw");
 sjs!(JIGSAW_SIDE = "arrowUp");
 sjs!(JIGSAW_LOCK = "jigsawLock");
-sjs!(STRUCTURE_BLOCK = "bigCircle");
+sjs!(STRUCTURE_BLOCK = "circle24");
 sjs!(STRUCTURE_BLOCK_CORNER = "cornerCrosshairs");
 sjs!(STRUCTURE_BLOCK_DATA = "data");
 sj!(STRUCTURE_BLOCK_LOAD =

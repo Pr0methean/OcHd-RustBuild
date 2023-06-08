@@ -69,7 +69,7 @@ impl SingleTextureMaterial {
     pub fn texture(&self) -> ToPixmapTaskSpec {
         self.texture.to_owned()
     }
-    pub fn new(name: &'static str, texture: ToPixmapTaskSpec) -> Self {
+    pub const fn new(name: &'static str, texture: ToPixmapTaskSpec) -> Self {
         SingleTextureMaterial {name, texture}
     }
 }
@@ -344,6 +344,7 @@ impl TricolorMaterial for GroundCoverBlock {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn ground_cover_block(name: &'static str,
                           top_name_suffix: &'static str,
                           base: &SingleTextureMaterial,

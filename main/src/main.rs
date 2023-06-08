@@ -48,7 +48,7 @@ lazy_static! {
 static ALLOCATOR: Jemalloc = Jemalloc;
 
 #[allow(unreachable_code)]
-pub fn debug_assert_unreachable<T>() -> T {
+pub const fn debug_assert_unreachable<T>() -> T {
     #[cfg(debug_assertions)]
     unreachable!();
     unsafe {unreachable_unchecked()}
