@@ -390,7 +390,8 @@ purpur!(PURPUR_PILLAR_TOP = highlight!(),
     paint_svg_task("borderSolidTopLeft", highlight!())
 );
 
-block_with_colors!(CUT_COPPER = COPPER.color(), COPPER.shadow(), COPPER.highlight(),
+block_with_colors!(CUT_COPPER = COPPER.refined_colors.color,
+        COPPER.refined_colors.shadow, COPPER.refined_colors.highlight,
     color!(),
     paint_svg_task("streaks", highlight!()),
     paint_stack!(shadow!(), "borderSolid", "cross"),

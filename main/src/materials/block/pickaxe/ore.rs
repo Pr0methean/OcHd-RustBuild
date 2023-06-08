@@ -3,7 +3,7 @@ use lazy_static::lazy_static;
 use crate::image_tasks::color::{ComparableColor, c};
 use crate::image_tasks::task_spec::{out_task, paint_svg_task, FileOutputTaskSpec, ToPixmapTaskSpec};
 use crate::{group, paint_stack, stack, stack_on};
-use crate::materials::block::pickaxe::ore_base::{DEEPSLATE, DEEPSLATE_BASE, NETHERRACK_BASE, OreBase, STONE, STONE_BASE};
+use crate::materials::block::pickaxe::ore_base::{DEEPSLATE, DEEPSLATE_BASE, NETHERRACK_BASE, OreBase, STONE_BASE};
 use crate::texture_base::material::{TextureSupplier, TextureUnaryFunc, ColorTriad, Material, TricolorMaterial, REDSTONE_ON};
 
 lazy_static! {
@@ -192,10 +192,15 @@ lazy_static! {
     };
     pub static ref COPPER: Ore = {
         let mut copper = Ore::new("copper",
-                                  c(0xff7344),
-                                  c(0x915431),
+                                  c(0xff8000),
+                                  c(0x915400),
                                   c(0xffa268));
         copper.needs_refining = true;
+        copper.refined_colors = ColorTriad {
+            color: c(0xe0734d),
+            shadow: c(0x915431),
+            highlight: c(0xff8268)
+        };
         copper
     };
     pub static ref IRON: Ore = {
