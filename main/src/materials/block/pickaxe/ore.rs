@@ -192,9 +192,9 @@ lazy_static! {
     };
     pub static ref COPPER: Ore = {
         let mut copper = Ore::new("copper",
-                                  c(0xe0734d),
+                                  c(0xff7344),
                                   c(0x915431),
-                                  c(0xff8268));
+                                  c(0xffa268));
         copper.needs_refining = true;
         copper
     };
