@@ -72,7 +72,7 @@ pub fn paint(input: &Mask, color: ComparableColor) -> Result<Box<MaybeFromPool<P
 #[test]
 fn test_alpha_channel() {
     use resvg::tiny_skia::FillRule;
-    use tiny_skia_path::PathBuilder;
+    use resvg::tiny_skia::PathBuilder;
 
     let side_length = 128;
     let pixmap = &mut Pixmap::new(side_length, side_length).unwrap();
@@ -90,7 +90,7 @@ fn test_alpha_channel() {
 #[test]
 fn test_paint() {
     use resvg::tiny_skia::{FillRule, Paint};
-    use tiny_skia_path::{PathBuilder, Transform};
+    use resvg::tiny_skia::{PathBuilder, Transform};
     use crate::image_tasks::MaybeFromPool::NotFromPool;
     use crate::image_tasks::color::c;
 
