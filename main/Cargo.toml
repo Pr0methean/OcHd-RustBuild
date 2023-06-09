@@ -26,4 +26,4 @@ palette = "0.7.2"
 bytemuck = {version = "1.13.1", features = ["derive"]}
 
 [dev-dependencies]
-tiny-skia-path = "0.10.0"
+tiny-skia-path = "0.11.0"
