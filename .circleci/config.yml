@@ -10,7 +10,7 @@ jobs:
   build:
     machine:
       image: ubuntu-2004:current
-    resource_class: arm.large
+    resource_class: arm.small
     steps:
       - checkout
       - restore_cache:
@@ -52,7 +52,7 @@ jobs:
   unit_tests:
     machine:
       image: ubuntu-2004:current
-    resource_class: arm.large
+    resource_class: arm.small
     steps:
       - checkout
       - restore_cache:
