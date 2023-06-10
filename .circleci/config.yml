@@ -9,8 +9,8 @@ orbs:
 jobs:
   build:
     machine:
-      image: ubuntu-2004:current
-    resource_class: arm.large
+      image: ubuntu-2204:current
+    resource_class: arm.medium
     steps:
       - checkout
       - restore_cache:
@@ -51,8 +51,8 @@ jobs:
             - main/target/release/incremental
   unit_tests:
     machine:
-      image: ubuntu-2004:current
-    resource_class: arm.large
+      image: ubuntu-2204:current
+    resource_class: arm.medium
     steps:
       - checkout
       - restore_cache:
@@ -91,7 +91,7 @@ jobs:
       size:
         type: integer
     machine:
-      image: ubuntu-2004:current
+      image: ubuntu-2204:current
     resource_class: arm.large
     steps:
       - checkout

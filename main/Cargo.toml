@@ -25,6 +25,3 @@ bitstream-io = "1.6.0"
 num_cpus = "1.15.0"
 palette = "0.7.2"
 bytemuck = {version = "1.13.1", features = ["derive"]}
-
-[dev-dependencies]
-tiny-skia-path = "0.10.0"

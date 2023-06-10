@@ -84,7 +84,7 @@ pub fn make_semitransparent(input: &mut Mask, alpha: u8) {
 #[test]
 fn test_make_semitransparent() {
     use resvg::tiny_skia::{Color, FillRule, Paint, Pixmap};
-    use tiny_skia_path::{PathBuilder, Transform};
+    use resvg::tiny_skia::{PathBuilder, Transform};
     use crate::image_tasks::MaybeFromPool;
     use crate::image_tasks::repaint::paint;
     use crate::image_tasks::repaint::pixmap_to_mask;

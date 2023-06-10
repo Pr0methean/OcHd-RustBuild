@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use lazy_static::lazy_static;
 use lockfree_object_pool::LinearObjectPool;
 use log::info;
@@ -11,13 +10,13 @@ use crate::image_tasks::MaybeFromPool::NotFromPool;
 use crate::image_tasks::task_spec::{CloneableError};
 
 lazy_static!{
-    static ref ALPHA_CHANNEL_POOL: Arc<LinearObjectPool<Mask>> = Arc::new(LinearObjectPool::new(
+    static ref ALPHA_CHANNEL_POOL: LinearObjectPool<Mask> = LinearObjectPool::new(
         || {
             info!("Allocating a Mask for pool");
             Mask::new(*TILE_SIZE, *TILE_SIZE).expect("Failed to allocate a Mask for pool")
         },
         |_alpha_channel| {} // don't need to reset
-    ));
+    );
 }
 
 pub fn prewarm_mask_pool() {
@@ -38,9 +37,8 @@ impl Clone for MaybeFromPool<Mask> {
 fn allocate_mask_for_overwrite(width: u32, height: u32) -> MaybeFromPool<Mask> {
     if width == *TILE_SIZE && height == *TILE_SIZE {
         info!("Borrowing a Mask from pool");
-        let pool: &Arc<LinearObjectPool<Mask>> = &ALPHA_CHANNEL_POOL;
         MaybeFromPool::FromPool {
-            reusable: pool.pull(),
+            reusable: ALPHA_CHANNEL_POOL.pull(),
         }
     } else {
         info!("Allocating a Mask outside pool for unusual size {}x{}", width, height);
@@ -72,7 +70,7 @@ pub fn paint(input: &Mask, color: ComparableColor) -> Result<Box<MaybeFromPool<P
 #[test]
 fn test_alpha_channel() {
     use resvg::tiny_skia::FillRule;
-    use tiny_skia_path::PathBuilder;
+    use resvg::tiny_skia::PathBuilder;
 
     let side_length = 128;
     let pixmap = &mut Pixmap::new(side_length, side_length).unwrap();
@@ -90,7 +88,7 @@ fn test_alpha_channel() {
 #[test]
 fn test_paint() {
     use resvg::tiny_skia::{FillRule, Paint};
-    use tiny_skia_path::{PathBuilder, Transform};
+    use resvg::tiny_skia::{PathBuilder, Transform};
     use crate::image_tasks::MaybeFromPool::NotFromPool;
     use crate::image_tasks::color::c;
 
