@@ -78,8 +78,8 @@ fn main() -> Result<(), CloneableError> {
     let tile_size: u32 = *TILE_SIZE;
     info!("Using {} pixels per tile", tile_size);
     let cpus = num_cpus::get();
-    if cpus > 8 {
-        // Compensate for CPU under-utilization on m7g.16xlarge
+    if (cpus as u64 + 1).count_ones() <= 1 {
+        // Compensate for missed CPU core on m7g.16xlarg
         ThreadPoolBuilder::new().num_threads(cpus + 1).build_global()?;
     }
     info!("Rayon thread pool has {} threads", current_num_threads());
