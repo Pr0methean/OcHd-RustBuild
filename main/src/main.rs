@@ -24,6 +24,7 @@ use std::hint::unreachable_unchecked;
 use std::ops::{DerefMut};
 use include_dir::{Dir, DirEntry};
 use lazy_static::lazy_static;
+use rayon::{current_num_threads, ThreadPoolBuilder};
 use tikv_jemallocator::Jemalloc;
 use crate::image_tasks::png_output::{copy_in_to_out, prewarm_png_buffer_pool, ZIP};
 use crate::image_tasks::prewarm_pixmap_pool;
@@ -76,6 +77,12 @@ fn main() -> Result<(), CloneableError> {
     info!("Writing output to {}", absolute(&out_file)?.to_string_lossy());
     let tile_size: u32 = *TILE_SIZE;
     info!("Using {} pixels per tile", tile_size);
+    let cpus = num_cpus::get();
+    if (cpus as u64 + 1).count_ones() <= 1 {
+        // Compensate for missed CPU core on m7g.16xlarg
+        ThreadPoolBuilder::new().num_threads(cpus + 1).build_global()?;
+    }
+    info!("Rayon thread pool has {} threads", current_num_threads());
     let start_time = Instant::now();
     rayon::join(
         || rayon::join(
