@@ -3,7 +3,6 @@ use std::cmp::Ordering;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::ops::{Deref, DerefMut};
-use std::sync::Arc;
 use lazy_static::lazy_static;
 use lockfree_object_pool::{LinearObjectPool, LinearReusable};
 use log::info;
@@ -20,13 +19,13 @@ pub mod task_spec;
 pub mod make_semitransparent;
 
 lazy_static! {
-    static ref PIXMAP_POOL: Arc<LinearObjectPool<Pixmap>> = Arc::new(LinearObjectPool::new(
+    static ref PIXMAP_POOL: LinearObjectPool<Pixmap> = LinearObjectPool::new(
         || {
             info!("Allocating a Pixmap for pool");
             Pixmap::new(*TILE_SIZE, *TILE_SIZE).expect("Failed to allocate a Pixmap for pool")
         },
         |_| {} // no reset needed if using allocate_pixmap_for_overwrite
-    ));
+    );
 }
 
 pub fn prewarm_pixmap_pool() {

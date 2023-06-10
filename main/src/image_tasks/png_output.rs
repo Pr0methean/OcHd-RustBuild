@@ -3,7 +3,7 @@ use include_dir::{File};
 use std::io::{Cursor, Write};
 use std::mem::transmute;
 use std::ops::{Deref, DerefMut};
-use std::sync::{Arc, Mutex};
+use std::sync::{Mutex};
 use bitstream_io::{BigEndian, BitWrite, BitWriter};
 use bytemuck::{cast};
 use lazy_static::lazy_static;
@@ -47,13 +47,13 @@ lazy_static!{
         .compression_level(Some(264));
     pub static ref ZIP: Mutex<ZipWriter<ZipBufferRaw>> = Mutex::new(ZipWriter::new(Cursor::new(
         Vec::with_capacity(*ZIP_BUFFER_SIZE))));
-    pub static ref PNG_BUFFER_POOL: Arc<LinearObjectPool<Vec<u8>>> = Arc::new(LinearObjectPool::new(
+    pub static ref PNG_BUFFER_POOL: LinearObjectPool<Vec<u8>> = LinearObjectPool::new(
         || {
             info!("Allocating a PNG buffer for pool");
             Vec::with_capacity(PNG_BUFFER_SIZE)
         },
         Vec::clear
-    ));
+    );
     static ref OXIPNG_OPTIONS: Options = {
         let mut options = Options::from_preset(if *TILE_SIZE < 1024 {
             6
