@@ -9,7 +9,7 @@ use bytemuck::{cast};
 use lazy_static::lazy_static;
 use lockfree_object_pool::{LinearObjectPool};
 use log::{error, info, warn};
-use oxipng::{Deflaters, optimize_from_memory, Options, StripChunks};
+use oxipng::{Deflaters, optimize_from_memory, Options};
 use png::{BitDepth, ColorType, Encoder};
 
 use resvg::tiny_skia::{Pixmap, PremultipliedColorU8};
@@ -72,7 +72,6 @@ lazy_static!{
             Deflaters::Libdeflater {compression: 10}
         };
         options.optimize_alpha = true;
-        options.strip = StripChunks::All;
         options
     };
 }
