@@ -699,25 +699,29 @@ impl ToAlphaChannelTaskSpec {
 }
 
 fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildingContext) -> PngMode {
+    let task_name = task.to_string();
     match task.get_color_description(ctx) {
-        SpecifiedColors(mut colors) => {
+        SpecifiedColors(colors) => {
             let transparency = task.get_transparency(ctx);
+            info!("Task {} has {} possible colors and {:?} transparency",
+                task_name, colors.len(), transparency);
             let have_non_gray = colors.iter().any(|color| !color.is_gray());
             let max_indexed_size = 256;
-            colors.truncate(max_indexed_size + 1);
-            if colors.len() > max_indexed_size && have_non_gray {
-                return match transparency {
-                    Opaque => RgbOpaque,
-                    BinaryTransparency => RgbWithTransparentShade(c(0xc0ff3e)),
-                    AlphaChannel => Rgba
-                };
-            }
-            if colors.len() >= max_indexed_size && !have_non_gray {
-                if transparency == Opaque {
-                    GrayscaleOpaque(BitDepth::Eight)
+            if colors.len() > max_indexed_size {
+                if have_non_gray {
+                    info!("Using RGB mode for {}", task);
+                    match transparency {
+                        Opaque => RgbOpaque,
+                        BinaryTransparency => RgbWithTransparentShade(c(0xc0ff3e)),
+                        AlphaChannel => Rgba
+                    }
                 } else {
+                    info!("Using grayscale+alpha mode for {}", task);
                     GrayscaleAlpha
                 }
+            } else if colors.len() > 16 && !have_non_gray && transparency == Opaque {
+                info!("Using opaque grayscale for {}", task);
+                GrayscaleOpaque(BitDepth::Eight)
             } else {
                 let mut grayscale_bits = 1;
                 for color in colors.iter() {
@@ -735,6 +739,7 @@ fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildin
                     IndexedRgba(colors.to_owned())
                 };
                 if have_non_gray {
+                    info!("Using indexed mode for {} because it has non-gray colors", task);
                     return indexed_mode;
                 }
                 let grayscale_mode = match transparency {
@@ -769,9 +774,15 @@ fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildin
                     },
                     Opaque => GrayscaleOpaque(grayscale_bit_depth)
                 };
-                if grayscale_mode.bits_per_pixel() <= indexed_mode.bits_per_pixel() {
+                let grayscale_bits = grayscale_mode.bits_per_pixel();
+                let indexed_bits = indexed_mode.bits_per_pixel();
+                if grayscale_bits <= indexed_bits {
+                    info!("Choosing grayscale mode for {} ({} vs {} bpp)", task,
+                        grayscale_bits, indexed_bits);
                     grayscale_mode
                 } else {
+                    info!("Choosing indexed mode for {} ({} vs {} bpp)", task,
+                        indexed_bits, grayscale_bits);
                     indexed_mode
                 }
             }
