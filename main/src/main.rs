@@ -7,7 +7,7 @@
 use std::path::{absolute, PathBuf};
 use std::time::Instant;
 
-use log::{info, LevelFilter};
+use log::{info, LevelFilter, warn};
 use texture_base::material::Material;
 use rayon::prelude::*;
 
@@ -79,6 +79,7 @@ fn main() -> Result<(), CloneableError> {
     info!("Using {} pixels per tile", tile_size);
     let cpus = num_cpus::get();
     if (cpus as u64 + 1).count_ones() <= 1 {
+        warn!("Adjusting CPU count from {} to {}", cpus, cpus + 1);
         // Compensate for missed CPU core on m7g.16xlarg
         ThreadPoolBuilder::new().num_threads(cpus + 1).build_global()?;
     }
