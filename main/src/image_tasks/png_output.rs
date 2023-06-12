@@ -11,7 +11,6 @@ use lockfree_object_pool::{LinearObjectPool};
 use log::{error, info, warn};
 use oxipng::{Deflaters, optimize_from_memory, Options};
 use png::{BitDepth, ColorType, Encoder};
-use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use resvg::tiny_skia::{Pixmap, PremultipliedColorU8};
 use zip_next::CompressionMethod::{Deflated};
@@ -20,7 +19,7 @@ use zip_next::{ZipWriter};
 
 use crate::image_tasks::MaybeFromPool;
 use crate::image_tasks::task_spec::{bit_depth_to_u32, channel_to_bit_depth, CloneableError, PngMode};
-use crate::{NUM_CPUS, TILE_SIZE};
+use crate::{TILE_SIZE};
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::MaybeFromPool::FromPool;
 
@@ -75,7 +74,6 @@ lazy_static!{
         options.optimize_alpha = true;
         options
     };
-    static ref OXIPNG_THREAD_POOL: ThreadPool = ThreadPoolBuilder::new().num_threads(*NUM_CPUS).build().unwrap();
 }
 
 pub fn prewarm_png_buffer_pool() {
@@ -209,7 +207,7 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>, png_mode: PngMode) -> Result<M
         }
     }
 
-    match OXIPNG_THREAD_POOL.install(|| optimize_from_memory(reusable.deref(), &OXIPNG_OPTIONS)) {
+    match optimize_from_memory(reusable.deref(), &OXIPNG_OPTIONS) {
         Ok(optimized) => Ok(MaybeFromPool::NotFromPool(optimized)),
         Err(e) => {
             error!("Error from oxipng: {}", e);
