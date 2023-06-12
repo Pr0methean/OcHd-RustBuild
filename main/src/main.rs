@@ -77,16 +77,18 @@ fn main() -> Result<(), CloneableError> {
     info!("Writing output to {}", absolute(&out_file)?.to_string_lossy());
     let tile_size: u32 = *TILE_SIZE;
     info!("Using {} pixels per tile", tile_size);
-    let cpus = num_cpus::get();
+    let mut cpus = num_cpus::get();
     if (cpus as u64 + 1).count_ones() <= 1 {
         warn!("Adjusting CPU count from {} to {}", cpus, cpus + 1);
         // Compensate for missed CPU core on m7g.16xlarg
-        ThreadPoolBuilder::new().num_threads(cpus + 1).build_global()?;
+        cpus += 1;
     }
+    ThreadPoolBuilder::new().num_threads(cpus + 1).build_global()?;
+    let non_oxipng_thread_pool = ThreadPoolBuilder::new().num_threads(cpus).build()?;
     info!("Rayon thread pool has {} threads", current_num_threads());
     let start_time = Instant::now();
-    rayon::join(
-        || rayon::join(
+    non_oxipng_thread_pool.join(
+        || non_oxipng_thread_pool.join(
         || {
             prewarm_pixmap_pool();
             prewarm_mask_pool();
