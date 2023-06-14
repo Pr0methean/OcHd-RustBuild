@@ -589,7 +589,7 @@ impl ColorDescription {
             SpecifiedColors(colors) => {
                 if contains_semitransparency(colors) {
                     AlphaChannel
-                } else if contains_alpha(colors, 0) {
+                } else if colors[0].alpha() == 0 {
                     BinaryTransparency
                 } else {
                     Opaque
@@ -889,7 +889,7 @@ impl ToPixmapTaskSpec {
 
     /// If true, this texture has no gradients, diagonals or curves, so it can be rendered at a
     /// smaller size.
-    fn is_grid_perfect(&self, ctx: &mut TaskGraphBuildingContext) -> bool {
+    pub(crate) fn is_grid_perfect(&self, ctx: &mut TaskGraphBuildingContext) -> bool {
         match self {
             ToPixmapTaskSpec::Animate { background, frames } =>
                 background.is_grid_perfect(ctx) && frames.iter().all(|frame| frame.is_grid_perfect(ctx)),

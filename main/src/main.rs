@@ -11,7 +11,7 @@ use log::{info, LevelFilter, warn};
 use texture_base::material::Material;
 use rayon::prelude::*;
 
-use crate::image_tasks::task_spec::{TaskGraphBuildingContext, TaskSpecTraits, METADATA_DIR, CloneableError};
+use crate::image_tasks::task_spec::{TaskGraphBuildingContext, TaskSpecTraits, METADATA_DIR, CloneableError, FileOutputTaskSpec, CloneableLazyTask};
 
 mod image_tasks;
 mod texture_base;
@@ -103,11 +103,21 @@ fn main() -> Result<(), CloneableError> {
     || {
         let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
         let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
-        let mut planned_tasks = Vec::with_capacity(out_tasks.len());
+        let mut large_tasks = Vec::with_capacity(out_tasks.len());
+        let mut small_tasks = Vec::with_capacity(out_tasks.len());
         for task in out_tasks {
-            planned_tasks.push(task.add_to(&mut ctx, tile_size));
+            let new_task = task.add_to(&mut ctx, tile_size);
+            if tile_size > GRID_SIZE
+                    && let FileOutputTaskSpec::PngOutput {base, .. } = task
+                    && !base.is_grid_perfect(&mut ctx) {
+                large_tasks.push(new_task);
+            } else {
+                small_tasks.push(new_task);
+            }
         }
         drop(ctx);
+        let planned_tasks: Vec<CloneableLazyTask<()>>
+            = large_tasks.into_iter().chain(small_tasks.into_iter()).collect();
         planned_tasks.into_par_iter().for_each(move |task| {
             let name = task.name.to_owned();
             task.into_result()

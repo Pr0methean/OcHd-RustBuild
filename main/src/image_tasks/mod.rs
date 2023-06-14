@@ -139,8 +139,13 @@ pub fn allocate_pixmap_for_overwrite(width: u32, height: u32) -> MaybeFromPool<P
 }
 
 pub fn allocate_pixmap_empty(width: u32, height: u32) -> MaybeFromPool<Pixmap> {
-    if width == *TILE_SIZE && height == *TILE_SIZE {
-        info!("Borrowing and clearing a Pixmap from pool");
+    if width == GRID_SIZE && height == GRID_SIZE {
+        info!("Borrowing and clearing a grid-size Pixmap from pool");
+        let mut reusable = GRID_SIZE_PIXMAP_POOL.pull();
+        reusable.fill(Color::TRANSPARENT);
+        MaybeFromPool::FromPool { reusable }
+    } else if width == *TILE_SIZE && height == *TILE_SIZE {
+        info!("Borrowing and clearing a tile-size Pixmap from pool");
         let mut reusable = TILE_SIZE_PIXMAP_POOL.pull();
         reusable.fill(Color::TRANSPARENT);
         MaybeFromPool::FromPool { reusable }
