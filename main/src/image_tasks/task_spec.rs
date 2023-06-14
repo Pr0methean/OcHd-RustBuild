@@ -618,13 +618,12 @@ impl ColorDescription {
                                 SpecifiedColors(combined_colors)
                             }
                             AlphaChannel => {
+                                // Using dedup() rather than unique() uses too much memory
                                 let opaque_fg_colors = fg_colors.iter().filter(|color| color.alpha() == u8::MAX);
                                 let mut combined_colors: Vec<ComparableColor> = bg_colors.iter().flat_map(|bg_color|
                                     bg_color.under(fg_colors.iter().filter(|color| color.alpha() != u8::MAX).copied()).into_iter()
-                                ).collect();
-                                combined_colors.extend(opaque_fg_colors);
+                                ).chain(opaque_fg_colors.copied()).unique().collect();
                                 combined_colors.sort();
-                                combined_colors.dedup();
                                 SpecifiedColors(combined_colors)
                             }
                         }
