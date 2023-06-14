@@ -901,7 +901,7 @@ impl ToPixmapTaskSpec {
 
     /// If true, this texture has no gradients, diagonals or curves, so it can be rendered at a
     /// smaller size.
-    fn is_grid_perfect(&self, ctx: &mut TaskGraphBuildingContext) -> bool {
+    pub(crate) fn is_grid_perfect(&self, ctx: &mut TaskGraphBuildingContext) -> bool {
         match self {
             ToPixmapTaskSpec::Animate { background, frames } =>
                 background.is_grid_perfect(ctx) && frames.iter().all(|frame| frame.is_grid_perfect(ctx)),
