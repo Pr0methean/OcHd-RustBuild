@@ -178,7 +178,7 @@ pub fn write_indexed_bytes(image: MaybeFromPool<Pixmap>,
     let mut error_corrections: HashMap<[u8; 4], u16> = HashMap::new();
     let mut worst_discrepancy: u16 = 0;
     let mut prev_pixel: PremultipliedColorU8 = cast(palette_premul[0]);
-    let mut prev_index: u16 = 0;
+    let mut prev_index: u16 = orig_indices[0];
     for pixel in image.pixels() {
         let index = if prev_pixel == *pixel {
             prev_index
