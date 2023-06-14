@@ -693,6 +693,18 @@ impl ToAlphaChannelTaskSpec {
     }
 }
 
+fn get_grayscale_bit_depth(colors: &[ComparableColor]) -> BitDepth {
+    let mut grayscale_bit_depth = One;
+    for color in colors.iter() {
+        let color_bit_depth = BIT_DEPTH_FOR_CHANNEL[color.red() as usize];
+        grayscale_bit_depth = grayscale_bit_depth.max(color_bit_depth);
+        if grayscale_bit_depth == Eight {
+            break;
+        }
+    }
+    grayscale_bit_depth
+}
+
 fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildingContext)
     -> (ColorType, BitDepth) {
     let task_name = task.to_string();
@@ -731,17 +743,11 @@ fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildin
                     info!("Using indexed mode for {} because it has non-gray colors", task);
                     return (indexed_mode, indexed_bit_depth);
                 }
-                let mut grayscale_bit_depth = One;
-                for color in colors.iter() {
-                    let color_bit_depth = BIT_DEPTH_FOR_CHANNEL[color.red() as usize];
-                    grayscale_bit_depth = grayscale_bit_depth.max(color_bit_depth);
-                    if grayscale_bit_depth == Eight {
-                        break;
-                    }
-                }
+
                 let (grayscale_mode, grayscale_bit_depth) = match transparency {
-                    AlphaChannel => (GrayscaleAlpha, grayscale_bit_depth),
+                    AlphaChannel => (GrayscaleAlpha, Eight),
                     BinaryTransparency => {
+                        let grayscale_bit_depth = get_grayscale_bit_depth(colors.as_slice());
                         let grayscale_shades = match grayscale_bit_depth {
                             One => vec![ComparableColor::BLACK, ComparableColor::WHITE],
                             Two => vec![gray(0x00), gray(0x55), gray(0xAA), gray(0xFF)],
@@ -763,7 +769,8 @@ fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildin
                             }
                         }
                     },
-                    Opaque => (Grayscale {transparent_shade: None}, grayscale_bit_depth)
+                    Opaque => (Grayscale {transparent_shade: None},
+                               get_grayscale_bit_depth(colors.as_slice()))
                 };
                 let grayscale_bits_per_pixel = if grayscale_mode == GrayscaleAlpha {
                     2
