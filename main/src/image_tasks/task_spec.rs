@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 use BitDepth::Sixteen;
 use ColorType::GrayscaleAlpha;
 
-use crate::{anyhoo, debug_assert_unreachable, GRID_SIZE};
+use crate::{anyhoo, debug_assert_unreachable, GRID_SIZE, TILE_SIZE};
 use include_dir::{Dir, include_dir};
 use itertools::Itertools;
 
@@ -600,49 +600,6 @@ impl ColorDescription {
         }
     }
 
-    fn collapse_specified(colors: Vec<ComparableColor>) -> ColorDescription {
-        if colors.len() <= MAX_SPECIFIED_COLORS {
-            SpecifiedColors(colors)
-        } else {
-            Rgb(SpecifiedColors(colors).transparency())
-        }
-    }
-
-    pub fn stack_on(&self, background: &ColorDescription) -> ColorDescription {
-        match background {
-            Rgb(transparency) => Rgb(self.transparency().stack_on(transparency)),
-            SpecifiedColors(bg_colors) => {
-                match &self {
-                    Rgb(transparency) => Rgb(transparency.stack_on(&background.transparency())),
-                    SpecifiedColors(fg_colors) => {
-                        match self.transparency() {
-                            Opaque => SpecifiedColors(fg_colors.clone()),
-                            BinaryTransparency => {
-                                let mut combined_colors = bg_colors.to_owned();
-                                combined_colors.extend(fg_colors.iter().filter(
-                                    |color| color.alpha() == u8::MAX
-                                ));
-                                combined_colors.sort();
-                                combined_colors.dedup();
-                                Self::collapse_specified(combined_colors)
-                            }
-                            AlphaChannel => {
-                                let opaque_fg_colors = fg_colors.iter().filter(|color| color.alpha() == u8::MAX);
-                                let mut combined_colors: Vec<ComparableColor> = bg_colors.iter().flat_map(|bg_color|
-                                    bg_color.under(fg_colors.iter().filter(|color| color.alpha() != u8::MAX).copied()).into_iter()
-                                ).collect();
-                                combined_colors.extend(opaque_fg_colors);
-                                combined_colors.sort();
-                                combined_colors.dedup();
-                                Self::collapse_specified(combined_colors)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     pub fn put_adjacent(&self, neighbor: &ColorDescription) -> ColorDescription {
         match neighbor {
             Rgb(transparency) => Rgb(self.transparency().put_adjacent(transparency)),
@@ -926,6 +883,56 @@ impl ToPixmapTaskSpec {
         }
     }
 
+    pub fn color_description_stacked_on(&self,
+                                        background: &ColorDescription, ctx: &mut TaskGraphBuildingContext) -> ColorDescription {
+        match background {
+            Rgb(transparency) => Rgb(self.get_transparency(ctx).stack_on(transparency)),
+            SpecifiedColors(bg_colors) => {
+                match &self.get_color_description(ctx) {
+                    Rgb(transparency) => Rgb(transparency.stack_on(&background.transparency())),
+                    SpecifiedColors(fg_colors) => {
+                        match self.get_transparency(ctx) {
+                            Opaque => SpecifiedColors(fg_colors.clone()),
+                            BinaryTransparency => {
+                                let mut combined_colors = bg_colors.to_owned();
+                                combined_colors.extend(fg_colors.iter().filter(
+                                    |color| color.alpha() == u8::MAX
+                                ));
+                                combined_colors.sort();
+                                combined_colors.dedup();
+                                SpecifiedColors(combined_colors)
+                            }
+                            AlphaChannel => {
+                                // Using dedup() rather than unique() uses too much memory
+                                let opaque_fg_colors = fg_colors.iter().filter(|color| color.alpha() == u8::MAX);
+                                let combined_colors = bg_colors.iter().flat_map(|bg_color|
+                                    bg_color.under(fg_colors.iter().filter(|color| color.alpha() != u8::MAX).copied()).into_iter()
+                                ).chain(opaque_fg_colors.copied()).unique();
+                                if *TILE_SIZE <= GRID_SIZE || self.is_grid_perfect(ctx) {
+                                    let more_colors_than_pixels = GRID_SIZE as usize * GRID_SIZE as usize + 1;
+                                    let possible_colors: Vec<ComparableColor> = combined_colors.take(more_colors_than_pixels).collect();
+                                    if possible_colors.len() == more_colors_than_pixels {
+                                        let actual_image = self.add_to(ctx, GRID_SIZE).into_result();
+                                        let mut actual_colors: Vec<ComparableColor> = actual_image.unwrap().pixels().iter().copied()
+                                            .map(ComparableColor::from)
+                                            .collect();
+                                        actual_colors.sort();
+                                        actual_colors.dedup();
+                                        return SpecifiedColors(actual_colors);
+                                    }
+                                    return SpecifiedColors(possible_colors);
+                                }
+                                let mut combined_colors: Vec<ComparableColor> = combined_colors.collect();
+                                combined_colors.sort();
+                                SpecifiedColors(combined_colors)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /// If true, this texture has no gradients, diagonals or curves, so it can be rendered at a
     /// smaller size.
     pub(crate) fn is_grid_perfect(&self, ctx: &mut TaskGraphBuildingContext) -> bool {
@@ -956,7 +963,7 @@ impl ToPixmapTaskSpec {
                 let mut current_desc: Option<ColorDescription> = None;
                 for frame in frames {
                     let frame_desc
-                        = frame.get_color_description(ctx).stack_on(&background_desc);
+                        = frame.color_description_stacked_on(&background_desc, ctx);
                     current_desc = Some(match current_desc {
                         None => frame_desc,
                         Some(other_frames_desc) => frame_desc.put_adjacent(&other_frames_desc)
@@ -998,10 +1005,10 @@ impl ToPixmapTaskSpec {
             },
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
                 let background = *background;
-                foreground.get_color_description(ctx).stack_on(&SpecifiedColors(vec![background]))
+                foreground.color_description_stacked_on(&SpecifiedColors(vec![background]), ctx)
             }
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
-                foreground.get_color_description(ctx).stack_on(&background.get_color_description(ctx))
+                foreground.color_description_stacked_on(&background.get_color_description(ctx), ctx)
             }
             ToPixmapTaskSpec::UpscaleFromGridSize {base} => base.get_color_description(ctx)
         };
