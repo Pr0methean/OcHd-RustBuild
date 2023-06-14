@@ -814,6 +814,9 @@ fn contains_alpha(vec: &Vec<ComparableColor>, needle_alpha: u8) -> bool {
             return false;
         }
         let next_least_alpha = vec[1].alpha();
+        if next_least_alpha == 0 {
+            panic!("Transparent color included twice");
+        }
         match needle_alpha.cmp(&next_least_alpha) {
             Ordering::Less => return false,
             Ordering::Equal => return true,

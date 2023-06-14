@@ -37,7 +37,7 @@ impl Ord for ComparableColor {
             return Ordering::Equal;
         }
         let self_bytes: [u8; 4] = cast(*self);
-        let other_bytes: [u8; 4] = cast(*self);
+        let other_bytes: [u8; 4] = cast(*other);
         self_bytes.cmp(&other_bytes)
     }
 }
@@ -365,4 +365,13 @@ fn test_c() {
     assert_eq!(c(0xc0ffee),
                ComparableColor { red: 0xc0, green: 0xff, blue: 0xee, alpha: u8::MAX }
     )
+}
+
+#[test]
+fn test_ord() {
+    assert_eq!(ComparableColor::TRANSPARENT,
+               ComparableColor {red: u8::MAX, green: u8::MAX, blue: u8::MAX, alpha: 0});
+    assert!(ComparableColor::TRANSPARENT < ComparableColor {red: 0, green: 0, blue: 0, alpha: 1});
+    assert!(ComparableColor {red: u8::MAX, green: u8::MAX, blue: u8::MAX, alpha: 1}
+        < ComparableColor {red: 0, green: 0, blue: 0, alpha: 2});
 }
