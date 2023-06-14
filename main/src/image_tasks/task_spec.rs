@@ -611,7 +611,7 @@ impl ColorDescription {
                         combined_colors.extend(neighbor_colors);
                         combined_colors.sort();
                         combined_colors.dedup();
-                        Self::collapse_specified(combined_colors)
+                        SpecifiedColors(combined_colors)
                     }
                 }
             }
@@ -801,8 +801,6 @@ fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildin
         Rgb(AlphaChannel) => (RGBA, Eight)
     }
 }
-
-const BINARY_SEARCH_THRESHOLD: usize = 1024;
 
 fn contains_alpha(vec: &Vec<ComparableColor>, needle_alpha: u8) -> bool {
 
@@ -1012,6 +1010,22 @@ impl ToPixmapTaskSpec {
             }
             ToPixmapTaskSpec::UpscaleFromGridSize {base} => base.get_color_description(ctx)
         };
+        let pixels = if *TILE_SIZE == GRID_SIZE || self.is_grid_perfect(ctx) {
+            GRID_SIZE as usize * GRID_SIZE as usize
+        } else {
+            *TILE_SIZE as usize * *TILE_SIZE as usize
+        };
+        let desc = if let SpecifiedColors(colors) = &desc && colors.len() > pixels {
+            let actual_image = self.add_to(ctx, GRID_SIZE).into_result();
+            let mut actual_colors: Vec<ComparableColor> = actual_image.unwrap().pixels().iter().copied()
+                .map(ComparableColor::from)
+                .collect();
+            actual_colors.sort();
+            actual_colors.dedup();
+            SpecifiedColors(actual_colors)
+        } else {
+            desc
+        };
         ctx.pixmap_task_to_color_map.insert(self.to_owned(), desc.to_owned());
         desc
     }
@@ -1024,11 +1038,15 @@ impl ToPixmapTaskSpec {
             let alphas = match colors.transparency() {
                 AlphaChannel => match colors {
                     Rgb(_) => ALL_U8S.to_vec(),
-                    SpecifiedColors(vec) => {
-                        let mut alphas: Vec<u8> = vec.into_iter().map(|color| color.alpha()).collect();
+                    SpecifiedColors(colors) => if colors.len() <= BINARY_SEARCH_THRESHOLD {
+                        let mut alphas: Vec<u8> = colors.into_iter().map(|color| color.alpha()).collect();
                         alphas.sort();
                         alphas.dedup();
                         alphas
+                    } else {
+                        ALL_U8S.iter().copied()
+                            .filter(|alpha| contains_alpha(&colors, *alpha))
+                            .collect()
                     }
                 },
                 BinaryTransparency => vec![0, u8::MAX],
