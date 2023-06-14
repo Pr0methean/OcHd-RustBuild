@@ -846,6 +846,32 @@ fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildin
     }
 }
 
+const BINARY_SEARCH_THRESHOLD: usize = 1024;
+
+fn contains_alpha(vec: &Vec<ComparableColor>, needle_alpha: u8) -> bool {
+    if vec.len() <= BINARY_SEARCH_THRESHOLD {
+        vec.iter().any(|color| color.alpha() == needle_alpha)
+    } else {
+        match vec.binary_search(&ComparableColor {
+            alpha: needle_alpha,
+            red: 0,
+            green: 0,
+            blue: 0
+        }) {
+            Ok(_) => true,
+            Err(insert_black_index) => match vec[insert_black_index..].binary_search(&ComparableColor {
+                alpha: needle_alpha,
+                red: u8::MAX,
+                green: u8::MAX,
+                blue: u8::MAX
+            }) {
+                Ok(_) => true,
+                Err(insert_white_index) => insert_white_index > 0
+            }
+        }
+    }
+}
+
 pub fn contains_semitransparency(vec: &Vec<ComparableColor>) -> bool {
     match vec[0].alpha {
         0 => if vec.len() == 1 {
