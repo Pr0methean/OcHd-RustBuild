@@ -6,7 +6,7 @@ use lazy_static::lazy_static;
 use lockfree_object_pool::{LinearObjectPool, LinearReusable};
 use log::info;
 use resvg::tiny_skia::{Color, Pixmap};
-use crate::TILE_SIZE;
+use crate::{GRID_SIZE, TILE_SIZE};
 
 pub mod color;
 pub mod repaint;
@@ -19,17 +19,27 @@ pub mod make_semitransparent;
 pub mod upscale;
 
 lazy_static! {
-    static ref PIXMAP_POOL: LinearObjectPool<Pixmap> = LinearObjectPool::new(
+    static ref TILE_SIZE_PIXMAP_POOL: LinearObjectPool<Pixmap> = LinearObjectPool::new(
         || {
-            info!("Allocating a Pixmap for pool");
+            info!("Allocating a tile-size Pixmap for pool");
             Pixmap::new(*TILE_SIZE, *TILE_SIZE).expect("Failed to allocate a Pixmap for pool")
+        },
+        |_| {} // no reset needed if using allocate_pixmap_for_overwrite
+    );
+    static ref GRID_SIZE_PIXMAP_POOL: LinearObjectPool<Pixmap> = LinearObjectPool::new(
+        || {
+            info!("Allocating a grid-size Pixmap for pool");
+            Pixmap::new(GRID_SIZE, GRID_SIZE).expect("Failed to allocate a Pixmap for pool")
         },
         |_| {} // no reset needed if using allocate_pixmap_for_overwrite
     );
 }
 
 pub fn prewarm_pixmap_pool() {
-    PIXMAP_POOL.pull();
+    GRID_SIZE_PIXMAP_POOL.pull();
+    if GRID_SIZE != *TILE_SIZE {
+        TILE_SIZE_PIXMAP_POOL.pull();
+    }
 }
 
 pub enum MaybeFromPool<T: 'static> {
@@ -115,9 +125,12 @@ impl <T> Debug for MaybeFromPool<T> {
 }
 
 pub fn allocate_pixmap_for_overwrite(width: u32, height: u32) -> MaybeFromPool<Pixmap> {
-    if width == *TILE_SIZE && height == *TILE_SIZE {
-        info!("Borrowing a Pixmap from pool");
-        MaybeFromPool::FromPool { reusable: PIXMAP_POOL.pull() }
+    if width == GRID_SIZE && height == GRID_SIZE {
+        info!("Borrowing a grid-size Pixmap from pool");
+        MaybeFromPool::FromPool { reusable: GRID_SIZE_PIXMAP_POOL.pull() }
+    } else if width == *TILE_SIZE && height == *TILE_SIZE {
+        info!("Borrowing a tile-size Pixmap from pool");
+        MaybeFromPool::FromPool { reusable: TILE_SIZE_PIXMAP_POOL.pull() }
     } else {
         info!("Allocating a Pixmap outside pool (not required empty) for unusual size {}x{}",
             width, height);
@@ -128,7 +141,7 @@ pub fn allocate_pixmap_for_overwrite(width: u32, height: u32) -> MaybeFromPool<P
 pub fn allocate_pixmap_empty(width: u32, height: u32) -> MaybeFromPool<Pixmap> {
     if width == *TILE_SIZE && height == *TILE_SIZE {
         info!("Borrowing and clearing a Pixmap from pool");
-        let mut reusable = PIXMAP_POOL.pull();
+        let mut reusable = TILE_SIZE_PIXMAP_POOL.pull();
         reusable.fill(Color::TRANSPARENT);
         MaybeFromPool::FromPool { reusable }
     } else {

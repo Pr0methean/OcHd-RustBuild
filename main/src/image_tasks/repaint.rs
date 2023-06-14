@@ -2,7 +2,7 @@ use lazy_static::lazy_static;
 use lockfree_object_pool::LinearObjectPool;
 use log::info;
 use resvg::tiny_skia::{Mask, Paint, Pixmap, Rect, Transform};
-use crate::{anyhoo, TILE_SIZE};
+use crate::{anyhoo, GRID_SIZE, TILE_SIZE};
 
 use crate::image_tasks::{allocate_pixmap_empty, MaybeFromPool};
 use crate::image_tasks::color::ComparableColor;
@@ -10,17 +10,27 @@ use crate::image_tasks::MaybeFromPool::NotFromPool;
 use crate::image_tasks::task_spec::{CloneableError};
 
 lazy_static!{
-    static ref ALPHA_CHANNEL_POOL: LinearObjectPool<Mask> = LinearObjectPool::new(
+    static ref TILE_SIZE_MASK_POOL: LinearObjectPool<Mask> = LinearObjectPool::new(
         || {
-            info!("Allocating a Mask for pool");
+            info!("Allocating a tile-size Mask for pool");
             Mask::new(*TILE_SIZE, *TILE_SIZE).expect("Failed to allocate a Mask for pool")
         },
-        |_alpha_channel| {} // don't need to reset
+        |_| {} // don't need to reset because we always overwrite
+    );
+    static ref GRID_SIZE_MASK_POOL: LinearObjectPool<Mask> = LinearObjectPool::new(
+        || {
+            info!("Allocating a grid-size Mask for pool");
+            Mask::new(GRID_SIZE, GRID_SIZE).expect("Failed to allocate a Mask for pool")
+        },
+        |_| {} // don't need to reset because we always overwrite
     );
 }
 
 pub fn prewarm_mask_pool() {
-    ALPHA_CHANNEL_POOL.pull();
+    GRID_SIZE_MASK_POOL.pull();
+    if *TILE_SIZE != GRID_SIZE {
+        TILE_SIZE_MASK_POOL.pull();
+    }
 }
 
 impl Clone for MaybeFromPool<Mask> {
@@ -35,10 +45,15 @@ impl Clone for MaybeFromPool<Mask> {
 }
 
 fn allocate_mask_for_overwrite(width: u32, height: u32) -> MaybeFromPool<Mask> {
-    if width == *TILE_SIZE && height == *TILE_SIZE {
-        info!("Borrowing a Mask from pool");
+    if width == GRID_SIZE && height == GRID_SIZE {
+        info!("Borrowing a grid-size Mask from pool");
         MaybeFromPool::FromPool {
-            reusable: ALPHA_CHANNEL_POOL.pull(),
+            reusable: GRID_SIZE_MASK_POOL.pull(),
+        }
+    } else if width == *TILE_SIZE && height == *TILE_SIZE {
+        info!("Borrowing a tile-size Mask from pool");
+        MaybeFromPool::FromPool {
+            reusable: TILE_SIZE_MASK_POOL.pull(),
         }
     } else {
         info!("Allocating a Mask outside pool for unusual size {}x{}", width, height);
