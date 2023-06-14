@@ -162,18 +162,20 @@ pub fn write_indexed_bytes(image: MaybeFromPool<Pixmap>,
                            -> Result<Vec<u8>, CloneableError> {
     let bytes = Vec::with_capacity(image.width() as usize * image.height() as usize
         * bit_depth as u8 as usize / 8);
-    let mut sorted_palette: Vec<([u8; 4], ComparableColor)> = Vec::with_capacity(palette.len());
-    for color in palette.iter() {
+    let mut sorted_palette: Vec<([u8; 4], u16, ComparableColor)> = Vec::with_capacity(palette.len());
+    for (index, color) in palette.iter().enumerate() {
         let color = ColorU8::from_rgba(color.r, color.g, color.b, color.a);
-        sorted_palette.push((cast(color.premultiply()), ComparableColor::from(color)));
+        sorted_palette.push((cast(color.premultiply()), index as u16, ComparableColor::from(color)));
     }
-    sorted_palette.sort_by_key(|(premult_bytes, _)| *premult_bytes);
+    sorted_palette.sort_by_key(|(premult_bytes, _, _)| *premult_bytes);
     let mut bit_writer: BitWriter<_, BigEndian> = BitWriter::new(Cursor::new(bytes));
     let mut palette_premul: Vec<[u8; 4]> = Vec::with_capacity(palette.len());
-    for (premul_bytes, _) in sorted_palette.iter() {
+    let mut orig_indices: Vec<u16> = Vec::with_capacity(palette.len());
+    for (premul_bytes, index, _) in sorted_palette.iter() {
         palette_premul.push(*premul_bytes);
+        orig_indices.push(*index);
     }
-    let mut error_corrections = HashMap::new();
+    let mut error_corrections: HashMap<[u8; 4], u16> = HashMap::new();
     let mut worst_discrepancy: u16 = 0;
     let mut prev_pixel: PremultipliedColorU8 = cast(palette_premul[0]);
     let mut prev_index: u16 = 0;
@@ -183,19 +185,20 @@ pub fn write_indexed_bytes(image: MaybeFromPool<Pixmap>,
         } else {
             let pixel_bytes: [u8; 4] = cast(*pixel);
             let index = match palette_premul.binary_search(&pixel_bytes) {
-                Ok(index) => index as u16,
+                Ok(index) => {
+                    orig_indices[index]
+                }
                 Err(_) => match error_corrections.get(&pixel_bytes) {
                     Some(index) => *index,
                     None => {
                         let pixel_color = ComparableColor::from(*pixel);
-                        let (index, (_, color))
-                            = sorted_palette.iter().enumerate()
-                            .min_by_key(|(_, (_, color))| color.abs_diff(&pixel_color))
+                        let (_, orig_index, color)
+                            = sorted_palette.iter()
+                            .min_by_key(|(_, _, color)| color.abs_diff(&pixel_color))
                             .unwrap();
-                        let index = index as u16;
-                        error_corrections.insert(pixel_bytes, index);
+                        error_corrections.insert(pixel_bytes, *orig_index);
                         worst_discrepancy = worst_discrepancy.max(color.abs_diff(&pixel_color));
-                        index
+                        *orig_index
                     }
                 }
             };
