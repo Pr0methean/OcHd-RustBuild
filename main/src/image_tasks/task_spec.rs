@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::{HashMap};
 
 use std::fmt::{Debug, Display, Formatter};
@@ -581,9 +582,7 @@ impl Transparency {
     }
 }
 
-// Should be more than the number of colors allowed in an indexed-mode PNG, since blending over a
-// solid color may narrow the list of distinct colors.
-const MAX_SPECIFIED_COLORS: usize = 384;
+const BINARY_SEARCH_THRESHOLD: usize = u8::MAX as usize + 1;
 
 impl ColorDescription {
     pub fn transparency(&self) -> Transparency {
@@ -849,25 +848,53 @@ fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildin
 const BINARY_SEARCH_THRESHOLD: usize = 1024;
 
 fn contains_alpha(vec: &Vec<ComparableColor>, needle_alpha: u8) -> bool {
-    if vec.len() <= BINARY_SEARCH_THRESHOLD {
-        vec.iter().any(|color| color.alpha() == needle_alpha)
+
+    // Optimizations for the fact that fully-transparent can only appear once.
+    let least_alpha = vec[0].alpha();
+    if least_alpha == 0 {
+        if needle_alpha == 0 {
+            return true;
+        }
+        if vec.len() == 1 {
+            return false;
+        }
+        let next_least_alpha = vec[1].alpha();
+        match needle_alpha.cmp(&next_least_alpha) {
+            Ordering::Less => return false,
+            Ordering::Equal => return true,
+            Ordering::Greater => {}
+        }
     } else {
-        match vec.binary_search(&ComparableColor {
+        match needle_alpha.cmp(&least_alpha) {
+            Ordering::Less => return false,
+            Ordering::Equal => return true,
+            Ordering::Greater => {}
+        }
+    }
+
+    // Check against upper limit of range
+    let greatest_alpha = vec[vec.len() - 1].alpha();
+    match needle_alpha.cmp(&greatest_alpha) {
+        Ordering::Less => {}
+        Ordering::Equal => return true,
+        Ordering::Greater => return false,
+    }
+
+    match vec.binary_search(&ComparableColor {
             alpha: needle_alpha,
             red: 0,
             green: 0,
             blue: 0
+    }) {
+        Ok(_) => true,
+        Err(insert_black_index) => match vec[insert_black_index..].binary_search(&ComparableColor {
+            alpha: needle_alpha,
+            red: u8::MAX,
+            green: u8::MAX,
+            blue: u8::MAX
         }) {
             Ok(_) => true,
-            Err(insert_black_index) => match vec[insert_black_index..].binary_search(&ComparableColor {
-                alpha: needle_alpha,
-                red: u8::MAX,
-                green: u8::MAX,
-                blue: u8::MAX
-            }) {
-                Ok(_) => true,
-                Err(insert_white_index) => insert_white_index > 0
-            }
+            Err(insert_white_index) => insert_white_index > 0
         }
     }
 }
