@@ -578,16 +578,20 @@ impl ColorDescription {
                         match self.transparency() {
                             Opaque => SpecifiedColors(fg_colors.clone()),
                             BinaryTransparency => {
-                                let mut combined_colors = fg_colors.to_owned();
-                                combined_colors.extend(bg_colors);
+                                let mut combined_colors = bg_colors.to_owned();
+                                combined_colors.extend(fg_colors.iter().filter(
+                                    |color| color.alpha() == u8::MAX
+                                ));
                                 combined_colors.sort();
                                 combined_colors.dedup();
                                 Self::collapse_specified(combined_colors)
                             }
                             AlphaChannel => {
+                                let opaque_fg_colors = fg_colors.iter().filter(|color| color.alpha() == u8::MAX);
                                 let mut combined_colors: Vec<ComparableColor> = bg_colors.iter().flat_map(|bg_color|
-                                    bg_color.under(fg_colors.iter().copied()).into_iter()
+                                    bg_color.under(fg_colors.iter().filter(|color| color.alpha() != u8::MAX).copied()).into_iter()
                                 ).collect();
+                                combined_colors.extend(opaque_fg_colors);
                                 combined_colors.sort();
                                 combined_colors.dedup();
                                 Self::collapse_specified(combined_colors)
@@ -643,10 +647,10 @@ pub const fn channel_to_bit_depth(input: u8, depth: BitDepth) -> u16 {
     match depth {
         One => if input < 0x80 { 0 } else { 1 },
         Two => {
-            (input as u16 + (0x055/2)) / 0x55
+            (input as u16 + (0x55/2)) / 0x55
         },
         Four => {
-            (input as u16 + (0x011/2)) / 0x11
+            (input as u16 + (0x11/2)) / 0x11
         },
         Eight => input as u16,
         Sixteen => debug_assert_unreachable()
