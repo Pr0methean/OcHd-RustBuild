@@ -44,7 +44,7 @@ impl Clone for MaybeFromPool<Mask> {
     }
 }
 
-fn allocate_mask_for_overwrite(width: u32, height: u32) -> MaybeFromPool<Mask> {
+pub fn allocate_mask_for_overwrite(width: u32, height: u32) -> MaybeFromPool<Mask> {
     if width == GRID_SIZE && height == GRID_SIZE {
         info!("Borrowing a grid-size Mask from pool");
         MaybeFromPool::FromPool {

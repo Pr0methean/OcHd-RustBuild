@@ -31,7 +31,7 @@ use crate::image_tasks::repaint::{paint, pixmap_to_mask};
 use crate::image_tasks::stack::{stack_alpha_on_alpha, stack_alpha_on_background, stack_layer_on_background, stack_layer_on_layer};
 use crate::image_tasks::task_spec::ColorDescription::{Rgb, SpecifiedColors};
 use crate::image_tasks::task_spec::Transparency::{AlphaChannel, BinaryTransparency, Opaque};
-use crate::image_tasks::upscale::upscale_image;
+use crate::image_tasks::upscale::{upscale_image, upscale_mask};
 
 pub trait TaskSpecTraits <T>: Clone + Debug + Display + Ord + Eq + Hash {
     fn add_to(&self, ctx: &mut TaskGraphBuildingContext, tile_size: u32)
@@ -136,6 +136,12 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
             info!("Matched an existing node: {}", name);
             return existing_future.to_owned();
         }
+        if let ToAlphaChannelTaskSpec::UpscaleFromGridSize {..} = self {
+            // Fall through; let expressions can't be inverted
+        } else if tile_size != GRID_SIZE && self.is_grid_perfect(ctx) {
+            return ToAlphaChannelTaskSpec::UpscaleFromGridSize {base: self.to_owned().into()}
+                .add_to(ctx, tile_size);
+        }
         let function: LazyTaskFunction<MaybeFromPool<Mask>> = match self {
             ToAlphaChannelTaskSpec::MakeSemitransparent { base, alpha } => {
                 let base_future = base.add_to(ctx, tile_size);
@@ -173,6 +179,16 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                     let mut fg_image = Arc::unwrap_or_clone(fg_arc);
                     stack_alpha_on_background(background, &mut fg_image);
                     Ok(fg_image)
+                })
+            },
+            ToAlphaChannelTaskSpec::UpscaleFromGridSize {base} => {
+                let base_future = base.add_to(ctx, GRID_SIZE);
+                if tile_size == GRID_SIZE {
+                    return base_future;
+                }
+                Box::new(move || {
+                    let base_mask = base_future.into_result()?;
+                    Ok(Box::new(upscale_mask(base_mask.deref(), tile_size)?))
                 })
             }
         };
@@ -258,7 +274,8 @@ pub enum ToAlphaChannelTaskSpec {
     MakeSemitransparent {base: Box<ToAlphaChannelTaskSpec>, alpha: u8},
     FromPixmap {base: ToPixmapTaskSpec},
     StackAlphaOnAlpha {background: Box<ToAlphaChannelTaskSpec>, foreground: Box<ToAlphaChannelTaskSpec>},
-    StackAlphaOnBackground {background: u8, foreground: Box<ToAlphaChannelTaskSpec>}
+    StackAlphaOnBackground {background: u8, foreground: Box<ToAlphaChannelTaskSpec>},
+    UpscaleFromGridSize {base: Box<ToAlphaChannelTaskSpec>}
 }
 
 /// [TaskSpec] for a task that doesn't produce a heap object as output.
@@ -402,6 +419,9 @@ impl Display for ToAlphaChannelTaskSpec {
             }
             ToAlphaChannelTaskSpec::StackAlphaOnBackground {background, foreground} => {
                 write!(f, "({}+{})", background, foreground)
+            }
+            ToAlphaChannelTaskSpec::UpscaleFromGridSize {base} => {
+                write!(f, "upscale({})", base)
             }
         }
     }
@@ -699,6 +719,9 @@ impl ToAlphaChannelTaskSpec {
             ToAlphaChannelTaskSpec::StackAlphaOnBackground { background: background_alpha, foreground } => {
                 stack_alpha_vecs(&[*background_alpha], &foreground.get_possible_alpha_values(ctx))
             }
+            ToAlphaChannelTaskSpec::UpscaleFromGridSize {base} => {
+                base.get_possible_alpha_values(ctx)
+            }
         };
         ctx.alpha_task_to_alpha_map.insert(self.to_owned(), alpha_vec.to_owned());
         alpha_vec
@@ -713,7 +736,8 @@ impl ToAlphaChannelTaskSpec {
             ToAlphaChannelTaskSpec::StackAlphaOnAlpha { background, foreground }
                 => background.is_grid_perfect(ctx) && foreground.is_grid_perfect(ctx),
             ToAlphaChannelTaskSpec::StackAlphaOnBackground { foreground, .. }
-                => foreground.is_grid_perfect(ctx)
+                => foreground.is_grid_perfect(ctx),
+            ToAlphaChannelTaskSpec::UpscaleFromGridSize {..} => true
         }
     }
 }
