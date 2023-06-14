@@ -1,4 +1,3 @@
-use std::any::TypeId;
 use std::cmp::Ordering;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
@@ -6,7 +5,7 @@ use std::ops::{Deref, DerefMut};
 use lazy_static::lazy_static;
 use lockfree_object_pool::{LinearObjectPool, LinearReusable};
 use log::info;
-use resvg::tiny_skia::{Color, Mask, Pixmap};
+use resvg::tiny_skia::{Color, Pixmap};
 use crate::TILE_SIZE;
 
 pub mod color;
@@ -39,6 +38,15 @@ pub enum MaybeFromPool<T: 'static> {
     NotFromPool(T)
 }
 
+impl <T> MaybeFromPool<T> where T: Clone {
+    pub fn unwrap_or_clone(self) -> T {
+        match self {
+            MaybeFromPool::FromPool { reusable } => reusable.deref().to_owned(),
+            MaybeFromPool::NotFromPool(inner) => inner
+        }
+    }
+}
+
 impl <T> Deref for MaybeFromPool<T> {
     type Target = T;
 
@@ -55,33 +63,6 @@ impl <T> DerefMut for MaybeFromPool<T> where T: Clone {
         match self {
             MaybeFromPool::FromPool { reusable, .. } => reusable.deref_mut(),
             MaybeFromPool::NotFromPool(value) => value
-        }
-    }
-}
-
-const PIXMAP_TYPE_ID: TypeId = TypeId::of::<Pixmap>();
-const MASK_TYPE_ID: TypeId = TypeId::of::<Mask>();
-const VEC_U8_TYPE_ID: TypeId = TypeId::of::<Vec<u8>>();
-
-fn type_name_for_id(id: TypeId) -> &'static str {
-    if id == PIXMAP_TYPE_ID {
-        "Pixmap"
-    } else if id == MASK_TYPE_ID {
-        "Mask"
-    } else if id == VEC_U8_TYPE_ID {
-        "Vec<u8>"
-    } else {
-        "Unknown"
-    }
-}
-
-impl <T: 'static> Drop for MaybeFromPool<T> {
-    fn drop(&mut self) {
-        let type_name = type_name_for_id(TypeId::of::<T>());
-        match self {
-            MaybeFromPool::FromPool { .. } => info!("Returning a {} to pool", type_name),
-            MaybeFromPool::NotFromPool(_) =>
-                info!("Dropping a {} from outside pool", type_name)
         }
     }
 }

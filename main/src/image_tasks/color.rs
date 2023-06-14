@@ -4,13 +4,12 @@ use std::hash::{Hash, Hasher};
 use std::ops::Mul;
 use palette::{Srgba};
 use palette::blend::{Compose};
-use png::BitDepth;
+use oxipng::BitDepth;
 
 use resvg::tiny_skia::{Color};
 use resvg::tiny_skia::ColorU8;
 use resvg::tiny_skia::PremultipliedColor;
 use resvg::tiny_skia::PremultipliedColorU8;
-use crate::image_tasks::task_spec::{bit_depth_to_u32, u32_to_bit_depth_max_eight};
 use bytemuck::{cast, Pod, Zeroable};
 
 /// Wrapper around [ColorU8] that implements important missing traits such as [Eq], [Hash], [Copy],
@@ -160,10 +159,10 @@ impl ComparableColor {
         if self.alpha() == 0 {
             BitDepth::One
         } else {
-            u32_to_bit_depth_max_eight(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL[self.red as usize])
-                .max(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL[self.green as usize]))
-                .max(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL[self.blue as usize]))
-                .max(bit_depth_to_u32(&BIT_DEPTH_FOR_CHANNEL[self.alpha as usize])))
+            BIT_DEPTH_FOR_CHANNEL[self.red as usize]
+                .max(BIT_DEPTH_FOR_CHANNEL[self.green as usize])
+                .max(BIT_DEPTH_FOR_CHANNEL[self.blue as usize])
+                .max(BIT_DEPTH_FOR_CHANNEL[self.alpha as usize])
         }
     }
 }
