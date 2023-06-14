@@ -902,13 +902,10 @@ impl ToPixmapTaskSpec {
                             }
                             AlphaChannel => {
                                 // Using dedup() rather than unique() uses too much memory
-                                let opaque_fg_colors = fg_colors.iter().copied().filter(|color| color.alpha() == u8::MAX);
                                 let mut combined_colors: Vec<ComparableColor> = bg_colors.iter().copied().flat_map(|bg_color|
-                                    bg_color.under(fg_colors.iter().copied().filter(|color| color.alpha() != u8::MAX)).into_iter()
+                                    bg_color.under(fg_colors.iter().copied()).into_iter()
                                 ).unique().collect();
-                                combined_colors.extend(opaque_fg_colors);
                                 combined_colors.sort();
-                                combined_colors.dedup();
                                 SpecifiedColors(combined_colors)
                             }
                         }
