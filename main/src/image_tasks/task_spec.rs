@@ -908,7 +908,7 @@ impl ToPixmapTaskSpec {
                                 ).chain(opaque_fg_colors.copied()).unique();
                                 if *TILE_SIZE <= GRID_SIZE || self.is_grid_perfect(ctx) {
                                     let more_colors_than_pixels = GRID_SIZE as usize * GRID_SIZE as usize + 1;
-                                    let mut possible_colors: Vec<ComparableColor> = combined_colors.take(more_colors_than_pixels).collect();
+                                    let possible_colors: Vec<ComparableColor> = combined_colors.take(more_colors_than_pixels).collect();
                                     if possible_colors.len() == more_colors_than_pixels {
                                         let actual_image = self.add_to(ctx, GRID_SIZE).into_result();
                                         let mut actual_colors: Vec<ComparableColor> = actual_image.unwrap().pixels().iter().copied()
@@ -918,7 +918,6 @@ impl ToPixmapTaskSpec {
                                         actual_colors.dedup();
                                         return SpecifiedColors(actual_colors);
                                     }
-                                    possible_colors.sort();
                                     return SpecifiedColors(possible_colors);
                                 }
                                 let mut combined_colors: Vec<ComparableColor> = combined_colors.collect();
