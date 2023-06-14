@@ -998,13 +998,17 @@ impl ToPixmapTaskSpec {
             }
             ToPixmapTaskSpec::UpscaleFromGridSize {base} => base.get_color_description(ctx)
         };
-        let pixels = if *TILE_SIZE == GRID_SIZE || self.is_grid_perfect(ctx) {
-            GRID_SIZE as usize * GRID_SIZE as usize
+        let side_length = if *TILE_SIZE == GRID_SIZE || self.is_grid_perfect(ctx) {
+            GRID_SIZE
         } else {
-            *TILE_SIZE as usize * *TILE_SIZE as usize
+            *TILE_SIZE
         };
+        let mut pixels = side_length as usize * side_length as usize;
+        if let ToPixmapTaskSpec::Animate {frames, ..} = &self {
+            pixels *= frames.len();
+        }
         let desc = if let SpecifiedColors(colors) = &desc && colors.len() > pixels {
-            let actual_image = self.add_to(ctx, GRID_SIZE).into_result();
+            let actual_image = self.add_to(ctx, side_length).into_result();
             let mut actual_colors: Vec<ComparableColor> = actual_image.unwrap().pixels().iter().copied()
                 .map(ComparableColor::from)
                 .collect();
