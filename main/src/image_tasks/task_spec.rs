@@ -1007,6 +1007,8 @@ impl ToPixmapTaskSpec {
             pixels *= frames.len();
         }
         let desc = if let SpecifiedColors(colors) = &desc && colors.len() > pixels {
+            info!("For {}, possible colors {} exceeds pixel count {}; rendering to determine \
+                actual color count", self, colors.len(), pixels);
             let actual_image = self.add_to(ctx, side_length).into_result();
             let mut actual_colors: Vec<ComparableColor> = actual_image.unwrap().pixels().iter().copied()
                 .map(ComparableColor::from)
