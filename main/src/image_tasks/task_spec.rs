@@ -815,6 +815,9 @@ fn contains_alpha(vec: &Vec<ComparableColor>, needle_alpha: u8) -> bool {
             return false;
         }
         let next_least_alpha = vec[1].alpha();
+        if next_least_alpha == 0 {
+            panic!("Transparent color included twice");
+        }
         match needle_alpha.cmp(&next_least_alpha) {
             Ordering::Less => return false,
             Ordering::Equal => return true,
@@ -903,25 +906,9 @@ impl ToPixmapTaskSpec {
                             }
                             AlphaChannel => {
                                 // Using dedup() rather than unique() uses too much memory
-                                let opaque_fg_colors = fg_colors.iter().filter(|color| color.alpha() == u8::MAX);
-                                let combined_colors = bg_colors.iter().flat_map(|bg_color|
-                                    bg_color.under(fg_colors.iter().filter(|color| color.alpha() != u8::MAX).copied()).into_iter()
-                                ).chain(opaque_fg_colors.copied()).unique();
-                                if *TILE_SIZE <= GRID_SIZE || self.is_grid_perfect(ctx) {
-                                    let more_colors_than_pixels = GRID_SIZE as usize * GRID_SIZE as usize + 1;
-                                    let possible_colors: Vec<ComparableColor> = combined_colors.take(more_colors_than_pixels).collect();
-                                    if possible_colors.len() == more_colors_than_pixels {
-                                        let actual_image = self.add_to(ctx, GRID_SIZE).into_result();
-                                        let mut actual_colors: Vec<ComparableColor> = actual_image.unwrap().pixels().iter().copied()
-                                            .map(ComparableColor::from)
-                                            .collect();
-                                        actual_colors.sort();
-                                        actual_colors.dedup();
-                                        return SpecifiedColors(actual_colors);
-                                    }
-                                    return SpecifiedColors(possible_colors);
-                                }
-                                let mut combined_colors: Vec<ComparableColor> = combined_colors.collect();
+                                let mut combined_colors: Vec<ComparableColor> = bg_colors.iter().copied().flat_map(|bg_color|
+                                    bg_color.under(fg_colors.iter().copied()).into_iter()
+                                ).unique().collect();
                                 combined_colors.sort();
                                 SpecifiedColors(combined_colors)
                             }
