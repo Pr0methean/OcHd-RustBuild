@@ -906,24 +906,24 @@ impl ToPixmapTaskSpec {
                                 let combined_colors = bg_colors.iter().flat_map(|bg_color|
                                     bg_color.under(fg_colors.iter().filter(|color| color.alpha() != u8::MAX).copied()).into_iter()
                                 ).chain(opaque_fg_colors.copied()).unique();
-                                let pixels = if *TILE_SIZE <= GRID_SIZE || self.is_grid_perfect(ctx) {
-                                    GRID_SIZE as usize * GRID_SIZE as usize
-                                } else {
-                                    *TILE_SIZE as usize * *TILE_SIZE as usize
-                                };
-                                let mut possible_colors: Vec<ComparableColor> = combined_colors.take(pixels + 1).collect();
-                                if possible_colors.len() == pixels + 1 {
-                                    let actual_image = self.add_to(ctx, GRID_SIZE).into_result();
-                                    let mut actual_colors: Vec<ComparableColor> = actual_image.unwrap().pixels().iter().copied()
-                                        .map(ComparableColor::from)
-                                        .collect();
-                                    actual_colors.sort();
-                                    actual_colors.dedup();
-                                    SpecifiedColors(actual_colors)
-                                } else {
+                                if *TILE_SIZE <= GRID_SIZE || self.is_grid_perfect(ctx) {
+                                    let more_colors_than_pixels = GRID_SIZE as usize * GRID_SIZE as usize + 1;
+                                    let mut possible_colors: Vec<ComparableColor> = combined_colors.take(more_colors_than_pixels).collect();
+                                    if possible_colors.len() == more_colors_than_pixels {
+                                        let actual_image = self.add_to(ctx, GRID_SIZE).into_result();
+                                        let mut actual_colors: Vec<ComparableColor> = actual_image.unwrap().pixels().iter().copied()
+                                            .map(ComparableColor::from)
+                                            .collect();
+                                        actual_colors.sort();
+                                        actual_colors.dedup();
+                                        return SpecifiedColors(actual_colors);
+                                    }
                                     possible_colors.sort();
-                                    SpecifiedColors(possible_colors)
+                                    return SpecifiedColors(possible_colors);
                                 }
+                                let mut combined_colors: Vec<ComparableColor> = combined_colors.collect();
+                                combined_colors.sort();
+                                SpecifiedColors(combined_colors)
                             }
                         }
                     }
