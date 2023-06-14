@@ -591,7 +591,7 @@ impl ColorDescription {
             SpecifiedColors(colors) => {
                 if contains_semitransparency(colors) {
                     AlphaChannel
-                } else if contains_alpha(colors, 0) {
+                } else if colors[0].alpha() == 0 {
                     BinaryTransparency
                 } else {
                     Opaque
