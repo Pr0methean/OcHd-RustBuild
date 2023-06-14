@@ -157,6 +157,7 @@ pub const SEMITRANSPARENCY_FREE_SVGS: &[&str] = &[
     "leaves3b",
     "mushroomStem",
     "paneTop",
+    "planksTopBorder",
     "planksTopBorderVertical",
     "planksTopVertical",
     "rail",
