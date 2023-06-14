@@ -31,6 +31,7 @@ use crate::image_tasks::repaint::{paint, pixmap_to_mask};
 use crate::image_tasks::stack::{stack_alpha_on_alpha, stack_alpha_on_background, stack_layer_on_background, stack_layer_on_layer};
 use crate::image_tasks::task_spec::ColorDescription::{Rgb, SpecifiedColors};
 use crate::image_tasks::task_spec::Transparency::{AlphaChannel, BinaryTransparency, Opaque};
+use crate::image_tasks::upscale::upscale_image;
 
 pub trait TaskSpecTraits <T>: Clone + Debug + Display + Ord + Eq + Hash {
     fn add_to(&self, ctx: &mut TaskGraphBuildingContext, tile_size: u32)
@@ -51,6 +52,12 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
         if let Some(existing_future) = ctx.get_pixmap_future(tile_size, self) {
             info!("Matched an existing node: {}", name);
             return existing_future.to_owned();
+        }
+        if let ToPixmapTaskSpec::UpscaleFromGridSize {..} = self {
+            // Fall through; let expressions can't be inverted
+        } else if tile_size != GRID_SIZE && self.is_grid_perfect(ctx) {
+            return ToPixmapTaskSpec::UpscaleFromGridSize {base: self.to_owned().into()}
+                .add_to(ctx, tile_size);
         }
         let function: LazyTaskFunction<MaybeFromPool<Pixmap>> = match self {
             ToPixmapTaskSpec::None { .. } => panic!("Tried to add None task to graph"),
@@ -103,6 +110,16 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                     paint(Arc::unwrap_or_clone(base_image).as_ref(), color)
                 })
             },
+            ToPixmapTaskSpec::UpscaleFromGridSize { base } => {
+                let base_future = base.add_to(ctx, GRID_SIZE);
+                if tile_size == GRID_SIZE {
+                    return base_future;
+                }
+                Box::new(move || {
+                    let base_image = base_future.into_result()?;
+                    Ok(Box::new(upscale_image(base_image.deref(), tile_size)?))
+                })
+            }
         };
         info!("Adding node: {}", name);
         let task = CloneableLazyTask::new(name, function);
@@ -231,6 +248,7 @@ pub enum ToPixmapTaskSpec {
     PaintAlphaChannel {base: Box<ToAlphaChannelTaskSpec>, color: ComparableColor},
     StackLayerOnColor {background: ComparableColor, foreground: Box<ToPixmapTaskSpec>},
     StackLayerOnLayer {background: Box<ToPixmapTaskSpec>, foreground: Box<ToPixmapTaskSpec>},
+    UpscaleFromGridSize {base: Box<ToPixmapTaskSpec>},
     None,
 }
 
@@ -350,6 +368,9 @@ impl Display for ToPixmapTaskSpec {
             ToPixmapTaskSpec::None {} => {
                 write!(f, "None")
             },
+            ToPixmapTaskSpec::UpscaleFromGridSize {base} => {
+                write!(f, "upscale({})", base)
+            }
         }
     }
 }
@@ -867,6 +888,7 @@ impl ToPixmapTaskSpec {
                 foreground.is_grid_perfect(ctx),
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } =>
                 background.is_grid_perfect(ctx) && foreground.is_grid_perfect(ctx),
+            ToPixmapTaskSpec::UpscaleFromGridSize { .. } => true,
             ToPixmapTaskSpec::None => debug_assert_unreachable()
         }
     }
@@ -930,6 +952,7 @@ impl ToPixmapTaskSpec {
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
                 foreground.get_color_description(ctx).stack_on(&background.get_color_description(ctx))
             }
+            ToPixmapTaskSpec::UpscaleFromGridSize {base} => base.get_color_description(ctx)
         };
         ctx.pixmap_task_to_color_map.insert(self.to_owned(), desc.to_owned());
         desc

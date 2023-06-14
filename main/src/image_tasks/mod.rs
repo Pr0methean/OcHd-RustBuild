@@ -16,6 +16,7 @@ pub mod stack;
 pub mod png_output;
 pub mod task_spec;
 pub mod make_semitransparent;
+pub mod upscale;
 
 lazy_static! {
     static ref PIXMAP_POOL: LinearObjectPool<Pixmap> = LinearObjectPool::new(
