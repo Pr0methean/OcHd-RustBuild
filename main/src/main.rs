@@ -107,7 +107,8 @@ fn main() -> Result<(), CloneableError> {
         let mut small_tasks = Vec::with_capacity(out_tasks.len());
         for task in out_tasks {
             let new_task = task.add_to(&mut ctx, tile_size);
-            if let FileOutputTaskSpec::PngOutput {base, .. } = task
+            if tile_size > GRID_SIZE
+                    && let FileOutputTaskSpec::PngOutput {base, .. } = task
                     && !base.is_grid_perfect(&mut ctx) {
                 large_tasks.push(new_task);
             } else {
