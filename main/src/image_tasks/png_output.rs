@@ -148,7 +148,6 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>, color_type: ColorType, bit_dep
             raw_bytes
         }
         ColorType::Indexed {ref palette} => {
-            info!("Writing a 24-bit RGB PNG");
             write_indexed_bytes(image, palette, bit_depth)?
         }
     };
@@ -163,6 +162,7 @@ pub fn write_indexed_bytes(image: MaybeFromPool<Pixmap>,
                            palette: &Vec<RGBA8>,
                            bit_depth: BitDepth)
                            -> Result<Vec<u8>, CloneableError> {
+    info!("Writing an indexed PNG with {} colors", palette.len());
     let bytes = Vec::with_capacity(image.width() as usize * image.height() as usize
         * bit_depth as u8 as usize / 8);
     let mut sorted_palette: Vec<([u8; 4], u16, ComparableColor)> = Vec::with_capacity(palette.len());
