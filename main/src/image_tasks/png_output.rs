@@ -152,8 +152,11 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>, color_type: ColorType, bit_dep
             write_indexed_bytes(image, palette, bit_depth)?
         }
     };
-    Ok(RawImage::new(width, height, color_type, bit_depth, raw_bytes)?
-        .create_optimized_png(&OXIPNG_OPTIONS)?)
+    info!("Starting PNG optimization");
+    let result = RawImage::new(width, height, color_type, bit_depth, raw_bytes)?
+        .create_optimized_png(&OXIPNG_OPTIONS)?;
+    info!("Finished PNG optimization");
+    Ok(result)
 }
 
 pub fn write_indexed_bytes(image: MaybeFromPool<Pixmap>,
