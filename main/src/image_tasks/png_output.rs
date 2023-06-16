@@ -8,7 +8,7 @@ use bitstream_io::{BigEndian, BitWrite, BitWriter};
 use bytemuck::{cast};
 use lazy_static::lazy_static;
 use log::{info, warn};
-use oxipng::{BitDepth, ColorType, Deflaters, Options, RawImage, RGBA8};
+use oxipng::{BitDepth, ColorType, Deflaters, Options, RawImage};
 
 use resvg::tiny_skia::{ColorU8, Pixmap, PremultipliedColorU8};
 use zip_next::CompressionMethod::{Deflated};
@@ -92,7 +92,7 @@ pub fn copy_in_to_out(source: &File, dest_path: String) -> Result<(),CloneableEr
 
 /// Forked from https://docs.rs/tiny-skia/latest/src/tiny_skia/pixmap.rs.html#390 to eliminate the
 /// copy and pre-allocate the byte vector.
-pub fn into_png(mut image: MaybeFromPool<Pixmap>, color_type: ColorType, bit_depth: BitDepth) -> Result<Vec<u8>, CloneableError> {
+pub fn into_png(image: MaybeFromPool<Pixmap>, color_type: ColorType, bit_depth: BitDepth) -> Result<Vec<u8>, CloneableError> {
     let width = image.width();
     let height = image.height();
     let raw_bytes = match color_type {
@@ -117,8 +117,9 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>, color_type: ColorType, bit_dep
         }
         ColorType::RGBA => {
             info!("Writing an RGBA PNG");
-            demultiply_image(image.deref_mut());
-            image.unwrap_or_clone().take()
+            let mut image = image.unwrap_or_clone();
+            demultiply_image(&mut image);
+            image.take()
         }
         ColorType::Grayscale {transparent_shade} => {
             info!("Writing {}-bit grayscale PNG", bit_depth);
