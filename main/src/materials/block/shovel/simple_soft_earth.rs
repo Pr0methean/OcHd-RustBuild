@@ -35,7 +35,7 @@ block_with_colors!(MUD = c(0x3a3a3a), ComparableColor::DARKEST_GRAY, ComparableC
     paint_svg_task("borderSolid", highlight!()),
     paint_svg_task("borderDotted", shadow!())
 );
-block_with_colors!(MOSS_BLOCK = c(0x647233),c(0x42552d),c(0x70922d),
+block_with_colors!(MOSS_BLOCK = c(0x6b6b33),c(0x42552d),c(0x70922d),
     color!(),
     paint_stack!(highlight!(), "strokeTopLeftBottomRight4", "borderSolid"),
     paint_svg_task("strokeBottomLeftTopRight4xorBorder", shadow!())
