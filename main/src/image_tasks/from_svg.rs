@@ -5,7 +5,8 @@ use resvg::usvg::{Options, Tree, TreeParsing};
 
 use crate::anyhoo;
 use crate::image_tasks::{allocate_pixmap_empty, MaybeFromPool};
-use crate::image_tasks::task_spec::{CloneableError, SVG_DIR};
+use crate::image_tasks::cloneable::CloneableError;
+use crate::image_tasks::task_spec::SVG_DIR;
 
 pub const COLOR_SVGS: &[&str] = &[
     "barrelSlats",

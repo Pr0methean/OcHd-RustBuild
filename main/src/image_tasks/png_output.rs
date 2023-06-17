@@ -1,23 +1,24 @@
 use std::collections::HashMap;
-use include_dir::{File};
+use include_dir::File;
 use std::io::{Cursor, Write};
 use std::mem::transmute;
-use std::ops::{DerefMut};
-use std::sync::{Mutex};
+use std::ops::DerefMut;
+use std::sync::Mutex;
 use bitstream_io::{BigEndian, BitWrite, BitWriter};
-use bytemuck::{cast};
+use bytemuck::cast;
 use lazy_static::lazy_static;
 use log::{info, warn};
 use oxipng::{BitDepth, ColorType, Deflaters, Options, RawImage};
 
 use resvg::tiny_skia::{ColorU8, Pixmap, PremultipliedColorU8};
-use zip_next::CompressionMethod::{Deflated};
+use zip_next::CompressionMethod::Deflated;
 use zip_next::write::FileOptions;
-use zip_next::{ZipWriter};
+use zip_next::ZipWriter;
 
 use crate::image_tasks::MaybeFromPool;
-use crate::image_tasks::task_spec::{channel_to_bit_depth, CloneableError};
-use crate::{TILE_SIZE};
+use crate::image_tasks::task_spec::channel_to_bit_depth;
+use crate::TILE_SIZE;
+use crate::image_tasks::cloneable::CloneableError;
 use crate::image_tasks::color::ComparableColor;
 
 pub type ZipBufferRaw = Cursor<Vec<u8>>;

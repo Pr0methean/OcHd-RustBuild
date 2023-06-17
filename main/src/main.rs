@@ -11,7 +11,7 @@ use log::{info, LevelFilter, warn};
 use texture_base::material::Material;
 use rayon::prelude::*;
 
-use crate::image_tasks::task_spec::{TaskGraphBuildingContext, TaskSpecTraits, METADATA_DIR, CloneableError, FileOutputTaskSpec, CloneableLazyTask};
+use crate::image_tasks::task_spec::{FileOutputTaskSpec, METADATA_DIR, TaskGraphBuildingContext, TaskSpecTraits};
 
 mod image_tasks;
 mod texture_base;
@@ -21,11 +21,12 @@ use std::env;
 use std::fs;
 use std::fs::create_dir_all;
 use std::hint::unreachable_unchecked;
-use std::ops::{DerefMut};
+use std::ops::DerefMut;
 use include_dir::{Dir, DirEntry};
 use lazy_static::lazy_static;
 use rayon::{current_num_threads, ThreadPoolBuilder};
 use tikv_jemallocator::Jemalloc;
+use image_tasks::cloneable::{CloneableError, CloneableLazyTask};
 use crate::image_tasks::png_output::{copy_in_to_out, ZIP};
 use crate::image_tasks::prewarm_pixmap_pool;
 use crate::image_tasks::repaint::prewarm_mask_pool;

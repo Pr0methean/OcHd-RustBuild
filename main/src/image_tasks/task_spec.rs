@@ -1,28 +1,28 @@
 use std::cmp::Ordering;
-use std::collections::{HashMap};
+use std::collections::HashMap;
 
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 
-use std::ops::{Deref, DerefMut, Mul};
-use std::sync::{Arc, Mutex};
+use std::ops::{Deref, Mul};
+use std::sync::{Arc};
 use BitDepth::Sixteen;
 use ColorType::GrayscaleAlpha;
 
-use crate::{anyhoo, debug_assert_unreachable, GRID_SIZE, TILE_SIZE};
+use crate::{debug_assert_unreachable, GRID_SIZE, TILE_SIZE};
 use include_dir::{Dir, include_dir};
 use itertools::Itertools;
 
-use log::{info};
+use log::info;
 use oxipng::{BitDepth, RGB16, RGBA8};
 use oxipng::BitDepth::{Eight, Four, One, Two};
 use oxipng::ColorType;
 use oxipng::ColorType::{Grayscale, Indexed, RGB, RGBA};
-use replace_with::replace_with_and_return;
 
 use resvg::tiny_skia::{Color, Mask, Pixmap};
 
 use crate::image_tasks::animate::animate;
+use crate::image_tasks::cloneable::{CloneableLazyTask, LazyTaskFunction};
 use crate::image_tasks::color::{BIT_DEPTH_FOR_CHANNEL, ComparableColor, gray};
 use crate::image_tasks::from_svg::{COLOR_SVGS, from_svg, SEMITRANSPARENCY_FREE_SVGS};
 use crate::image_tasks::make_semitransparent::{ALPHA_MULTIPLICATION_TABLE, ALPHA_STACKING_TABLE, make_semitransparent};
@@ -244,8 +244,6 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
     }
 }
 
-pub type CloneableResult<T> = Result<Arc<Box<T>>, CloneableError>;
-
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct TileSized<T> {
     inner: T,
@@ -345,21 +343,10 @@ impl From<&FileOutputTaskSpec> for TaskSpec {
     }
 }
 
-#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
-pub struct CloneableError {
-    message: String
-}
-
-impl <T> From<T> for CloneableError where T: ToString {
-    fn from(value: T) -> Self {
-        CloneableError {message: value.to_string()}
-    }
-}
-
 #[macro_export]
 macro_rules! anyhoo {
     ($($args:expr),+ $(,)?) => {
-        $crate::image_tasks::task_spec::CloneableError::from(anyhow::anyhow!($($args),+))
+        $crate::image_tasks::cloneable::CloneableError::from(anyhow::anyhow!($($args),+))
     }
 }
 
@@ -425,107 +412,6 @@ impl Display for ToAlphaChannelTaskSpec {
             }
             ToAlphaChannelTaskSpec::UpscaleFromGridSize {base} => {
                 write!(f, "upscale({})", base)
-            }
-        }
-    }
-}
-
-pub type LazyTaskFunction<T> = Box<dyn FnOnce() -> Result<Box<T>, CloneableError> + Send>;
-
-pub enum CloneableLazyTaskState<T> where T: ?Sized {
-    Upcoming {
-        function: LazyTaskFunction<T>,
-    },
-    Finished {
-        result: CloneableResult<T>
-    }
-}
-
-#[derive(Clone,Debug)]
-pub struct CloneableLazyTask<T> where T: ?Sized {
-    pub name: String,
-    state: Arc<Mutex<CloneableLazyTaskState<T>>>
-}
-
-impl <T> Debug for CloneableLazyTaskState<T> where T: ?Sized {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CloneableLazyTaskState::Upcoming { .. } => {
-                f.write_str("Upcoming")
-            },
-            CloneableLazyTaskState::Finished { result } => {
-                match result {
-                    Ok(..) => f.write_str("Ok"),
-                    Err(error) => f.write_fmt(
-                        format_args!("Error({})", error.message))
-                }
-            }
-        }
-    }
-}
-
-impl <T> CloneableLazyTask<T> where T: ?Sized {
-    pub fn new(name: String, base: LazyTaskFunction<T>) -> CloneableLazyTask<T> {
-        CloneableLazyTask {
-            name,
-            state: Arc::new(Mutex::new(CloneableLazyTaskState::Upcoming {
-                function: base
-            }))
-        }
-    }
-
-    /// Consumes this particular copy of the task and returns the result. Trades off readability and
-    /// maintainability to maximize the chance of avoiding unnecessary copies.
-    pub fn into_result(self) -> CloneableResult<T> {
-        match Arc::try_unwrap(self.state) {
-            Ok(exclusive_state) => {
-                // We're the last referent to this Lazy, so we don't need to clone anything.
-                match exclusive_state.into_inner() {
-                    Ok(state) => match state {
-                        CloneableLazyTaskState::Upcoming { function } => {
-                            info!("Starting task {}", self.name);
-                            let result: CloneableResult<T> = function().map(Arc::new);
-                            info!("Finished task {}", self.name);
-                            info!("Unwrapping the only reference to {}", self.name);
-                            result
-                        },
-                        CloneableLazyTaskState::Finished { result } => {
-                            info!("Unwrapping the last reference to {}", self.name);
-                            result
-                        },
-                    }
-                    Err(e) => Err(e.into())
-                }
-            }
-            Err(shared_state) => {
-                match shared_state.lock() {
-                    Ok(mut locked_state) => {
-                        replace_with_and_return(
-                            locked_state.deref_mut(),
-                            || CloneableLazyTaskState::Finished {
-                                result: Err(anyhoo!("replace_with_and_return_failed"))
-                            },
-                            |exec_state| {
-                                match exec_state {
-                                    CloneableLazyTaskState::Upcoming { function} => {
-                                        info! ("Starting task {}", self.name);
-                                        let result: CloneableResult<T> = function().map(Arc::new);
-                                        info! ("Finished task {}", self.name);
-                                        info!("Unwrapping one of {} references to {} after computing it",
-                                            Arc::strong_count(&shared_state), self.name);
-                                        (result.to_owned(), CloneableLazyTaskState::Finished { result })
-                                    },
-                                    CloneableLazyTaskState::Finished { result } => {
-                                        info!("Unwrapping one of {} references to {}",
-                                            Arc::strong_count(&shared_state), self.name);
-                                        (result.to_owned(), CloneableLazyTaskState::Finished { result })
-                                    },
-                                }
-                            }
-                        )
-                    }
-                    Err(e) => Err(e.into())
-                }
             }
         }
     }
@@ -724,7 +610,7 @@ fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildin
             let max_indexed_size = 256;
             if colors.len() > max_indexed_size {
                 if have_non_gray {
-                    info!("Using RGB mode for {}", task);
+                    info!("Using RGB mode for {}", task_name);
                     match transparency {
                         Opaque => (RGB {transparent_color: None}, Eight),
                         BinaryTransparency => (RGB {
@@ -733,11 +619,11 @@ fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildin
                         AlphaChannel => (RGBA, Eight)
                     }
                 } else {
-                    info!("Using grayscale+alpha mode for {}", task);
+                    info!("Using grayscale+alpha mode for {}", task_name);
                     (GrayscaleAlpha, Eight)
                 }
             } else if colors.len() > 16 && !have_non_gray && transparency == Opaque {
-                info!("Using opaque grayscale for {}", task);
+                info!("Using opaque grayscale for {}", task_name);
                 (Grayscale {transparent_shade: None}, Eight)
             } else {
                 let indexed_bit_depth = palette_bit_depth(colors.len());
@@ -747,7 +633,7 @@ fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildin
                         .collect()
                 };
                 if have_non_gray {
-                    info!("Using indexed mode for {} because it has non-gray colors", task);
+                    info!("Using indexed mode for {} because it has non-gray colors", task_name);
                     return (indexed_mode, indexed_bit_depth);
                 }
 
@@ -786,11 +672,11 @@ fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildin
                 } * grayscale_bit_depth as u8;
                 let indexed_bits_per_pixel = indexed_bit_depth as u8;
                 if grayscale_bits_per_pixel <= indexed_bits_per_pixel {
-                    info!("Choosing grayscale mode for {} ({} vs {} bpp)", task,
+                    info!("Choosing grayscale mode for {} ({} vs {} bpp)", task_name,
                         grayscale_bits_per_pixel, indexed_bits_per_pixel);
                     (grayscale_mode, grayscale_bit_depth)
                 } else {
-                    info!("Choosing indexed mode for {} ({} vs {} bpp)", task,
+                    info!("Choosing indexed mode for {} ({} vs {} bpp)", task_name,
                         indexed_bits_per_pixel, grayscale_bits_per_pixel);
                     (indexed_mode, indexed_bit_depth)
                 }
@@ -877,13 +763,7 @@ pub fn contains_semitransparency(vec: &Vec<ComparableColor>) -> bool {
 impl ToPixmapTaskSpec {
 
     fn get_transparency(&self, ctx: &mut TaskGraphBuildingContext) -> Transparency {
-        if let Some(transparency) = ctx.pixmap_task_to_transparency_map.get(self) {
-            *transparency
-        } else {
-            let transparency = self.get_color_description(ctx).transparency();
-            ctx.pixmap_task_to_transparency_map.insert(self.to_owned(), transparency);
-            transparency
-        }
+        self.get_color_description(ctx).transparency()
     }
 
     pub fn color_description_stacked_on(&self,
@@ -952,12 +832,10 @@ impl ToPixmapTaskSpec {
             *TILE_SIZE
         };
         let mut pixels = side_length as usize * side_length as usize;
-        if let ToPixmapTaskSpec::Animate {frames, ..} = &self {
-            pixels *= frames.len();
-        }
         let desc = match self {
             ToPixmapTaskSpec::None => debug_assert_unreachable(),
             ToPixmapTaskSpec::Animate { background, frames } => {
+                pixels *= frames.len();
                 let background_desc = background.get_color_description(ctx);
                 let mut current_desc: Option<ColorDescription> = None;
                 for frame in frames {
@@ -1101,8 +979,7 @@ pub struct TaskGraphBuildingContext {
     pub output_task_to_future_map: HashMap<FileOutputTaskSpec, CloneableLazyTask<()>>,
     pixmap_task_to_color_map: HashMap<ToPixmapTaskSpec, ColorDescription>,
     alpha_task_to_alpha_map: HashMap<ToAlphaChannelTaskSpec, Vec<u8>>,
-    pixmap_task_to_alpha_map: HashMap<ToPixmapTaskSpec, Vec<u8>>,
-    pixmap_task_to_transparency_map: HashMap<ToPixmapTaskSpec, Transparency>
+    pixmap_task_to_alpha_map: HashMap<ToPixmapTaskSpec, Vec<u8>>
 }
 
 impl TaskGraphBuildingContext {
@@ -1113,8 +990,7 @@ impl TaskGraphBuildingContext {
             output_task_to_future_map: HashMap::new(),
             pixmap_task_to_color_map: HashMap::new(),
             alpha_task_to_alpha_map: HashMap::new(),
-            pixmap_task_to_alpha_map: HashMap::new(),
-            pixmap_task_to_transparency_map: HashMap::new()
+            pixmap_task_to_alpha_map: HashMap::new()
         }
     }
 

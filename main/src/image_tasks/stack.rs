@@ -1,7 +1,7 @@
 use resvg::tiny_skia::{BlendMode, Color, Mask, Paint, Pixmap, PixmapPaint, Rect, Transform};
 use crate::anyhoo;
 use crate::image_tasks::make_semitransparent::ALPHA_STACKING_TABLE;
-use crate::image_tasks::task_spec::CloneableError;
+use crate::image_tasks::cloneable::CloneableError;
 
 pub fn stack_layer_on_layer(background: &mut Pixmap, foreground: &Pixmap) {
     background.draw_pixmap(0, 0, foreground.as_ref(), &PixmapPaint::default(),

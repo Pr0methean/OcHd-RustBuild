@@ -1,7 +1,7 @@
 use resvg::tiny_skia::{Pixmap, PixmapPaint, Transform};
 
-use crate::image_tasks::task_spec::{CloneableError, CloneableLazyTask, CloneableResult};
 use crate::image_tasks::{allocate_pixmap_empty, allocate_pixmap_for_overwrite, MaybeFromPool};
+use crate::image_tasks::cloneable::{CloneableError, CloneableLazyTask, CloneableResult};
 
 pub fn animate(background: &Pixmap, frames: Vec<CloneableLazyTask<MaybeFromPool<Pixmap>>>, clear_output: bool)
                -> Result<Box<MaybeFromPool<Pixmap>>, CloneableError> {
