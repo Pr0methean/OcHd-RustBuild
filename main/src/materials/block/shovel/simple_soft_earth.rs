@@ -19,7 +19,7 @@ block_with_colors!(RED_SAND = c(0xbf6721), c(0xac5700), c(0xd97b30),
     paint_stack!(highlight!(), "borderSolid", "checksSmall"),
     paint_svg_task("checksSmallOutline", shadow!())
 );
-block_with_colors!(CLAY = c(0x9aa3b3), c(0x9494a4), c(0xA8BEC5),
+block_with_colors!(CLAY = c(0x9e9eb3), c(0x9494a4), c(0xA8BEC5),
     color!(),
     paint_svg_task("diagonalChecksTopLeftBottomRight", highlight!()),
     paint_stack!(shadow!(), "diagonalChecksBottomLeftTopRight",
