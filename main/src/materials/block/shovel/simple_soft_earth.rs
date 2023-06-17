@@ -3,12 +3,14 @@ use crate::image_tasks::color::{c, ComparableColor};
 use crate::image_tasks::task_spec::{from_svg_task, paint_svg_task};
 use crate::texture_base::material::TricolorMaterial;
 
-block_with_colors!(SAND = c(0xdfd5aa), c(0xd1ba8a), c(0xeaead0),
+block_with_colors!(SAND = c(0xddddaa), c(0xd1ba8a), c(0xeaead0),
     color!(),
     paint_stack!(shadow!(), "borderSolid", "checksSmall"),
     paint_svg_task("checksSmallOutline", highlight!())
 );
-block_with_colors!(GRAVEL = c(0x737373), c(0x515151), c(0xaaaaaa),
+block_with_colors!(GRAVEL = ComparableColor::STONE_SHADOW,
+    ComparableColor::STONE_EXTREME_SHADOW,
+    ComparableColor::STONE_HIGHLIGHT,
     color!(),
     paint_svg_task("checksLarge", highlight!()),
     paint_stack!(shadow!(), "diagonalChecksTopLeftBottomRight", "diagonalChecksFillBottomLeftTopRight"),
@@ -19,21 +21,21 @@ block_with_colors!(RED_SAND = c(0xbf6721), c(0xac5700), c(0xd97b30),
     paint_stack!(highlight!(), "borderSolid", "checksSmall"),
     paint_svg_task("checksSmallOutline", shadow!())
 );
-block_with_colors!(CLAY = c(0x9aa3b3), c(0x9494a4), c(0xA8BEC5),
+block_with_colors!(CLAY = c(0x9e9eb3), c(0x9494a4), c(0xA8BEC5),
     color!(),
     paint_svg_task("diagonalChecksTopLeftBottomRight", highlight!()),
     paint_stack!(shadow!(), "diagonalChecksBottomLeftTopRight",
         "diagonalChecksFillerSquaresTopLeftBottomRight"),
     paint_svg_task("diagonalChecksFillerSquaresBottomLeftTopRight", highlight!())
 );
-block_with_colors!(MUD = c(0x3a3a3a), c(0x333333), c(0x515151),
+block_with_colors!(MUD = c(0x3a3a3a), ComparableColor::DARKEST_GRAY, ComparableColor::STONE_EXTREME_SHADOW,
     color!(),
     paint_svg_task("strokeTopLeftBottomRight2", highlight!()),
     paint_svg_task("strokeBottomLeftTopRight2", shadow!()),
     paint_svg_task("borderSolid", highlight!()),
     paint_svg_task("borderDotted", shadow!())
 );
-block_with_colors!(MOSS_BLOCK = c(0x647233),c(0x42552d),c(0x70922d),
+block_with_colors!(MOSS_BLOCK = c(0x6b6b33),c(0x42552d),c(0x70922d),
     color!(),
     paint_stack!(highlight!(), "strokeTopLeftBottomRight4", "borderSolid"),
     paint_svg_task("strokeBottomLeftTopRight4xorBorder", shadow!())

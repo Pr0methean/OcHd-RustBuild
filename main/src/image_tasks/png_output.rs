@@ -8,7 +8,7 @@ use bitstream_io::{BigEndian, BitWrite, BitWriter};
 use bytemuck::{cast};
 use lazy_static::lazy_static;
 use log::{info, warn};
-use oxipng::{BitDepth, ColorType, Deflaters, Options, RawImage, RGBA8};
+use oxipng::{BitDepth, ColorType, Deflaters, Options, RawImage};
 
 use resvg::tiny_skia::{ColorU8, Pixmap, PremultipliedColorU8};
 use zip_next::CompressionMethod::{Deflated};
@@ -48,37 +48,12 @@ lazy_static!{
 
 pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
                   bit_depth: BitDepth, file_path: String) -> Result<(),CloneableError> {
-    let data = into_png(image, color_type, bit_depth)?;
-    let mut zip = ZIP.lock()?;
-    let writer = zip.deref_mut();
-    writer.start_file(file_path, PNG_ZIP_OPTIONS.to_owned())?;
-    writer.write_all(&data)?;
-    drop(zip);
-    Ok(())
-}
-
-pub fn copy_out_to_out(source_path: String, dest_path: String) -> Result<(),CloneableError> {
-    ZIP.lock()?.deep_copy_file(&source_path, &dest_path)?;
-    Ok(())
-}
-
-pub fn copy_in_to_out(source: &File, dest_path: String) -> Result<(),CloneableError> {
-    let mut zip = ZIP.lock()?;
-    let writer = zip.deref_mut();
-    writer.start_file(dest_path, METADATA_ZIP_OPTIONS.to_owned())?;
-    writer.write_all(source.contents())?;
-    Ok(())
-}
-
-/// Forked from https://docs.rs/tiny-skia/latest/src/tiny_skia/pixmap.rs.html#390 to eliminate the
-/// copy and pre-allocate the byte vector.
-pub fn into_png(mut image: MaybeFromPool<Pixmap>, color_type: ColorType, bit_depth: BitDepth) -> Result<Vec<u8>, CloneableError> {
     let width = image.width();
     let height = image.height();
+    info!("Dimensions of {} are {}x{}", file_path, width, height);
     let raw_bytes = match color_type {
         ColorType::RGB {transparent_color} => {
-            info!("Writing an RGB PNG");
-            demultiply_image(image.deref_mut());
+            info!("Writing {} in RGB mode", file_path);
             let mut raw_bytes = Vec::with_capacity(3 * width as usize * height as usize);
             let transparent_color = transparent_color.map(|color| [
                 (color.r >> 8) as u8,
@@ -97,12 +72,13 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>, color_type: ColorType, bit_dep
             raw_bytes
         }
         ColorType::RGBA => {
-            info!("Writing an RGBA PNG");
-            demultiply_image(image.deref_mut());
-            image.unwrap_or_clone().take()
+            info!("Writing {} in RGBA mode", file_path);
+            let mut image = image.unwrap_or_clone();
+            demultiply_image(&mut image);
+            image.take()
         }
         ColorType::Grayscale {transparent_shade} => {
-            info!("Writing {}-bit grayscale PNG", bit_depth);
+            info!("Writing {} in {}-bit grayscale mode", file_path, bit_depth);
             let raw_bytes = Vec::with_capacity(width as usize * height as usize
                 * bit_depth as u8 as usize / 8);
             let transparent_shade = transparent_shade.map(|shade|
@@ -119,7 +95,7 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>, color_type: ColorType, bit_dep
             writer.into_writer().into_inner()
         }
         ColorType::GrayscaleAlpha => {
-            info!("Writing 8-bit grayscale PNG with alpha channel");
+            info!("Writing {} in grayscale+alpha mode", file_path);
             let mut raw_bytes = Vec::with_capacity(
                 image.width() as usize * image.height() as usize * 2);
             for pixel in image.pixels() {
@@ -128,74 +104,86 @@ pub fn into_png(mut image: MaybeFromPool<Pixmap>, color_type: ColorType, bit_dep
             raw_bytes
         }
         ColorType::Indexed {ref palette} => {
-            info!("Writing a 24-bit RGB PNG");
-            write_indexed_bytes(image, palette, bit_depth)?
+            info!("Writing {} in indexed mode with {} colors", file_path, palette.len());
+            let bytes = Vec::with_capacity(image.width() as usize * image.height() as usize
+                * bit_depth as u8 as usize / 8);
+            let mut sorted_palette: Vec<([u8; 4], u16, ComparableColor)> = Vec::with_capacity(palette.len());
+            for (index, color) in palette.iter().enumerate() {
+                let color = ColorU8::from_rgba(color.r, color.g, color.b, color.a);
+                sorted_palette.push((cast(color.premultiply()), index as u16, ComparableColor::from(color)));
+            }
+            sorted_palette.sort_by_key(|(premult_bytes, _, _)| *premult_bytes);
+            let mut bit_writer: BitWriter<_, BigEndian> = BitWriter::new(Cursor::new(bytes));
+            let mut palette_premul: Vec<[u8; 4]> = Vec::with_capacity(palette.len());
+            let mut orig_indices: Vec<u16> = Vec::with_capacity(palette.len());
+            for (premul_bytes, index, _) in sorted_palette.iter() {
+                palette_premul.push(*premul_bytes);
+                orig_indices.push(*index);
+            }
+            let mut error_corrections: HashMap<[u8; 4], u16> = HashMap::new();
+            let mut worst_discrepancy: u16 = 0;
+            let mut prev_pixel: PremultipliedColorU8 = cast(palette_premul[0]);
+            let mut prev_index: u16 = orig_indices[0];
+            for pixel in image.pixels() {
+                let index = if prev_pixel == *pixel {
+                    prev_index
+                } else {
+                    let pixel_bytes: [u8; 4] = cast(*pixel);
+                    let index = match palette_premul.binary_search(&pixel_bytes) {
+                        Ok(index) => {
+                            orig_indices[index]
+                        }
+                        Err(_) => match error_corrections.get(&pixel_bytes) {
+                            Some(index) => *index,
+                            None => {
+                                let pixel_color = ComparableColor::from(*pixel);
+                                let (_, orig_index, color)
+                                    = sorted_palette.iter()
+                                    .min_by_key(|(_, _, color)| color.abs_diff(&pixel_color))
+                                    .unwrap();
+                                error_corrections.insert(pixel_bytes, *orig_index);
+                                worst_discrepancy = worst_discrepancy.max(color.abs_diff(&pixel_color));
+                                *orig_index
+                            }
+                        }
+                    };
+                    prev_pixel = *pixel;
+                    prev_index = index;
+                    index
+                };
+                bit_writer.write(bit_depth as u8 as u32, index)?;
+            }
+            if !error_corrections.is_empty() {
+                warn!("Corrected {} color errors in {}; worst error amount was {}",
+                    error_corrections.len(), file_path, worst_discrepancy);
+            }
+            bit_writer.flush()?;
+            bit_writer.into_writer().into_inner()
         }
     };
-    info!("Starting PNG optimization");
+    info!("Starting PNG optimization for {}", file_path);
     let result = RawImage::new(width, height, color_type, bit_depth, raw_bytes)?
         .create_optimized_png(&OXIPNG_OPTIONS)?;
-    info!("Finished PNG optimization");
-    Ok(result)
+    info!("Finished PNG optimization for {}", file_path);
+    let data = result;
+    let mut zip = ZIP.lock()?;
+    let writer = zip.deref_mut();
+    writer.start_file(file_path, PNG_ZIP_OPTIONS.to_owned())?;
+    writer.write_all(&data)?;
+    Ok(())
 }
 
-pub fn write_indexed_bytes(image: MaybeFromPool<Pixmap>,
-                           palette: &Vec<RGBA8>,
-                           bit_depth: BitDepth)
-                           -> Result<Vec<u8>, CloneableError> {
-    let bytes = Vec::with_capacity(image.width() as usize * image.height() as usize
-        * bit_depth as u8 as usize / 8);
-    let mut sorted_palette: Vec<([u8; 4], u16, ComparableColor)> = Vec::with_capacity(palette.len());
-    for (index, color) in palette.iter().enumerate() {
-        let color = ColorU8::from_rgba(color.r, color.g, color.b, color.a);
-        sorted_palette.push((cast(color.premultiply()), index as u16, ComparableColor::from(color)));
-    }
-    sorted_palette.sort_by_key(|(premult_bytes, _, _)| *premult_bytes);
-    let mut bit_writer: BitWriter<_, BigEndian> = BitWriter::new(Cursor::new(bytes));
-    let mut palette_premul: Vec<[u8; 4]> = Vec::with_capacity(palette.len());
-    let mut orig_indices: Vec<u16> = Vec::with_capacity(palette.len());
-    for (premul_bytes, index, _) in sorted_palette.iter() {
-        palette_premul.push(*premul_bytes);
-        orig_indices.push(*index);
-    }
-    let mut error_corrections: HashMap<[u8; 4], u16> = HashMap::new();
-    let mut worst_discrepancy: u16 = 0;
-    let mut prev_pixel: PremultipliedColorU8 = cast(palette_premul[0]);
-    let mut prev_index: u16 = orig_indices[0];
-    for pixel in image.pixels() {
-        let index = if prev_pixel == *pixel {
-            prev_index
-        } else {
-            let pixel_bytes: [u8; 4] = cast(*pixel);
-            let index = match palette_premul.binary_search(&pixel_bytes) {
-                Ok(index) => {
-                    orig_indices[index]
-                }
-                Err(_) => match error_corrections.get(&pixel_bytes) {
-                    Some(index) => *index,
-                    None => {
-                        let pixel_color = ComparableColor::from(*pixel);
-                        let (_, orig_index, color)
-                            = sorted_palette.iter()
-                            .min_by_key(|(_, _, color)| color.abs_diff(&pixel_color))
-                            .unwrap();
-                        error_corrections.insert(pixel_bytes, *orig_index);
-                        worst_discrepancy = worst_discrepancy.max(color.abs_diff(&pixel_color));
-                        *orig_index
-                    }
-                }
-            };
-            prev_pixel = *pixel;
-            prev_index = index;
-            index
-        };
-        bit_writer.write(bit_depth as u8 as u32, index)?;
-    }
-    if !error_corrections.is_empty() {
-        warn!("Corrected {} color errors; worst error amount was {}", error_corrections.len(), worst_discrepancy);
-    }
-    bit_writer.flush()?;
-    Ok(bit_writer.into_writer().into_inner())
+pub fn copy_out_to_out(source_path: String, dest_path: String) -> Result<(),CloneableError> {
+    ZIP.lock()?.deep_copy_file(&source_path, &dest_path)?;
+    Ok(())
+}
+
+pub fn copy_in_to_out(source: &File, dest_path: String) -> Result<(),CloneableError> {
+    let mut zip = ZIP.lock()?;
+    let writer = zip.deref_mut();
+    writer.start_file(dest_path, METADATA_ZIP_OPTIONS.to_owned())?;
+    writer.write_all(source.contents())?;
+    Ok(())
 }
 
 fn demultiply_image(image: &mut Pixmap) {

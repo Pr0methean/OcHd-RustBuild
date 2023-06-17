@@ -31,6 +31,8 @@ use crate::image_tasks::png_output::{copy_out_to_out, png_output};
 use crate::image_tasks::repaint::{paint, pixmap_to_mask};
 use crate::image_tasks::stack::{stack_alpha_on_alpha, stack_alpha_on_background, stack_layer_on_background, stack_layer_on_layer};
 use crate::image_tasks::task_spec::ColorDescription::{Rgb, SpecifiedColors};
+use crate::image_tasks::task_spec::ToAlphaChannelTaskSpec::StackAlphaOnAlpha;
+use crate::image_tasks::task_spec::ToPixmapTaskSpec::UpscaleFromGridSize;
 use crate::image_tasks::task_spec::Transparency::{AlphaChannel, BinaryTransparency, Opaque};
 use crate::image_tasks::upscale::{upscale_image, upscale_mask};
 
@@ -54,10 +56,10 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
             info!("Matched an existing node: {}", name);
             return existing_future.to_owned();
         }
-        if let ToPixmapTaskSpec::UpscaleFromGridSize {..} = self {
+        if let UpscaleFromGridSize {..} = self {
             // Fall through; let expressions can't be inverted
         } else if tile_size != GRID_SIZE && self.is_grid_perfect(ctx) {
-            return ToPixmapTaskSpec::UpscaleFromGridSize {base: self.to_owned().into()}
+            return UpscaleFromGridSize {base: self.to_owned().into()}
                 .add_to(ctx, tile_size);
         }
         let function: LazyTaskFunction<MaybeFromPool<Pixmap>> = match self {
@@ -111,7 +113,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                     paint(Arc::unwrap_or_clone(base_image).as_ref(), color)
                 })
             },
-            ToPixmapTaskSpec::UpscaleFromGridSize { base } => {
+            UpscaleFromGridSize { base } => {
                 let base_future = base.add_to(ctx, GRID_SIZE);
                 if tile_size == GRID_SIZE {
                     return base_future;
@@ -161,7 +163,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                     Ok(Box::new(pixmap_to_mask(&base_image)))
                 })
             },
-            ToAlphaChannelTaskSpec::StackAlphaOnAlpha { background, foreground } => {
+            StackAlphaOnAlpha { background, foreground } => {
                 let bg_future = background.add_to(ctx, tile_size);
                 let fg_future = foreground.add_to(ctx, tile_size);
                 Box::new(move || {
@@ -386,7 +388,7 @@ impl Display for ToPixmapTaskSpec {
             ToPixmapTaskSpec::None {} => {
                 write!(f, "None")
             },
-            ToPixmapTaskSpec::UpscaleFromGridSize {base} => {
+            UpscaleFromGridSize {base} => {
                 write!(f, "upscale({})", base)
             }
         }
@@ -415,7 +417,7 @@ impl Display for ToAlphaChannelTaskSpec {
             ToAlphaChannelTaskSpec::FromPixmap {base} => {
                 write!(f, "alpha({})", base)
             }
-            ToAlphaChannelTaskSpec::StackAlphaOnAlpha {background, foreground} => {
+            StackAlphaOnAlpha {background, foreground} => {
                 write!(f, "({}+{})", background, foreground)
             }
             ToAlphaChannelTaskSpec::StackAlphaOnBackground {background, foreground} => {
@@ -669,7 +671,7 @@ impl ToAlphaChannelTaskSpec {
 
                      base.get_possible_alpha_values(ctx)
             }
-            ToAlphaChannelTaskSpec::StackAlphaOnAlpha { background, foreground } => {
+            StackAlphaOnAlpha { background, foreground } => {
                 stack_alpha_vecs(&background.get_possible_alpha_values(ctx),
                                  &foreground.get_possible_alpha_values(ctx))
             }
@@ -690,7 +692,7 @@ impl ToAlphaChannelTaskSpec {
                 => base.is_grid_perfect(ctx),
             ToAlphaChannelTaskSpec::FromPixmap { base }
                 => base.is_grid_perfect(ctx),
-            ToAlphaChannelTaskSpec::StackAlphaOnAlpha { background, foreground }
+            StackAlphaOnAlpha { background, foreground }
                 => background.is_grid_perfect(ctx) && foreground.is_grid_perfect(ctx),
             ToAlphaChannelTaskSpec::StackAlphaOnBackground { foreground, .. }
                 => foreground.is_grid_perfect(ctx),
@@ -932,7 +934,7 @@ impl ToPixmapTaskSpec {
                 foreground.is_grid_perfect(ctx),
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } =>
                 background.is_grid_perfect(ctx) && foreground.is_grid_perfect(ctx),
-            ToPixmapTaskSpec::UpscaleFromGridSize { .. } => true,
+            UpscaleFromGridSize { .. } => true,
             ToPixmapTaskSpec::None => debug_assert_unreachable()
         }
     }
@@ -996,7 +998,7 @@ impl ToPixmapTaskSpec {
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
                 foreground.color_description_stacked_on(&background.get_color_description(ctx), ctx)
             }
-            ToPixmapTaskSpec::UpscaleFromGridSize {base} => base.get_color_description(ctx)
+            UpscaleFromGridSize {base} => base.get_color_description(ctx)
         };
         let side_length = if *TILE_SIZE == GRID_SIZE || self.is_grid_perfect(ctx) {
             GRID_SIZE
@@ -1048,6 +1050,39 @@ impl ToPixmapTaskSpec {
             };
             ctx.pixmap_task_to_alpha_map.insert(self.to_owned(), alphas.to_owned());
             alphas
+        }
+    }
+
+    pub fn alpha_and_color(&self) -> Option<(ToAlphaChannelTaskSpec, ComparableColor)> {
+        match self {
+            ToPixmapTaskSpec::Animate { .. } => None,
+            ToPixmapTaskSpec::FromSvg { source } => {
+                if COLOR_SVGS.contains(&source.as_str()) {
+                    None
+                } else {
+                    Some((ToAlphaChannelTaskSpec::FromPixmap {base: self.to_owned()}, ComparableColor::BLACK))
+                }
+            }
+            ToPixmapTaskSpec::PaintAlphaChannel { base, color } =>
+                Some((*base.to_owned(), *color)),
+            ToPixmapTaskSpec::StackLayerOnColor { .. } => None,
+            ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
+                if let Some((bg_alpha, bg_color)) = background.alpha_and_color()
+                    && let Some((fg_alpha, fg_color)) = foreground.alpha_and_color()
+                    && bg_color == fg_color {
+                    Some((StackAlphaOnAlpha {background: bg_alpha.into(), foreground: fg_alpha.into()}, bg_color))
+                } else {
+                    None
+                }
+            }
+            UpscaleFromGridSize { base } => {
+                if let Some((base_alpha, base_color)) = base.alpha_and_color() {
+                    Some((ToAlphaChannelTaskSpec::UpscaleFromGridSize { base: base_alpha.into() }, base_color))
+                } else {
+                    None
+                }
+            }
+            ToPixmapTaskSpec::None => debug_assert_unreachable()
         }
     }
 }
@@ -1179,7 +1214,7 @@ fn stack_alpha_presorted(mut layers: Vec<ToAlphaChannelTaskSpec>) -> ToAlphaChan
         1 => layers[0].to_owned(),
         x => {
             let last = layers.remove(x - 1);
-            ToAlphaChannelTaskSpec::StackAlphaOnAlpha {
+            StackAlphaOnAlpha {
                 background: stack_alpha_presorted(layers).into(),
                 foreground: Box::new(last)
             }
@@ -1187,47 +1222,86 @@ fn stack_alpha_presorted(mut layers: Vec<ToAlphaChannelTaskSpec>) -> ToAlphaChan
     }
 }
 
-pub fn stack_alpha(layers: Vec<ToAlphaChannelTaskSpec>) -> ToAlphaChannelTaskSpec {
-    let mut layers: Vec<ToAlphaChannelTaskSpec> = layers;
-    layers.sort();
-    stack_alpha_presorted(layers)
+pub fn stack_alpha(mut layers: Vec<ToAlphaChannelTaskSpec>) -> ToAlphaChannelTaskSpec {
+    let mut upscale_layers = Vec::with_capacity(layers.len());
+    let mut non_upscale_layers = Vec::with_capacity(layers.len());
+    while !layers.is_empty() {
+        match layers.remove(layers.len() - 1) {
+            StackAlphaOnAlpha { background, foreground } => {
+                layers.push(*background);
+                layers.push(*foreground);
+            }
+            ToAlphaChannelTaskSpec::UpscaleFromGridSize { base } => {
+                upscale_layers.push(*base);
+            }
+            layer => non_upscale_layers.push(layer)
+        }
+    }
+    non_upscale_layers.sort();
+    if upscale_layers.is_empty() {
+        stack_alpha_presorted(non_upscale_layers)
+    } else {
+        non_upscale_layers.push(ToAlphaChannelTaskSpec::UpscaleFromGridSize {
+            base: stack_alpha(upscale_layers).into()
+        });
+        stack_alpha_presorted(non_upscale_layers)
+    }
+}
+
+fn try_simplify_pair(background: ToPixmapTaskSpec, foreground: ToPixmapTaskSpec)
+    -> Result<ToPixmapTaskSpec, (ToPixmapTaskSpec, ToPixmapTaskSpec)> {
+    let background_desc = background.to_string();
+    let foreground_desc = foreground.to_string();
+    if let Some((bg_alpha, bg_color)) = background.alpha_and_color()
+        && let Some((fg_alpha, fg_color)) = foreground.alpha_and_color()
+        && bg_color == fg_color {
+        let simplified = paint_task(stack_alpha(vec![bg_alpha, fg_alpha]), bg_color);
+        info!("Simplified ({},{}) -> {}", background_desc, foreground_desc, simplified);
+        Ok(simplified)
+    } else if let UpscaleFromGridSize {base: bg_base} = &background
+        && let UpscaleFromGridSize {base: fg_base} = &foreground {
+        let simplified = UpscaleFromGridSize {
+            base: stack(*bg_base.to_owned(), *fg_base.to_owned()).into()
+        };
+        info!("Simplified ({},{}) -> {}", background_desc, foreground_desc, simplified);
+        Ok(simplified)
+    } else {
+        Err((background, foreground))
+    }
 }
 
 pub fn stack(background: ToPixmapTaskSpec, foreground: ToPixmapTaskSpec) -> ToPixmapTaskSpec {
-    if let ToPixmapTaskSpec::PaintAlphaChannel {base: fg_base, color: fg_color} = &foreground {
-        if let ToPixmapTaskSpec::PaintAlphaChannel { base: bg_base, color: bg_color } = &background
-            && fg_color == bg_color {
-            // Simplify: merge two adjacent PaintAlphaChannel tasks using same color
-            let simplified = paint_task(
-                stack_alpha(vec![*bg_base.to_owned(), *fg_base.to_owned()]),
-                fg_color.to_owned()
-            );
-            info!("Simplified ({},{}) -> {}", background, foreground, simplified);
-            return simplified;
-        } else if let ToPixmapTaskSpec::StackLayerOnLayer { background: bg_bg, foreground: bg_fg } = &background
-            && let ToPixmapTaskSpec::PaintAlphaChannel { base: bg_fg_base, color: bg_fg_color } = &**bg_fg
-            && fg_color == bg_fg_color {
-            // Simplify: merge top two layers
-            let simplified = stack(*bg_bg.to_owned(),
-                                   paint_task(stack_alpha(vec![*bg_fg_base.to_owned(), *fg_base.to_owned()]), fg_color.to_owned())
-            );
-            info!("Simplified ({},{}) -> {}", background, foreground, simplified);
-            return simplified;
+    match try_simplify_pair(background, foreground) {
+        Ok(simplified) => simplified,
+        Err((background, foreground)) => {
+            if let ToPixmapTaskSpec::StackLayerOnLayer {background: fg_bg, foreground: fg_fg}
+                = foreground {
+                return match try_simplify_pair(background, *fg_bg) {
+                    Ok(simplified) => stack(simplified, *fg_fg),
+                    Err((background, fg_bg)) => {
+                        ToPixmapTaskSpec::StackLayerOnLayer {
+                            background: background.into(),
+                            foreground: stack(fg_bg, *fg_fg).into()
+                        }
+                    }
+                };
+            }
+            if let ToPixmapTaskSpec::StackLayerOnLayer {background: bg_bg, foreground: bg_fg}
+                = background {
+                return match try_simplify_pair(*bg_fg, foreground) {
+                    Ok(simplified) => stack(*bg_bg, simplified),
+                    Err((bg_fg, foreground)) => {
+                        ToPixmapTaskSpec::StackLayerOnLayer {
+                            background: stack(*bg_bg, bg_fg).into(),
+                            foreground: foreground.into()
+                        }
+                    }
+                };
+            }
+            ToPixmapTaskSpec::StackLayerOnLayer {
+                background: Box::new(background), foreground: Box::new(foreground)
+            }
         }
-    } else if let ToPixmapTaskSpec::PaintAlphaChannel {base: bg_base, color: bg_color} = &background
-                && let ToPixmapTaskSpec::StackLayerOnLayer {background: fg_bg, foreground: fg_fg} = &foreground
-                && let ToPixmapTaskSpec::PaintAlphaChannel {base: fg_bg_base, color: fg_bg_color} = &**fg_bg
-                && fg_bg_color == bg_color {
-        // Simplify: merge bottom two layers
-        let simplified = stack(
-            paint_task(stack_alpha(vec![*bg_base.to_owned(), *fg_bg_base.to_owned()]), bg_color.to_owned()),
-            *fg_fg.to_owned()
-        );
-        info!("Simplified ({},{}) -> {}", background, foreground, simplified);
-        return simplified;
-    }
-    ToPixmapTaskSpec::StackLayerOnLayer {
-        background: Box::new(background), foreground: Box::new(foreground)
     }
 }
 
