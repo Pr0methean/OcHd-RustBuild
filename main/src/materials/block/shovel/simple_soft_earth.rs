@@ -8,7 +8,9 @@ block_with_colors!(SAND = c(0xddddaa), c(0xd1ba8a), c(0xeaead0),
     paint_stack!(shadow!(), "borderSolid", "checksSmall"),
     paint_svg_task("checksSmallOutline", highlight!())
 );
-block_with_colors!(GRAVEL = c(0x737373), c(0x515151), c(0xaaaaaa),
+block_with_colors!(GRAVEL = ComparableColor::STONE_SHADOW,
+    ComparableColor::STONE_EXTREME_SHADOW,
+    ComparableColor::STONE_HIGHLIGHT,
     color!(),
     paint_svg_task("checksLarge", highlight!()),
     paint_stack!(shadow!(), "diagonalChecksTopLeftBottomRight", "diagonalChecksFillBottomLeftTopRight"),
@@ -26,7 +28,7 @@ block_with_colors!(CLAY = c(0x9e9eb3), c(0x9494a4), c(0xA8BEC5),
         "diagonalChecksFillerSquaresTopLeftBottomRight"),
     paint_svg_task("diagonalChecksFillerSquaresBottomLeftTopRight", highlight!())
 );
-block_with_colors!(MUD = c(0x3a3a3a), c(0x333333), c(0x515151),
+block_with_colors!(MUD = c(0x3a3a3a), ComparableColor::DARKEST_GRAY, ComparableColor::STONE_EXTREME_SHADOW,
     color!(),
     paint_svg_task("strokeTopLeftBottomRight2", highlight!()),
     paint_svg_task("strokeBottomLeftTopRight2", shadow!()),
