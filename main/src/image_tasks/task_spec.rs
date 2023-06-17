@@ -65,8 +65,8 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
         let function: LazyTaskFunction<MaybeFromPool<Pixmap>> = match self {
             ToPixmapTaskSpec::None { .. } => panic!("Tried to add None task to graph"),
             ToPixmapTaskSpec::Animate { background, frames } => {
-                let background_opaque = background.get_transparency(ctx) == Opaque;
                 let background_future = background.add_to(ctx, tile_size);
+                let background_color_desc_future = background.get_color_description_task(ctx);
                 let mut frame_futures: Vec<CloneableLazyTask<MaybeFromPool<Pixmap>>>
                     = Vec::with_capacity(frames.len());
                 for frame in frames {
@@ -74,6 +74,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                     frame_futures.push(frame_future);
                 }
                 Box::new(move || {
+                    let background_opaque = background_color_desc_future.into_result()?.transparency() == Opaque;
                     let background: Arc<Box<MaybeFromPool<Pixmap>>> = background_future.into_result()?;
                     animate(&background, frame_futures, !background_opaque)
                 })
@@ -220,8 +221,11 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
                     tile_size
                 };
                 let base_future = base.add_to(ctx, base_size);
-                let (color_type, bit_depth) = color_description_to_mode(base, ctx);
+                let base_color_desc_future = base.get_color_description_task(ctx);
+                let name = name.to_owned();
                 Box::new(move || {
+                    let (color_type, bit_depth) = color_description_to_mode(
+                        &**base_color_desc_future.into_result()?, &name);
                     let base_result = base_future.into_result()?;
                     Ok(Box::new(png_output(*Arc::unwrap_or_clone(base_result),
                                            color_type, bit_depth, destination_path)?))
@@ -505,6 +509,40 @@ impl ColorDescription {
             }
         }
     }
+
+    pub fn stack_on(&self, background: &ColorDescription, max_colors: usize) -> ColorDescription {
+        match background {
+            Rgb(transparency) => Rgb(self.transparency().stack_on(transparency)),
+            SpecifiedColors(bg_colors) => {
+                match &self {
+                    Rgb(transparency) => Rgb(transparency.stack_on(&background.transparency())),
+                    SpecifiedColors(fg_colors) => {
+                        match self.transparency() {
+                            Opaque => SpecifiedColors(fg_colors.clone()),
+                            BinaryTransparency => {
+                                let mut combined_colors = bg_colors.to_owned();
+                                combined_colors.extend(fg_colors.iter().filter(
+                                    |color| color.alpha() == u8::MAX
+                                ));
+                                combined_colors.sort();
+                                combined_colors.dedup();
+                                combined_colors.truncate(max_colors);
+                                SpecifiedColors(combined_colors)
+                            }
+                            AlphaChannel => {
+                                // Using dedup() rather than unique() uses too much memory
+                                let mut combined_colors: Vec<ComparableColor> = bg_colors.iter().copied().flat_map(|bg_color|
+                                    bg_color.under(fg_colors.iter().copied()).into_iter()
+                                ).unique().take(max_colors).collect();
+                                combined_colors.sort();
+                                SpecifiedColors(combined_colors)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
@@ -545,23 +583,34 @@ pub const fn channel_to_bit_depth(input: u8, depth: BitDepth) -> u16 {
 const ALL_U8S: &[u8; u8::MAX as usize + 1] = &ALPHA_MULTIPLICATION_TABLE[u8::MAX as usize];
 
 impl ToAlphaChannelTaskSpec {
-    fn get_possible_alpha_values(&self, ctx: &mut TaskGraphBuildingContext) -> Vec<u8> {
+    fn get_possible_alpha_values(&self, ctx: &mut TaskGraphBuildingContext) -> CloneableLazyTask<Vec<u8>> {
         if let Some(alpha_vec) = ctx.alpha_task_to_alpha_map.get(self) {
             return alpha_vec.to_owned();
         }
-        let alpha_vec: Vec<u8> = match self {
+        let name = format!("Possible alpha values for {}", self);
+        let alpha_vec: CloneableLazyTask<Vec<u8>> = match self {
             ToAlphaChannelTaskSpec::MakeSemitransparent { alpha, base } => {
-                multiply_alpha_vec(&base.get_possible_alpha_values(ctx), *alpha)
+                let alpha = *alpha;
+                let base_alphas_task = base.get_possible_alpha_values(ctx);
+                CloneableLazyTask::new(name.to_owned(), Box::new(move ||
+                    Ok(multiply_alpha_vec(&**base_alphas_task.into_result()?, alpha).into())))
             }
             ToAlphaChannelTaskSpec::FromPixmap { base } => {
                 base.get_possible_alpha_values(ctx)
             }
             StackAlphaOnAlpha { background, foreground } => {
-                stack_alpha_vecs(&background.get_possible_alpha_values(ctx),
-                                 &foreground.get_possible_alpha_values(ctx))
+                let bg_task = background.get_possible_alpha_values(ctx);
+                let fg_task = foreground.get_possible_alpha_values(ctx);
+                CloneableLazyTask::new(name.to_owned(), Box::new(move ||
+                    Ok(stack_alpha_vecs(&**bg_task.into_result()?, &**fg_task.into_result()?).into())
+                ))
             }
             ToAlphaChannelTaskSpec::StackAlphaOnBackground { background: background_alpha, foreground } => {
-                stack_alpha_vecs(&[*background_alpha], &foreground.get_possible_alpha_values(ctx))
+                let background_alpha = *background_alpha;
+                let fg_task = foreground.get_possible_alpha_values(ctx);
+                CloneableLazyTask::new(name.to_owned(), Box::new(move ||
+                    Ok(stack_alpha_vecs(&[background_alpha], &**fg_task.into_result()?).into())
+                ))
             }
             ToAlphaChannelTaskSpec::UpscaleFromGridSize {base} => {
                 base.get_possible_alpha_values(ctx)
@@ -598,12 +647,12 @@ fn get_grayscale_bit_depth(colors: &[ComparableColor]) -> BitDepth {
     grayscale_bit_depth
 }
 
-fn color_description_to_mode(task: &ToPixmapTaskSpec, ctx: &mut TaskGraphBuildingContext)
+fn color_description_to_mode(color_description: &ColorDescription,
+                             task_name: &str)
     -> (ColorType, BitDepth) {
-    let task_name = task.to_string();
-    match task.get_color_description(ctx) {
+    match color_description {
         SpecifiedColors(colors) => {
-            let transparency = task.get_transparency(ctx);
+            let transparency = color_description.transparency();
             info!("Task {} has {} possible colors and {:?} transparency",
                 task_name, colors.len(), transparency);
             let have_non_gray = colors.iter().any(|color| !color.is_gray());
@@ -762,47 +811,6 @@ pub fn contains_semitransparency(vec: &Vec<ComparableColor>) -> bool {
 
 impl ToPixmapTaskSpec {
 
-    fn get_transparency(&self, ctx: &mut TaskGraphBuildingContext) -> Transparency {
-        self.get_color_description(ctx).transparency()
-    }
-
-    pub fn color_description_stacked_on(&self,
-                                        background: &ColorDescription,
-                                        ctx: &mut TaskGraphBuildingContext,
-                                        max_colors: usize) -> ColorDescription {
-        match background {
-            Rgb(transparency) => Rgb(self.get_transparency(ctx).stack_on(transparency)),
-            SpecifiedColors(bg_colors) => {
-                match &self.get_color_description(ctx) {
-                    Rgb(transparency) => Rgb(transparency.stack_on(&background.transparency())),
-                    SpecifiedColors(fg_colors) => {
-                        match self.get_transparency(ctx) {
-                            Opaque => SpecifiedColors(fg_colors.clone()),
-                            BinaryTransparency => {
-                                let mut combined_colors = bg_colors.to_owned();
-                                combined_colors.extend(fg_colors.iter().filter(
-                                    |color| color.alpha() == u8::MAX
-                                ));
-                                combined_colors.sort();
-                                combined_colors.dedup();
-                                combined_colors.truncate(max_colors);
-                                SpecifiedColors(combined_colors)
-                            }
-                            AlphaChannel => {
-                                // Using dedup() rather than unique() uses too much memory
-                                let mut combined_colors: Vec<ComparableColor> = bg_colors.iter().copied().flat_map(|bg_color|
-                                    bg_color.under(fg_colors.iter().copied()).into_iter()
-                                ).unique().take(max_colors).collect();
-                                combined_colors.sort();
-                                SpecifiedColors(combined_colors)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     /// If true, this texture has no gradients, diagonals or curves, so it can be rendered at a
     /// smaller size.
     pub(crate) fn is_grid_perfect(&self, ctx: &mut TaskGraphBuildingContext) -> bool {
@@ -822,52 +830,66 @@ impl ToPixmapTaskSpec {
     }
 
     /// Used in [TaskSpec::add_to] to deduplicate certain tasks that are redundant.
-    fn get_color_description(&self, ctx: &mut TaskGraphBuildingContext) -> ColorDescription {
+    fn get_color_description_task(&self, ctx: &mut TaskGraphBuildingContext)
+        -> CloneableLazyTask<ColorDescription> {
         if let Some(desc) = ctx.pixmap_task_to_color_map.get(self) {
             return (*desc).to_owned();
         }
+        let name = format!("Color description for {}", self);
         let side_length = if *TILE_SIZE == GRID_SIZE || self.is_grid_perfect(ctx) {
             GRID_SIZE
         } else {
             *TILE_SIZE
         };
         let mut pixels = side_length as usize * side_length as usize;
-        let desc = match self {
+        let mut desc = match self {
             ToPixmapTaskSpec::None => debug_assert_unreachable(),
             ToPixmapTaskSpec::Animate { background, frames } => {
                 pixels *= frames.len();
-                let background_desc = background.get_color_description(ctx);
-                let mut current_desc: Option<ColorDescription> = None;
-                for frame in frames {
-                    let frame_desc
-                        = frame.color_description_stacked_on(&background_desc, ctx, pixels + 1);
-                    current_desc = Some(match current_desc {
-                        None => frame_desc,
-                        Some(other_frames_desc) => frame_desc.put_adjacent(&other_frames_desc)
-                    });
-                }
-                current_desc.unwrap()
+                let background_desc_task = background.get_color_description_task(ctx);
+                let frame_desc_tasks: Vec<_> = (*frames)
+                    .iter()
+                    .map(|frame| frame.get_color_description_task(ctx))
+                    .collect();
+                CloneableLazyTask::new(name, Box::new(move || {
+                    let mut current_desc: Option<ColorDescription> = None;
+                    let background_desc = background_desc_task.into_result()?;
+                    for frame_desc_task in frame_desc_tasks {
+                        let frame_desc
+                            = frame_desc_task.into_result()?.stack_on(&background_desc, pixels + 1);
+                        current_desc = Some(match current_desc {
+                            None => frame_desc,
+                            Some(other_frames_desc) => frame_desc.put_adjacent(&other_frames_desc)
+                        });
+                    }
+                    Ok(Box::new(current_desc.unwrap()))
+                }))
             },
             ToPixmapTaskSpec::FromSvg { source } => {
                 if COLOR_SVGS.contains(&source.as_str()) {
                     if SEMITRANSPARENCY_FREE_SVGS.contains(&source.as_str()) {
-                        Rgb(BinaryTransparency)
+                        CloneableLazyTask::new_immediate_ok(name, Rgb(BinaryTransparency).into())
                     } else {
-                        Rgb(AlphaChannel)
+                        CloneableLazyTask::new_immediate_ok(name, Rgb(AlphaChannel).into())
                     }
                 } else if SEMITRANSPARENCY_FREE_SVGS.contains(&source.as_str()) {
-                    SpecifiedColors(vec![ComparableColor::TRANSPARENT, ComparableColor::BLACK])
+                    CloneableLazyTask::new_immediate_ok(name,
+                      SpecifiedColors(vec![ComparableColor::TRANSPARENT, ComparableColor::BLACK]).into())
                 } else {
-                    SpecifiedColors(ALL_U8S.iter()
-                        .map(|alpha| ComparableColor { red: 0, green: 0, blue: 0, alpha: *alpha}).collect())
+                    CloneableLazyTask::new_immediate_ok(name,
+                        SpecifiedColors(ALL_U8S.iter()
+                        .map(|alpha| ComparableColor { red: 0, green: 0, blue: 0, alpha: *alpha}).collect()).into())
                 }
             },
             ToPixmapTaskSpec::PaintAlphaChannel { color, base } => {
-                SpecifiedColors({
+                let base_task = base.get_possible_alpha_values(ctx);
+                let color = *color;
+                CloneableLazyTask::new(name.to_owned(), Box::new(move ||
+                    Ok(Box::new(SpecifiedColors({
                     let alpha_array = ALPHA_MULTIPLICATION_TABLE[color.alpha() as usize];
-                    let mut colored_alphas: Vec<ComparableColor> = base
-                        .get_possible_alpha_values(ctx)
-                        .into_iter()
+                    let mut colored_alphas: Vec<ComparableColor> = base_task.into_result()?
+                        .iter()
+                        .copied()
                         .map(|alpha| ComparableColor {
                             red: color.red(),
                             green: color.green(),
@@ -878,58 +900,77 @@ impl ToPixmapTaskSpec {
                     colored_alphas.sort();
                     colored_alphas.dedup();
                     colored_alphas
-                })
+                })))))
             },
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
                 let background = *background;
-                foreground.color_description_stacked_on(&SpecifiedColors(vec![background]), ctx, pixels + 1)
+                let fg_task = foreground.get_color_description_task(ctx);
+                CloneableLazyTask::new(name, Box::new(move ||
+                    Ok(Box::new(fg_task.into_result()?.stack_on(&SpecifiedColors(vec![background]), pixels + 1)))
+                ))
             }
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
-                foreground.color_description_stacked_on(&background.get_color_description(ctx), ctx, pixels + 1)
+                let bg_task = background.get_color_description_task(ctx);
+                let fg_task = foreground.get_color_description_task(ctx);
+                CloneableLazyTask::new(name, Box::new(move ||
+                    Ok(Box::new(fg_task.into_result()?.stack_on(&*bg_task.into_result()?, pixels + 1)))
+                ))
             }
-            UpscaleFromGridSize {base} => base.get_color_description(ctx)
+            UpscaleFromGridSize {base} => base.get_color_description_task(ctx)
         };
-        let desc = if let SpecifiedColors(colors) = &desc && colors.len() > pixels {
-            info!("For {}, possible colors exceed pixel count {}; rendering to determine \
-                actual color count", self, pixels);
-            let actual_image = self.add_to(ctx, side_length).into_result();
-            let mut actual_colors: Vec<ComparableColor> = actual_image.unwrap().pixels().iter().copied()
-                .map(ComparableColor::from)
-                .collect();
-            actual_colors.sort();
-            actual_colors.dedup();
-            SpecifiedColors(actual_colors)
-        } else {
-            desc
-        };
+        if !desc.is_finished() {
+            let uncapped_desc = desc;
+            let image_task = self.add_to(ctx, side_length);
+            let pixels = pixels;
+            let name = uncapped_desc.name.to_owned();
+            desc = CloneableLazyTask::new(name.to_owned(), Box::new(move ||{
+                let uncapped = uncapped_desc.into_result()?;
+                if let SpecifiedColors(colors) = &**uncapped && colors.len() > pixels {
+                    info!("For {}, possible colors exceed pixel count {}; rendering to determine \
+                actual color count", name, pixels);
+                    let actual_image = image_task.into_result()?;
+                    let mut actual_colors: Vec<ComparableColor> = actual_image.pixels().iter().copied()
+                        .map(ComparableColor::from)
+                        .collect();
+                    actual_colors.sort();
+                    actual_colors.dedup();
+                    Ok(Box::new(SpecifiedColors(actual_colors)))
+                } else {
+                    Ok((*uncapped).to_owned())
+                }
+            }));
+        }
         ctx.pixmap_task_to_color_map.insert(self.to_owned(), desc.to_owned());
         desc
     }
 
-    fn get_possible_alpha_values(&self, ctx: &mut TaskGraphBuildingContext) -> Vec<u8> {
+    fn get_possible_alpha_values(&self, ctx: &mut TaskGraphBuildingContext) -> CloneableLazyTask<Vec<u8>> {
         if let Some(alphas) = ctx.pixmap_task_to_alpha_map.get(self) {
             alphas.to_owned()
         } else {
-            let colors = self.get_color_description(ctx);
-            let alphas = match colors.transparency() {
-                AlphaChannel => match colors {
-                    Rgb(_) => ALL_U8S.to_vec(),
-                    SpecifiedColors(colors) => if colors.len() <= BINARY_SEARCH_THRESHOLD {
-                        let mut alphas: Vec<u8> = colors.into_iter().map(|color| color.alpha()).collect();
-                        alphas.sort();
-                        alphas.dedup();
-                        alphas
-                    } else {
-                        ALL_U8S.iter().copied()
-                            .filter(|alpha| contains_alpha(&colors, *alpha))
-                            .collect()
-                    }
-                },
-                BinaryTransparency => vec![0, u8::MAX],
-                Opaque => vec![u8::MAX]
-            };
-            ctx.pixmap_task_to_alpha_map.insert(self.to_owned(), alphas.to_owned());
-            alphas
+            let color_task = self.get_color_description_task(ctx);
+            let task = CloneableLazyTask::new(self.to_string(), Box::new(move || Ok(Box::new({
+                let colors = color_task.into_result()?;
+                match colors.transparency() {
+                    AlphaChannel => match &**colors {
+                        Rgb(_) => ALL_U8S.to_vec(),
+                        SpecifiedColors(colors) => if colors.len() <= BINARY_SEARCH_THRESHOLD {
+                            let mut alphas: Vec<u8> = colors.into_iter().map(|color| color.alpha()).collect();
+                            alphas.sort();
+                            alphas.dedup();
+                            alphas
+                        } else {
+                            ALL_U8S.iter().copied()
+                                .filter(|alpha| contains_alpha(&colors, *alpha))
+                                .collect()
+                        }
+                    },
+                    BinaryTransparency => vec![0, u8::MAX],
+                    Opaque => vec![u8::MAX]
+                }
+            }))));
+            ctx.pixmap_task_to_alpha_map.insert(self.to_owned(), task.to_owned());
+            task
         }
     }
 
@@ -977,9 +1018,9 @@ pub struct TaskGraphBuildingContext {
     pixmap_task_to_future_map: HashMap<u32, HashMap<ToPixmapTaskSpec, CloneableLazyTask<MaybeFromPool<Pixmap>>>>,
     alpha_task_to_future_map: HashMap<u32, HashMap<ToAlphaChannelTaskSpec, CloneableLazyTask<MaybeFromPool<Mask>>>>,
     pub output_task_to_future_map: HashMap<FileOutputTaskSpec, CloneableLazyTask<()>>,
-    pixmap_task_to_color_map: HashMap<ToPixmapTaskSpec, ColorDescription>,
-    alpha_task_to_alpha_map: HashMap<ToAlphaChannelTaskSpec, Vec<u8>>,
-    pixmap_task_to_alpha_map: HashMap<ToPixmapTaskSpec, Vec<u8>>
+    pixmap_task_to_color_map: HashMap<ToPixmapTaskSpec, CloneableLazyTask<ColorDescription>>,
+    alpha_task_to_alpha_map: HashMap<ToAlphaChannelTaskSpec, CloneableLazyTask<Vec<u8>>>,
+    pixmap_task_to_alpha_map: HashMap<ToPixmapTaskSpec, CloneableLazyTask<Vec<u8>>>
 }
 
 impl TaskGraphBuildingContext {
