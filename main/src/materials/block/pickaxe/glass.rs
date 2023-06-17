@@ -26,7 +26,7 @@ dyed_block!(STAINED_GLASS_PANE_TOP = paint_task(from_svg_task("paneTop").into(),
 
 single_texture_block!(GLASS =
     ComparableColor::TRANSPARENT,
-    paint_svg_task("borderSolid", c(0x515151)),
+    paint_svg_task("borderSolid", ComparableColor::STONE_EXTREME_SHADOW),
     paint_stack!(ComparableColor::WHITE, "borderSolidTopLeft", "streaks")
 );
 

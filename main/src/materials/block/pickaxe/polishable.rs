@@ -92,7 +92,7 @@ polishable!(GRANITE = c(0x9f6b58),c(0x624033),c(0xFFCDB2),
     paint_svg_task("bigDotsFillTopLeftBottomRight", shadow!())
 );
 
-polishable!(BLACKSTONE = c(0x2e2e36), ComparableColor::BLACK, c(0x515151),
+polishable!(BLACKSTONE = c(0x2e2e36), ComparableColor::BLACK, ComparableColor::STONE_EXTREME_SHADOW,
     shadow!(),
     paint_svg_task("bigDotsBottomLeftTopRight", highlight!()),
     paint_svg_task("bigDotsTopLeftBottomRight", color!())
@@ -104,7 +104,7 @@ single_texture_block!(GILDED_BLACKSTONE =
     paint_svg_task("bigRingsBottomLeftTopRight", GOLD.color())
 );
 
-block_with_colors!(BLACKSTONE_TOP = c(0x2e2e36), ComparableColor::BLACK, c(0x515151),
+block_with_colors!(BLACKSTONE_TOP = ComparableColor::DEEPSLATE_SHADOW, ComparableColor::BLACK, ComparableColor::STONE_EXTREME_SHADOW,
     shadow!(),
     paint_svg_task("bigRingsBottomLeftTopRight", color!()),
     paint_svg_task("bigRingsTopLeftBottomRight", highlight!())
