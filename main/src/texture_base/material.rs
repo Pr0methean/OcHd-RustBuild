@@ -2,9 +2,10 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 use crate::anyhoo;
+use crate::image_tasks::cloneable::CloneableError;
 
 use crate::image_tasks::color::{c, ComparableColor};
-use crate::image_tasks::task_spec::{out_task, paint_svg_task, FileOutputTaskSpec, ToPixmapTaskSpec, CloneableError, from_svg_task};
+use crate::image_tasks::task_spec::{FileOutputTaskSpec, from_svg_task, out_task, paint_svg_task, ToPixmapTaskSpec};
 
 /// Specification in DSL form of how one or more texture images are to be generated.
 pub trait Material: Send {

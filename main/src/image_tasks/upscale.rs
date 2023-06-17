@@ -2,7 +2,7 @@ use std::iter::repeat;
 use resvg::tiny_skia::{Mask, Pixmap};
 use crate::image_tasks::{allocate_pixmap_for_overwrite, MaybeFromPool};
 use crate::image_tasks::repaint::allocate_mask_for_overwrite;
-use crate::image_tasks::task_spec::CloneableError;
+use crate::image_tasks::cloneable::CloneableError;
 
 pub fn upscale_image(source: &Pixmap, new_width: u32) -> Result<MaybeFromPool<Pixmap>, CloneableError> {
     let scale_factor = new_width / source.width();

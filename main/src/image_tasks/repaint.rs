@@ -5,10 +5,9 @@ use resvg::tiny_skia::{Mask, Paint, Pixmap, Rect, Transform};
 use crate::{anyhoo, GRID_SIZE, TILE_SIZE};
 
 use crate::image_tasks::{allocate_pixmap_empty, MaybeFromPool};
+use crate::image_tasks::cloneable::CloneableError;
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::MaybeFromPool::NotFromPool;
-use crate::image_tasks::task_spec::{CloneableError};
-
 lazy_static!{
     static ref TILE_SIZE_MASK_POOL: LinearObjectPool<Mask> = LinearObjectPool::new(
         || {

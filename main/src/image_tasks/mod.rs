@@ -17,6 +17,7 @@ pub mod png_output;
 pub mod task_spec;
 pub mod make_semitransparent;
 pub mod upscale;
+pub(crate) mod cloneable;
 
 lazy_static! {
     static ref TILE_SIZE_PIXMAP_POOL: LinearObjectPool<Pixmap> = LinearObjectPool::new(
