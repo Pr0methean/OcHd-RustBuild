@@ -887,7 +887,9 @@ impl ToPixmapTaskSpec {
     }
 
     pub fn color_description_stacked_on(&self,
-                                        background: &ColorDescription, ctx: &mut TaskGraphBuildingContext) -> ColorDescription {
+                                        background: &ColorDescription,
+                                        ctx: &mut TaskGraphBuildingContext,
+                                        max_colors: usize) -> ColorDescription {
         match background {
             Rgb(transparency) => Rgb(self.get_transparency(ctx).stack_on(transparency)),
             SpecifiedColors(bg_colors) => {
@@ -903,13 +905,14 @@ impl ToPixmapTaskSpec {
                                 ));
                                 combined_colors.sort();
                                 combined_colors.dedup();
+                                combined_colors.truncate(max_colors);
                                 SpecifiedColors(combined_colors)
                             }
                             AlphaChannel => {
                                 // Using dedup() rather than unique() uses too much memory
                                 let mut combined_colors: Vec<ComparableColor> = bg_colors.iter().copied().flat_map(|bg_color|
                                     bg_color.under(fg_colors.iter().copied()).into_iter()
-                                ).unique().collect();
+                                ).unique().take(max_colors).collect();
                                 combined_colors.sort();
                                 SpecifiedColors(combined_colors)
                             }
@@ -943,6 +946,15 @@ impl ToPixmapTaskSpec {
         if let Some(desc) = ctx.pixmap_task_to_color_map.get(self) {
             return (*desc).to_owned();
         }
+        let side_length = if *TILE_SIZE == GRID_SIZE || self.is_grid_perfect(ctx) {
+            GRID_SIZE
+        } else {
+            *TILE_SIZE
+        };
+        let mut pixels = side_length as usize * side_length as usize;
+        if let ToPixmapTaskSpec::Animate {frames, ..} = &self {
+            pixels *= frames.len();
+        }
         let desc = match self {
             ToPixmapTaskSpec::None => debug_assert_unreachable(),
             ToPixmapTaskSpec::Animate { background, frames } => {
@@ -950,7 +962,7 @@ impl ToPixmapTaskSpec {
                 let mut current_desc: Option<ColorDescription> = None;
                 for frame in frames {
                     let frame_desc
-                        = frame.color_description_stacked_on(&background_desc, ctx);
+                        = frame.color_description_stacked_on(&background_desc, ctx, pixels + 1);
                     current_desc = Some(match current_desc {
                         None => frame_desc,
                         Some(other_frames_desc) => frame_desc.put_adjacent(&other_frames_desc)
@@ -992,25 +1004,16 @@ impl ToPixmapTaskSpec {
             },
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
                 let background = *background;
-                foreground.color_description_stacked_on(&SpecifiedColors(vec![background]), ctx)
+                foreground.color_description_stacked_on(&SpecifiedColors(vec![background]), ctx, pixels + 1)
             }
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
-                foreground.color_description_stacked_on(&background.get_color_description(ctx), ctx)
+                foreground.color_description_stacked_on(&background.get_color_description(ctx), ctx, pixels + 1)
             }
             UpscaleFromGridSize {base} => base.get_color_description(ctx)
         };
-        let side_length = if *TILE_SIZE == GRID_SIZE || self.is_grid_perfect(ctx) {
-            GRID_SIZE
-        } else {
-            *TILE_SIZE
-        };
-        let mut pixels = side_length as usize * side_length as usize;
-        if let ToPixmapTaskSpec::Animate {frames, ..} = &self {
-            pixels *= frames.len();
-        }
         let desc = if let SpecifiedColors(colors) = &desc && colors.len() > pixels {
-            info!("For {}, possible colors {} exceeds pixel count {}; rendering to determine \
-                actual color count", self, colors.len(), pixels);
+            info!("For {}, possible colors exceed pixel count {}; rendering to determine \
+                actual color count", self, pixels);
             let actual_image = self.add_to(ctx, side_length).into_result();
             let mut actual_colors: Vec<ComparableColor> = actual_image.unwrap().pixels().iter().copied()
                 .map(ComparableColor::from)
