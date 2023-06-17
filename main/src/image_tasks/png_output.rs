@@ -68,37 +68,12 @@ lazy_static!{
 
 pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
                   bit_depth: BitDepth, file_path: String) -> Result<(),CloneableError> {
-    let data = into_png(image, color_type, bit_depth)?;
-    let mut zip = ZIP.lock()?;
-    let writer = zip.deref_mut();
-    writer.start_file(file_path, PNG_ZIP_OPTIONS.to_owned())?;
-    writer.write_all(&data)?;
-    drop(zip);
-    Ok(())
-}
-
-pub fn copy_out_to_out(source_path: String, dest_path: String) -> Result<(),CloneableError> {
-    ZIP.lock()?.deep_copy_file(&source_path, &dest_path)?;
-    Ok(())
-}
-
-pub fn copy_in_to_out(source: &File, dest_path: String) -> Result<(),CloneableError> {
-    let mut zip = ZIP.lock()?;
-    let writer = zip.deref_mut();
-    writer.start_file(dest_path, METADATA_ZIP_OPTIONS.to_owned())?;
-    writer.write_all(source.contents())?;
-    Ok(())
-}
-
-/// Forked from https://docs.rs/tiny-skia/latest/src/tiny_skia/pixmap.rs.html#390 to eliminate the
-/// copy and pre-allocate the byte vector.
-pub fn into_png(image: MaybeFromPool<Pixmap>, color_type: ColorType, bit_depth: BitDepth) -> Result<Vec<u8>, CloneableError> {
     let width = image.width();
     let height = image.height();
-    info!("Encoding a {}x{} image as a PNG", width, height);
+    info!("Dimensions of {} are {}x{}", file_path, width, height);
     let raw_bytes = match color_type {
         ColorType::RGB {transparent_color} => {
-            info!("Writing an RGB PNG");
+            info!("Writing {} in RGB mode", file_path);
             let mut raw_bytes = Vec::with_capacity(3 * width as usize * height as usize);
             let transparent_color = transparent_color.map(|color| [
                 (color.r >> 8) as u8,
@@ -117,13 +92,13 @@ pub fn into_png(image: MaybeFromPool<Pixmap>, color_type: ColorType, bit_depth: 
             raw_bytes
         }
         ColorType::RGBA => {
-            info!("Writing an RGBA PNG");
+            info!("Writing {} in RGBA mode", file_path);
             let mut image = image.unwrap_or_clone();
             demultiply_image(&mut image);
             image.take()
         }
         ColorType::Grayscale {transparent_shade} => {
-            info!("Writing {}-bit grayscale PNG", bit_depth);
+            info!("Writing {} in {}-bit grayscale mode", file_path, bit_depth);
             let raw_bytes = Vec::with_capacity(width as usize * height as usize
                 * bit_depth as u8 as usize / 8);
             let transparent_shade = transparent_shade.map(|shade|
@@ -140,7 +115,7 @@ pub fn into_png(image: MaybeFromPool<Pixmap>, color_type: ColorType, bit_depth: 
             writer.into_writer().into_inner()
         }
         ColorType::GrayscaleAlpha => {
-            info!("Writing 8-bit grayscale PNG with alpha channel");
+            info!("Writing {} in grayscale+alpha mode", file_path);
             let mut raw_bytes = Vec::with_capacity(
                 image.width() as usize * image.height() as usize * 2);
             for pixel in image.pixels() {
@@ -149,7 +124,7 @@ pub fn into_png(image: MaybeFromPool<Pixmap>, color_type: ColorType, bit_depth: 
             raw_bytes
         }
         ColorType::Indexed {ref palette} => {
-            info!("Writing an indexed PNG with {} colors", palette.len());
+            info!("Writing {} in indexed mode with {} colors", file_path, palette.len());
             let bytes = Vec::with_capacity(image.width() as usize * image.height() as usize
                 * bit_depth as u8 as usize / 8);
             let mut sorted_palette: Vec<([u8; 4], u16, ComparableColor)> = Vec::with_capacity(palette.len());
@@ -199,7 +174,8 @@ pub fn into_png(image: MaybeFromPool<Pixmap>, color_type: ColorType, bit_depth: 
                 bit_writer.write(bit_depth as u8 as u32, index)?;
             }
             if !error_corrections.is_empty() {
-                warn!("Corrected {} color errors; worst error amount was {}", error_corrections.len(), worst_discrepancy);
+                warn!("Corrected {} color errors in {}; worst error amount was {}",
+                    error_corrections.len(), file_path, worst_discrepancy);
             }
             bit_writer.flush()?;
             bit_writer.into_writer().into_inner()
@@ -209,7 +185,25 @@ pub fn into_png(image: MaybeFromPool<Pixmap>, color_type: ColorType, bit_depth: 
     let result = RawImage::new(width, height, color_type, bit_depth, raw_bytes)?
         .create_optimized_png(&OXIPNG_OPTIONS)?;
     info!("Finished PNG optimization");
-    Ok(result)
+    let data = result;
+    let mut zip = ZIP.lock()?;
+    let writer = zip.deref_mut();
+    writer.start_file(file_path, PNG_ZIP_OPTIONS.to_owned())?;
+    writer.write_all(&data)?;
+    Ok(())
+}
+
+pub fn copy_out_to_out(source_path: String, dest_path: String) -> Result<(),CloneableError> {
+    ZIP.lock()?.deep_copy_file(&source_path, &dest_path)?;
+    Ok(())
+}
+
+pub fn copy_in_to_out(source: &File, dest_path: String) -> Result<(),CloneableError> {
+    let mut zip = ZIP.lock()?;
+    let writer = zip.deref_mut();
+    writer.start_file(dest_path, METADATA_ZIP_OPTIONS.to_owned())?;
+    writer.write_all(source.contents())?;
+    Ok(())
 }
 
 fn demultiply_image(image: &mut Pixmap) {
