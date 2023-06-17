@@ -95,6 +95,7 @@ pub fn copy_in_to_out(source: &File, dest_path: String) -> Result<(),CloneableEr
 pub fn into_png(image: MaybeFromPool<Pixmap>, color_type: ColorType, bit_depth: BitDepth) -> Result<Vec<u8>, CloneableError> {
     let width = image.width();
     let height = image.height();
+    info!("Encoding a {}x{} image as a PNG", width, height);
     let raw_bytes = match color_type {
         ColorType::RGB {transparent_color} => {
             info!("Writing an RGB PNG");
