@@ -163,14 +163,13 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
         }
     };
     info!("Starting PNG optimization for {}", file_path);
-    let result = RawImage::new(width, height, color_type, bit_depth, raw_bytes)?
+    let png = RawImage::new(width, height, color_type, bit_depth, raw_bytes)?
         .create_optimized_png(&OXIPNG_OPTIONS)?;
     info!("Finished PNG optimization for {}", file_path);
-    let data = result;
     let mut zip = ZIP.lock()?;
     let writer = zip.deref_mut();
     writer.start_file(file_path, PNG_ZIP_OPTIONS.to_owned())?;
-    writer.write_all(&data)?;
+    writer.write_all(&png)?;
     Ok(())
 }
 
