@@ -10,6 +10,7 @@ use itertools::Itertools;
 use lazy_static::lazy_static;
 use log::{info, warn};
 use oxipng::{BitDepth, ColorType, Deflaters, Options, RawImage};
+use oxipng::internal_tests::BufferedZopfliDeflater;
 
 use resvg::tiny_skia::{ColorU8, Pixmap, PremultipliedColorU8};
 use zip_next::CompressionMethod::Deflated;
@@ -28,6 +29,10 @@ const PNG_BUFFER_SIZE: usize = 1024 * 1024;
 
 lazy_static!{
 
+    static ref ZOPFLI_DEFLATER: BufferedZopfliDeflater = BufferedZopfliDeflater::new(
+        255.try_into().unwrap(),
+        (*TILE_SIZE as usize) * (*TILE_SIZE as usize) * 12
+    );
     static ref ZIP_BUFFER_SIZE: usize = (*TILE_SIZE as usize) * 32 * 1024;
     // Pixels are already deflated by oxipng, but they're still compressible, probably because PNG
     // chunks are compressed independently.
@@ -174,7 +179,7 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
     };
     info!("Starting PNG optimization for {}", file_path);
     let png = RawImage::new(width, height, color_type, bit_depth, raw_bytes)?
-        .create_optimized_png(&OXIPNG_OPTIONS)?;
+        .create_optimized_png(&OXIPNG_OPTIONS, &*ZOPFLI_DEFLATER)?;
     info!("Finished PNG optimization for {}", file_path);
     let mut zip = ZIP.lock()?;
     let writer = zip.deref_mut();
