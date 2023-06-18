@@ -23,7 +23,7 @@ use oxipng::ColorType::{Grayscale, Indexed, RGB, RGBA};
 use resvg::tiny_skia::{Color, Mask, Pixmap};
 
 use crate::image_tasks::animate::animate;
-use crate::image_tasks::cloneable::{CloneableLazyTask, LazyTaskFunction};
+use crate::image_tasks::cloneable::{CloneableError, CloneableLazyTask, LazyTaskFunction};
 use crate::image_tasks::color::{BIT_DEPTH_FOR_CHANNEL, ComparableColor, gray};
 use crate::image_tasks::from_svg::{COLOR_SVGS, from_svg, SEMITRANSPARENCY_FREE_SVGS};
 use crate::image_tasks::make_semitransparent::{ALPHA_MULTIPLICATION_TABLE, ALPHA_STACKING_TABLE, make_semitransparent};
@@ -844,7 +844,9 @@ impl ToPixmapTaskSpec {
             *TILE_SIZE
         };
         let mut pixels = side_length as usize * side_length as usize;
-        let desc: Either<LazyTaskFunction<ColorDescription>, CloneableLazyTask<ColorDescription>> = match self {
+        #[allow(clippy::type_complexity)]
+        let desc: Either<Box<dyn FnOnce() -> Result<ColorDescription, CloneableError> + Send>,
+                CloneableLazyTask<ColorDescription>> = match self {
             ToPixmapTaskSpec::None => debug_assert_unreachable(),
             ToPixmapTaskSpec::Animate { background, frames } => {
                 pixels *= frames.len();
@@ -864,7 +866,7 @@ impl ToPixmapTaskSpec {
                             Some(other_frames_desc) => frame_desc.put_adjacent(&other_frames_desc)
                         });
                     }
-                    Ok(Box::new(current_desc.unwrap()))
+                    Ok(current_desc.unwrap())
                 }))
             },
             ToPixmapTaskSpec::FromSvg { source } => {
@@ -886,8 +888,7 @@ impl ToPixmapTaskSpec {
             ToPixmapTaskSpec::PaintAlphaChannel { color, base } => {
                 let base_task = base.get_possible_alpha_values(ctx);
                 let color = *color;
-                Left(Box::new(move ||
-                    Ok(Box::new(SpecifiedColors({
+                Left(Box::new(move || Ok(SpecifiedColors({
                     let alpha_array = ALPHA_MULTIPLICATION_TABLE[color.alpha() as usize];
                     let mut colored_alphas: Vec<ComparableColor> = base_task.into_result()?
                         .iter()
@@ -902,20 +903,20 @@ impl ToPixmapTaskSpec {
                     colored_alphas.sort();
                     colored_alphas.dedup();
                     colored_alphas
-                })))))
+                }))))
             },
             ToPixmapTaskSpec::StackLayerOnColor { background, foreground } => {
                 let background = *background;
                 let fg_task = foreground.get_color_description_task(ctx);
-                Left(Box::new(move ||
-                    Ok(Box::new(fg_task.into_result()?.stack_on(&SpecifiedColors(vec![background]), pixels + 1)))
-                ))
+                Left(Box::new(move || Ok(
+                    fg_task.into_result()?.stack_on(&SpecifiedColors(vec![background]), pixels + 1)
+                )))
             }
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
                 let bg_task = background.get_color_description_task(ctx);
                 let fg_task = foreground.get_color_description_task(ctx);
                 Left(Box::new(move ||
-                    Ok(Box::new(fg_task.into_result()?.stack_on(&*bg_task.into_result()?, pixels + 1)))
+                    Ok(fg_task.into_result()?.stack_on(&*bg_task.into_result()?, pixels + 1))
                 ))
             }
             UpscaleFromGridSize {base} => Right(base.get_color_description_task(ctx))
@@ -926,20 +927,24 @@ impl ToPixmapTaskSpec {
                 let pixels = pixels;
                 CloneableLazyTask::new(name.to_owned(), Box::new(move ||{
                     let uncapped = function()?;
-                    if let SpecifiedColors(colors) = &*uncapped && colors.len() > pixels {
-                        info!("For {}, possible colors exceed pixel count {}; rendering to determine \
+                    Ok(Box::new(match uncapped {
+                        SpecifiedColors(colors) => {
+                            if colors.len() > pixels {
+                                info!("For {}, possible colors exceed pixel count {}; rendering to determine \
                 actual color count", name, pixels);
-                        let actual_image = image_task.into_result()?;
-                        let mut actual_colors: Vec<ComparableColor> = actual_image.pixels().iter().copied()
-                            .map(ComparableColor::from)
-                            .collect();
-                        actual_colors.sort();
-                        actual_colors.dedup();
-                        Ok(Box::new(SpecifiedColors(actual_colors)))
-                    } else {
-                        Ok(uncapped)
-                    }
-                }))
+                                let actual_image = image_task.into_result()?;
+                                let mut actual_colors: Vec<ComparableColor> = actual_image.pixels().iter().copied()
+                                    .map(ComparableColor::from)
+                                    .collect();
+                                actual_colors.sort();
+                                actual_colors.dedup();
+                                SpecifiedColors(actual_colors)
+                            } else {
+                                SpecifiedColors(colors)
+                            }
+                        }
+                        Rgb(transparency) => Rgb(transparency)
+                    }))}))
             }
             Right(task) => task
         };
