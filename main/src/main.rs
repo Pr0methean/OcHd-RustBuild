@@ -24,7 +24,7 @@ use std::hint::unreachable_unchecked;
 use std::ops::DerefMut;
 use include_dir::{Dir, DirEntry};
 use lazy_static::lazy_static;
-use rayon::{current_num_threads, ThreadPoolBuilder};
+use rayon::{ThreadPoolBuilder};
 use tikv_jemallocator::Jemalloc;
 use image_tasks::cloneable::{CloneableError, CloneableLazyTask};
 use crate::image_tasks::png_output::{copy_in_to_out, ZIP};
@@ -80,13 +80,14 @@ fn main() -> Result<(), CloneableError> {
     info!("Writing output to {}", absolute(&out_file)?.to_string_lossy());
     let tile_size: u32 = *TILE_SIZE;
     info!("Using {} pixels per tile", tile_size);
-    let cpus = num_cpus::get();
+    let mut cpus = num_cpus::get();
     if (cpus as u64 + 1).count_ones() <= 1 {
         warn!("Adjusting CPU count from {} to {}", cpus, cpus + 1);
-        // Compensate for missed CPU core on m7g.16xlarg
-        ThreadPoolBuilder::new().num_threads(cpus + 1).build_global()?;
+        cpus += 1;
+        // Compensate for missed CPU core on m7g.16xlarge
+        ThreadPoolBuilder::new().num_threads(cpus).build_global()?;
     }
-    info!("Rayon thread pool has {} threads", current_num_threads());
+    info!("Rayon thread pool has {} threads", cpus);
     let start_time = Instant::now();
     rayon::join(
         || rayon::join(
@@ -119,7 +120,7 @@ fn main() -> Result<(), CloneableError> {
         drop(ctx);
         let planned_tasks: Vec<CloneableLazyTask<()>>
             = large_tasks.into_iter().chain(small_tasks.into_iter()).collect();
-        planned_tasks.into_par_iter().for_each(move |task| {
+        planned_tasks.into_iter().par_bridge().for_each(move |task| {
             let name = task.name.to_owned();
             task.into_result()
                 .unwrap_or_else(|err| panic!("Error running task {}: {:?}", name, err));
