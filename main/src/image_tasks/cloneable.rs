@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::fmt::{Debug, Formatter};
 use log::info;
 use replace_with::{replace_with_and_return};
-use std::ops::{Deref, DerefMut};
+use std::ops::{DerefMut};
 use crate::{anyhoo};
 
 pub type CloneableResult<T> = Result<Arc<Box<T>>, CloneableError>;
@@ -68,13 +68,6 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
             state: Arc::new(Mutex::new(CloneableLazyTaskState::Finished {
                 result: Ok(Arc::new(result))
             }))
-        }
-    }
-
-    pub fn is_finished(&self) -> bool {
-        match self.state.lock().unwrap().deref() {
-            CloneableLazyTaskState::Upcoming { .. } => false,
-            CloneableLazyTaskState::Finished { .. } => true
         }
     }
 
