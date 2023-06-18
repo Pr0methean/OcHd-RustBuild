@@ -32,7 +32,8 @@ lazy_static!{
     static ref ZOPFLI_DEFLATER: BufferedZopfliDeflater = BufferedZopfliDeflater::new(
         255.try_into().unwrap(),
         (*TILE_SIZE as usize) * (*TILE_SIZE as usize) * 12,
-        PNG_BUFFER_SIZE
+        PNG_BUFFER_SIZE,
+        30
     );
     static ref ZIP_BUFFER_SIZE: usize = (*TILE_SIZE as usize) * 32 * 1024;
     // Pixels are already deflated by oxipng, but they're still compressible, probably because PNG
