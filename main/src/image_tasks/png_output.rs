@@ -19,7 +19,7 @@ use zip_next::ZipWriter;
 
 use crate::image_tasks::MaybeFromPool;
 use crate::image_tasks::task_spec::channel_to_bit_depth;
-use crate::TILE_SIZE;
+use crate::{GRID_SIZE, TILE_SIZE};
 use crate::image_tasks::cloneable::CloneableError;
 use crate::image_tasks::color::ComparableColor;
 
@@ -33,7 +33,7 @@ lazy_static!{
         255.try_into().unwrap(),
         (*TILE_SIZE as usize) * (*TILE_SIZE as usize) * 12,
         PNG_BUFFER_SIZE,
-        30
+        2 * GRID_SIZE
     );
     static ref ZIP_BUFFER_SIZE: usize = (*TILE_SIZE as usize) * 32 * 1024;
     // Pixels are already deflated by oxipng, but they're still compressible, probably because PNG
