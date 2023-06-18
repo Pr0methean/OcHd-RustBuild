@@ -6,6 +6,7 @@ use std::ops::DerefMut;
 use std::sync::Mutex;
 use bitstream_io::{BigEndian, BitWrite, BitWriter};
 use bytemuck::cast;
+use itertools::Itertools;
 use lazy_static::lazy_static;
 use log::{info, warn};
 use oxipng::{BitDepth, ColorType, Deflaters, Options, RawImage};
@@ -155,8 +156,17 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
                 bit_writer.write(bit_depth as u8 as u32, index)?;
             }
             if !error_corrections.is_empty() {
-                warn!("Corrected {} color errors in {}; worst error amount was {}",
-                    error_corrections.len(), file_path, worst_discrepancy);
+                let corrected_color_count = error_corrections.len();
+                let corrections = error_corrections.into_iter()
+                    .map(|(raw, corrected_index)| {
+                        let found: PremultipliedColorU8 = cast(raw);
+                        let found: ComparableColor = found.into();
+                        let corrected = palette[corrected_index as usize];
+                        format!("{} -> {}", found, corrected)
+                    })
+                    .join(", ");
+                warn!("Corrected {} color errors in {} (worst error amount was {}): {}",
+                    corrected_color_count, file_path, worst_discrepancy, corrections);
             }
             bit_writer.flush()?;
             bit_writer.into_writer().into_inner()
