@@ -926,7 +926,7 @@ impl ToPixmapTaskSpec {
                 let pixels = pixels;
                 CloneableLazyTask::new(name.to_owned(), Box::new(move ||{
                     let uncapped = function()?;
-                    match uncapped {
+                    Ok(Box::new(match uncapped {
                         SpecifiedColors(colors) => {
                             if colors.len() > pixels {
                                 info!("For {}, possible colors exceed pixel count {}; rendering to determine \
@@ -937,14 +937,13 @@ impl ToPixmapTaskSpec {
                                     .collect();
                                 actual_colors.sort();
                                 actual_colors.dedup();
-                                Ok(Box::new(SpecifiedColors(actual_colors)))
+                                SpecifiedColors(actual_colors)
                             } else {
-                                Ok(Box::new(SpecifiedColors(colors)))
+                                SpecifiedColors(colors)
                             }
                         }
-                        Rgb(transparency) => Ok(Box::new(Rgb(transparency)))
-                    }
-                }))
+                        Rgb(transparency) => Rgb(transparency)
+                    }))}))
             }
             Right(task) => task
         };
