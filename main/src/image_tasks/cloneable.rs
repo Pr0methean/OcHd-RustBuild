@@ -1,5 +1,5 @@
 use std::sync::{Arc, Mutex};
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use log::info;
 use replace_with::{replace_with_and_return};
 use std::ops::{DerefMut};
@@ -33,6 +33,12 @@ pub enum CloneableLazyTaskState<T> where T: ?Sized {
 pub struct CloneableLazyTask<T> where T: ?Sized {
     pub name: String,
     state: Arc<Mutex<CloneableLazyTaskState<T>>>
+}
+
+impl <T> Display for CloneableLazyTask<T> where T: ?Sized {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&*self.name)
+    }
 }
 
 impl <T> Debug for CloneableLazyTaskState<T> where T: ?Sized {
