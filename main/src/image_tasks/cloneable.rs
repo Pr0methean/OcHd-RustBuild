@@ -37,7 +37,7 @@ pub struct CloneableLazyTask<T> where T: ?Sized {
 
 impl <T> Display for CloneableLazyTask<T> where T: ?Sized {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&*self.name)
+        f.write_str(&self.name)
     }
 }
 
