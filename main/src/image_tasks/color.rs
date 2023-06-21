@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 use std::ops::Mul;
 use palette::{Srgba};
 use palette::blend::{Compose};
-use oxipng::BitDepth;
+use oxipng::{BitDepth, RGBA8};
 
 use resvg::tiny_skia::{Color};
 use resvg::tiny_skia::ColorU8;
@@ -194,6 +194,12 @@ impl Display for ComparableColor {
 impl From<Color> for ComparableColor {
     fn from(value: Color) -> Self {
         Self::from(value.to_color_u8())
+    }
+}
+
+impl From<RGBA8> for ComparableColor {
+    fn from(value: RGBA8) -> Self {
+        ComparableColor {red: value.r, green: value.g, blue: value.b, alpha: value.a}
     }
 }
 

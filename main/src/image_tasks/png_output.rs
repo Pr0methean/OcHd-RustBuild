@@ -168,7 +168,7 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
                     .map(|(raw, corrected_index)| {
                         let found: PremultipliedColorU8 = cast(raw);
                         let found: ComparableColor = found.into();
-                        let corrected = palette[corrected_index as usize];
+                        let corrected = ComparableColor::from(palette[corrected_index as usize]);
                         format!("{} -> {}", found, corrected)
                     })
                     .join(", ");
