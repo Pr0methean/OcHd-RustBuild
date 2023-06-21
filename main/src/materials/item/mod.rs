@@ -9,4 +9,4 @@ use crate::materials::item::compass::COMPASSES;
 use crate::materials::item::music_disc::MUSIC_DISCS;
 use crate::materials::item::simple_items::{SIMPLE_ITEMS};
 
-group!(ALL_ITEMS = CLOCK, COMPASSES, MUSIC_DISCS, SIMPLE_ITEMS);
+group!(ALL_ITEMS = COMPASSES, CLOCK, MUSIC_DISCS, SIMPLE_ITEMS);
