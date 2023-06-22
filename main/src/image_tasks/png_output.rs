@@ -6,10 +6,12 @@ use std::ops::DerefMut;
 use std::sync::Mutex;
 use bitstream_io::{BigEndian, BitWrite, BitWriter};
 use bytemuck::cast;
+use indexmap::indexset;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use log::{info, warn};
 use oxipng::{BitDepth, ColorType, Deflaters, Options, RawImage};
+use oxipng::RowFilter;
 use oxipng::internal_tests::BufferedZopfliDeflater;
 
 use resvg::tiny_skia::{ColorU8, Pixmap, PremultipliedColorU8};
@@ -49,6 +51,20 @@ lazy_static!{
         Vec::with_capacity(*ZIP_BUFFER_SIZE))));
     static ref OXIPNG_OPTIONS: Options = {
         let mut options = Options::from_preset(6);
+        options.deflate = Deflaters::Zopfli {iterations: u8::MAX.try_into().unwrap() };
+        options.optimize_alpha = true;
+        options
+    };
+    static ref CLOCK_COMPASS_OXIPNG_OPTIONS: Options = {
+        let mut options = Options::from_preset(6);
+        options.filter = indexset!(
+            // In 32x32, 64x64 and 4096x4096 tests, only these were ever best for compasses or
+            // clocks.
+            RowFilter::None,
+            RowFilter::Bigrams,
+            RowFilter::Entropy,
+            RowFilter::Brute
+        );
         options.deflate = Deflaters::Zopfli {iterations: u8::MAX.try_into().unwrap() };
         options.optimize_alpha = true;
         options
@@ -180,8 +196,13 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
         }
     };
     info!("Starting PNG optimization for {}", file_path);
+    let options: &Options = if file_path.contains("compass") || file_path.contains("clock") {
+        &CLOCK_COMPASS_OXIPNG_OPTIONS
+    } else {
+        &OXIPNG_OPTIONS
+    };
     let png = RawImage::new(width, height, color_type, bit_depth, raw_bytes)?
-        .create_optimized_png(&OXIPNG_OPTIONS, &*ZOPFLI_DEFLATER)?;
+        .create_optimized_png(options, &*ZOPFLI_DEFLATER)?;
     info!("Finished PNG optimization for {}", file_path);
     let mut zip = ZIP.lock()?;
     let writer = zip.deref_mut();
