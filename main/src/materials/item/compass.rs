@@ -16,8 +16,8 @@ impl Material for Compass {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         let base = stack!(
             paint_svg_task("circle32", self.rim_color),
+            from_svg_task("compassRim"),
             paint_svg_task("circle28", self.dial_color),
-            from_svg_task("compassRim")
         );
         let mut output_tasks = Vec::with_capacity(COMPASS_ANGLES);
         for angle in 0..COMPASS_ANGLES {
