@@ -2,9 +2,9 @@ use std::cmp::Ordering;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::ops::{Deref, DerefMut};
-use lazy_static::lazy_static;
 use lockfree_object_pool::{LinearObjectPool, LinearReusable};
 use log::info;
+use once_cell::sync::Lazy;
 use resvg::tiny_skia::{Color, Pixmap};
 use crate::{GRID_SIZE, TILE_SIZE};
 
@@ -19,22 +19,21 @@ pub mod make_semitransparent;
 pub mod upscale;
 pub(crate) mod cloneable;
 
-lazy_static! {
-    static ref TILE_SIZE_PIXMAP_POOL: LinearObjectPool<Pixmap> = LinearObjectPool::new(
+static TILE_SIZE_PIXMAP_POOL: Lazy<LinearObjectPool<Pixmap>> = Lazy::new(|| LinearObjectPool::new(
         || {
             info!("Allocating a tile-size Pixmap for pool");
             Pixmap::new(*TILE_SIZE, *TILE_SIZE).expect("Failed to allocate a Pixmap for pool")
         },
         |_| {} // no reset needed if using allocate_pixmap_for_overwrite
-    );
-    static ref GRID_SIZE_PIXMAP_POOL: LinearObjectPool<Pixmap> = LinearObjectPool::new(
-        || {
-            info!("Allocating a grid-size Pixmap for pool");
-            Pixmap::new(GRID_SIZE, GRID_SIZE).expect("Failed to allocate a Pixmap for pool")
-        },
-        |_| {} // no reset needed if using allocate_pixmap_for_overwrite
-    );
-}
+    )
+);
+static GRID_SIZE_PIXMAP_POOL: Lazy<LinearObjectPool<Pixmap>> = Lazy::new(|| LinearObjectPool::new(
+    || {
+        info!("Allocating a grid-size Pixmap for pool");
+        Pixmap::new(GRID_SIZE, GRID_SIZE).expect("Failed to allocate a Pixmap for pool")
+    },
+    |_| {} // no reset needed if using allocate_pixmap_for_overwrite
+));
 
 pub fn prewarm_pixmap_pool() {
     GRID_SIZE_PIXMAP_POOL.pull();

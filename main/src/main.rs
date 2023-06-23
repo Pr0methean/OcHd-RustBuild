@@ -4,6 +4,8 @@
 #![feature(let_chains)]
 #![feature(macro_metavar_expr)]
 #![feature(const_trait_impl)]
+#![feature(lazy_cell)]
+
 use std::path::{absolute, PathBuf};
 use std::time::Instant;
 
@@ -22,7 +24,7 @@ use std::fs::create_dir_all;
 use std::hint::unreachable_unchecked;
 use std::ops::DerefMut;
 use include_dir::{Dir, DirEntry};
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use rayon::{scope_fifo, ThreadPoolBuilder};
 use tikv_jemallocator::Jemalloc;
 use image_tasks::cloneable::{CloneableError};
@@ -33,18 +35,15 @@ use crate::image_tasks::repaint::prewarm_mask_pool;
 const GRID_SIZE: u32 = 32;
 
 #[cfg(not(any(test,clippy)))]
-lazy_static! {
-    static ref ARGS: Vec<String> = env::args().collect();
-    static ref TILE_SIZE: u32 = {
+static ARGS: Lazy<Vec<String>> = Lazy::new(|| env::args().collect());
+
+#[cfg(not(any(test,clippy)))]
+static TILE_SIZE: Lazy<u32> = Lazy::new(||
         ARGS.get(1).expect("Usage: OcHd-RustBuild <tile-size>").parse::<u32>()
-            .expect("Tile size (first command-line argument) must be an integer")
-    };
-}
+            .expect("Tile size (first command-line argument) must be an integer"));
 
 #[cfg(any(test,clippy))]
-lazy_static! {
-    static ref TILE_SIZE: u32 = 128;
-}
+const TILE_SIZE: &u32 = &128;
 
 #[global_allocator]
 static ALLOCATOR: Jemalloc = Jemalloc;
@@ -130,9 +129,7 @@ fn main() -> Result<(), CloneableError> {
             }
         });
     });
-    let mut zip = ZIP.lock()?;
-    let zip_writer = zip.deref_mut();
-    let zip_contents = zip_writer.finish()
+    let zip_contents = ZIP.lock()?.deref_mut().finish()
         .expect("Failed to finalize ZIP file").into_inner();
     info!("ZIP file size is {} bytes", zip_contents.len());
     fs::write(out_file.as_path(), zip_contents)?;

@@ -1,4 +1,4 @@
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use crate::{block_with_colors, copy_block, group, paint_stack, single_texture_block};
 use crate::image_tasks::color::{c, ComparableColor};
 use crate::image_tasks::task_spec::{from_svg_task, paint_svg_task};
@@ -12,19 +12,17 @@ pub const GRASS_COLOR: ComparableColor = c(0x83b253);
 pub const GRASS_SHADOW: ComparableColor = c(0x64a43a);
 pub const GRASS_HIGHLIGHT: ComparableColor = c(0x9ccb6c);
 
-lazy_static!{
-    pub static ref GRASS_BLOCK: GroundCoverBlock = ground_cover_block(
-        "grass_block", "_top", &DIRT.material, GRASS_COLOR, GRASS_SHADOW, GRASS_HIGHLIGHT,
-        stack!(
-            paint_svg_task("topPart", GRASS_COLOR),
-            paint_svg_task("veesTop", GRASS_SHADOW)
-        ),
-        stack_on!(
-            ComparableColor::LIGHT_BIOME_COLORABLE,
-            paint_stack!(ComparableColor::MEDIUM_BIOME_COLORABLE, "borderDotted", "vees")
-        )
-    );
-}
+pub static GRASS_BLOCK: Lazy<GroundCoverBlock> = Lazy::new(|| ground_cover_block(
+    "grass_block", "_top", &DIRT.material, GRASS_COLOR, GRASS_SHADOW, GRASS_HIGHLIGHT,
+    stack!(
+        paint_svg_task("topPart", GRASS_COLOR),
+        paint_svg_task("veesTop", GRASS_SHADOW)
+    ),
+    stack_on!(
+        ComparableColor::LIGHT_BIOME_COLORABLE,
+        paint_stack!(ComparableColor::MEDIUM_BIOME_COLORABLE, "borderDotted", "vees")
+    )
+));
 
 single_texture_block!(GRASS_BLOCK_SIDE_OVERLAY = ComparableColor::TRANSPARENT,
     paint_svg_task("topPart", ComparableColor::LIGHT_BIOME_COLORABLE),
@@ -35,20 +33,18 @@ pub const PODZOL_COLOR: ComparableColor = c(0x6a4418);
 pub const PODZOL_SHADOW: ComparableColor = c(0x4a3018);
 pub const PODZOL_HIGHLIGHT: ComparableColor = c(0x8b5920);
 
-lazy_static! {
-    pub static ref PODZOL: GroundCoverBlock = ground_cover_block(
-        "podzol", "_top", &DIRT.material, PODZOL_COLOR, PODZOL_SHADOW, PODZOL_HIGHLIGHT,
-        stack!(
-            paint_svg_task("topPart", PODZOL_COLOR),
-            paint_svg_task("zigzagBrokenTopPart", PODZOL_HIGHLIGHT)
-        ),
-        stack_on!(
-            PODZOL_COLOR,
-            paint_svg_task("zigzagBroken", PODZOL_HIGHLIGHT),
-            paint_svg_task("borderDotted", PODZOL_SHADOW)
-        )
-    );
-}
+pub static PODZOL: Lazy<GroundCoverBlock> = Lazy::new(|| ground_cover_block(
+    "podzol", "_top", &DIRT.material, PODZOL_COLOR, PODZOL_SHADOW, PODZOL_HIGHLIGHT,
+    stack!(
+        paint_svg_task("topPart", PODZOL_COLOR),
+        paint_svg_task("zigzagBrokenTopPart", PODZOL_HIGHLIGHT)
+    ),
+    stack_on!(
+        PODZOL_COLOR,
+        paint_svg_task("zigzagBroken", PODZOL_HIGHLIGHT),
+        paint_svg_task("borderDotted", PODZOL_SHADOW)
+    )
+));
 
 copy_block!(COMPOSTER_COMPOST = PODZOL, "top");
 
@@ -61,21 +57,19 @@ pub const MYCELIUM_COLOR: ComparableColor = c(0x6a656a);
 pub const MYCELIUM_SHADOW: ComparableColor = c(0x5a5a52);
 pub const MYCELIUM_HIGHLIGHT: ComparableColor = c(0x7b6d73);
 
-lazy_static! {
-    pub static ref MYCELIUM: GroundCoverBlock = ground_cover_block(
-        "mycelium", "_top", &DIRT.material, MYCELIUM_COLOR, MYCELIUM_SHADOW, MYCELIUM_HIGHLIGHT,
-        stack!(
-            paint_svg_task("topPart", MYCELIUM_COLOR),
-            paint_svg_task("mushroomTopRight", MYCELIUM_SHADOW),
-            paint_svg_task("mushroomTopLeft", MYCELIUM_HIGHLIGHT),
-        ),
-        stack_on!(
-            MYCELIUM_COLOR,
-            paint_svg_task("mushroomsBottomLeftTopRight", MYCELIUM_SHADOW),
-            paint_svg_task("mushroomsTopLeftBottomRight", MYCELIUM_HIGHLIGHT)
-        )
-    );
-}
+pub static MYCELIUM: Lazy<GroundCoverBlock> = Lazy::new(|| ground_cover_block(
+    "mycelium", "_top", &DIRT.material, MYCELIUM_COLOR, MYCELIUM_SHADOW, MYCELIUM_HIGHLIGHT,
+    stack!(
+        paint_svg_task("topPart", MYCELIUM_COLOR),
+        paint_svg_task("mushroomTopRight", MYCELIUM_SHADOW),
+        paint_svg_task("mushroomTopLeft", MYCELIUM_HIGHLIGHT),
+    ),
+    stack_on!(
+        MYCELIUM_COLOR,
+        paint_svg_task("mushroomsBottomLeftTopRight", MYCELIUM_SHADOW),
+        paint_svg_task("mushroomsTopLeftBottomRight", MYCELIUM_HIGHLIGHT)
+    )
+));
 
 block_with_colors!(GRASS_BLOCK_SNOW =
     POWDER_SNOW.color(),

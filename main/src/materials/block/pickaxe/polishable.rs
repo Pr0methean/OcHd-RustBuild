@@ -58,17 +58,16 @@ macro_rules! polishable {
         macro_rules! highlight {
             () => { $highlight }
         }
-        lazy_static::lazy_static! {
-            pub static ref $name: PolishableBlock = PolishableBlock {
-                name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
-                colors: crate::texture_base::material::ColorTriad {
-                    color: color!(),
-                    shadow: shadow!(),
-                    highlight: highlight!()
-                },
-                texture: crate::stack_on!($background, $($layers),*).into()
-            };
-        }
+        pub static $name: once_cell::sync::Lazy<PolishableBlock> = once_cell::sync::Lazy::new(||
+        PolishableBlock {
+            name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
+            colors: crate::texture_base::material::ColorTriad {
+                color: color!(),
+                shadow: shadow!(),
+                highlight: highlight!()
+            },
+            texture: crate::stack_on!($background, $($layers),*).into()
+        });
     }
 }
 

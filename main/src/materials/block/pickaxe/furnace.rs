@@ -1,4 +1,4 @@
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use crate::{group, material, single_texture_block, stack};
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::task_spec::{from_svg_task, paint_svg_task, ToPixmapTaskSpec};
@@ -28,12 +28,11 @@ single_texture_block!(BLAST_FURNACE =
     paint_svg_task("cornerCrosshairs", ComparableColor::STONE_EXTREME_HIGHLIGHT)
 );
 
-lazy_static! {
-    static ref BLAST_FURNACE_FRONT_BASE: ToPixmapTaskSpec = stack!(
+static BLAST_FURNACE_FRONT_BASE: Lazy<ToPixmapTaskSpec> = Lazy::new(|| stack!(
         BLAST_FURNACE.texture(),
         paint_svg_task("craftingGridSquare", ComparableColor::STONE_EXTREME_HIGHLIGHT)
-    );
-}
+    )
+);
 
 single_texture_block!(BLAST_FURNACE_FRONT =
     ComparableColor::TRANSPARENT,
