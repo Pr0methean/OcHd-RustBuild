@@ -27,22 +27,17 @@ pub type ZipBufferRaw = Cursor<Vec<u8>>;
 
 const PNG_BUFFER_SIZE: usize = 1024 * 1024;
 
+static ZOPFLI_DEFLATER: Lazy<BufferedZopfliDeflater> = Lazy::new(|| BufferedZopfliDeflater::new(
+    255.try_into().unwrap(),
+    (*TILE_SIZE as usize) * (*TILE_SIZE as usize) * 12,
+    PNG_BUFFER_SIZE,
+    (2 * GRID_SIZE) as u16
+));
 static ZIP_BUFFER_SIZE: Lazy<usize> = Lazy::new(|| (*TILE_SIZE as usize) * 32 * 1024);
-static PNG_ZIP_OPTIONS: Lazy<FileOptions> = Lazy::new(|| FileOptions::default()
+static ZIP_OPTIONS: Lazy<FileOptions> = Lazy::new(|| FileOptions::default()
     .compression_method(Deflated)
     .with_zopfli_buffer(Some(PNG_BUFFER_SIZE))
-    .compression_level(Some(if *TILE_SIZE < 2048 {
-    264
-} else if *TILE_SIZE < 4096 {
-    24
-} else {
-    8
-})));
-static METADATA_ZIP_OPTIONS: Lazy<FileOptions> = Lazy::new(|| {
-    FileOptions::default()
-        .compression_method(Deflated)
-        .compression_level(Some(264))
-});
+    .compression_level(Some(264)));
 pub static ZIP: Lazy<Mutex<ZipWriter<ZipBufferRaw>>> = Lazy::new(|| Mutex::new(ZipWriter::new(Cursor::new(
     Vec::with_capacity(*ZIP_BUFFER_SIZE)))));
 static OXIPNG_OPTIONS: Lazy<Options> = Lazy::new(|| {
@@ -182,7 +177,7 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
     info!("Finished PNG optimization for {}", file_path);
     let zip = &*ZIP;
     let mut writer = zip.lock()?;
-    writer.deref_mut().start_file(file_path, PNG_ZIP_OPTIONS.to_owned())?;
+    writer.deref_mut().start_file(file_path, ZIP_OPTIONS.to_owned())?;
     writer.deref_mut().write_all(&png)?;
     Ok(())
 }
@@ -195,7 +190,7 @@ pub fn copy_out_to_out(source_path: String, dest_path: String) -> Result<(),Clon
 pub fn copy_in_to_out(source: &File, dest_path: String) -> Result<(),CloneableError> {
     let zip = &*ZIP;
     let mut writer = zip.lock()?;
-    writer.deref_mut().start_file(dest_path, METADATA_ZIP_OPTIONS.to_owned())?;
+    writer.deref_mut().start_file(dest_path, ZIP_OPTIONS.to_owned())?;
     writer.deref_mut().write_all(source.contents())?;
     Ok(())
 }
