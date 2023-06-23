@@ -1,6 +1,4 @@
-use lazy_static::lazy_static;
-
-
+use once_cell::sync::Lazy;
 use crate::{group, paint_stack, stack, stack_on};
 use crate::image_tasks::color::{c, ComparableColor};
 use crate::image_tasks::task_spec::{from_svg_task, out_task, paint_svg_task, FileOutputTaskSpec, ToPixmapTaskSpec};
@@ -220,7 +218,7 @@ pub fn nether_fungus(name: &'static str, color: ComparableColor,
     }
  }
 
-lazy_static! {pub static ref ACACIA: Wood = overworld_wood(
+ pub static ACACIA: Lazy<Wood> = Lazy::new(|| overworld_wood(
     "acacia",
     c(0xad5d32),
     c(0xc26d3f),
@@ -254,8 +252,9 @@ lazy_static! {pub static ref ACACIA: Wood = overworld_wood(
         paint_svg_task("acaciaSapling", c(0x6c9e38)),
         paint_svg_task("acaciaSapling2", c(0xc9d7a5))
     )),
-);}
-lazy_static! {pub static ref BIRCH: Wood = {
+));
+
+pub static BIRCH: Lazy<Wood> = Lazy::new(|| {
     let mut base = overworld_wood(
         "birch",
         c(0xc8b77a),
@@ -298,8 +297,8 @@ lazy_static! {pub static ref BIRCH: Wood = {
     );
     base.grain_highlight_strength = 1.0;
     base
-};}
-lazy_static! {pub static ref DARK_OAK: Wood = overworld_wood(
+});
+pub static DARK_OAK: Lazy<Wood> = Lazy::new(|| overworld_wood(
     "dark_oak",
     c(0x3f2d23),
     c(0x3a2400),
@@ -330,8 +329,8 @@ lazy_static! {pub static ref DARK_OAK: Wood = overworld_wood(
         paint_svg_task("circle24BottomLeftTopRight", c(0x005c00)),
         paint_svg_task("circle24TopLeftBottomRight", c(0x57ad3f))
     )),
-);}
-lazy_static!{pub static ref JUNGLE: Wood = {
+));
+pub static JUNGLE: Lazy<Wood> = Lazy::new(|| {
     let mut base = overworld_wood(
         "jungle",
         c(0x9f714a),
@@ -373,8 +372,8 @@ lazy_static!{pub static ref JUNGLE: Wood = {
     base.grain_shadow_strength = 1.0;
     base.grain_highlight_strength = 1.0;
     base
-};}
-lazy_static!{pub static ref MANGROVE: Wood = {
+});
+pub static MANGROVE: Lazy<Wood> = Lazy::new(|| {
     let mut base = overworld_wood(
         "mangrove",
         c(0x773636),
@@ -411,8 +410,8 @@ lazy_static!{pub static ref MANGROVE: Wood = {
     );
     base.sapling_synonym = "propagule";
     base
-};}
-lazy_static!{pub static ref SPRUCE: Wood = overworld_wood(
+});
+pub static SPRUCE: Lazy<Wood> = Lazy::new(|| overworld_wood(
     "spruce",
     c(0x70583B),
     c(0x8A593A),
@@ -442,12 +441,15 @@ lazy_static!{pub static ref SPRUCE: Wood = overworld_wood(
         paint_svg_task("saplingStem", SPRUCE.bark_highlight),
         paint_svg_task("spruceSapling", c(0x2e492e))
     )),
-);}
-lazy_static!{pub static ref OAK: Wood = overworld_wood(
+));
+pub const OAK_COLOR: ComparableColor = c(0xaf8f55);
+pub const OAK_SHADOW: ComparableColor = c(0x70583b);
+pub const OAK_HIGHLIGHT: ComparableColor = c(0xc29d62);
+pub static OAK: Lazy<Wood> = Lazy::new(|| overworld_wood(
     "oak",
-    c(0xaf8f55),
-    c(0xc29d62),
-    c(0x70583b),
+    OAK_COLOR,
+    OAK_HIGHLIGHT,
+    OAK_SHADOW,
     c(0x70583b),
     c(0x987849),
     c(0x4a4a39),
@@ -501,9 +503,12 @@ lazy_static!{pub static ref OAK: Wood = overworld_wood(
         paint_svg_task("coal", c(0x57ad3f)),
         paint_svg_task("sunflowerPistil", c(0x005c00))
     ))
-);}
+));
 const FUNGUS_SPOT_COLOR: ComparableColor = c(0xff6500);
-lazy_static!{pub static ref CRIMSON: Wood = nether_fungus(
+pub const CRIMSON_LEAVES_COLOR: ComparableColor = c(0x7b0000);
+pub const CRIMSON_LEAVES_HIGHLIGHT: ComparableColor = c(0xac2020);
+pub const CRIMSON_LEAVES_SHADOW: ComparableColor = c(0x500000);
+pub static CRIMSON: Lazy<Wood> = Lazy::new(|| nether_fungus(
     "crimson",
     c(0x6a344b),
     c(0x4b2737),
@@ -511,9 +516,9 @@ lazy_static!{pub static ref CRIMSON: Wood = nether_fungus(
     c(0x4b2737),
     c(0x442929),
     c(0xba0000),
-    c(0x7b0000),
-    c(0x500000),
-    c(0xac2020),
+    CRIMSON_LEAVES_COLOR,
+    CRIMSON_LEAVES_HIGHLIGHT,
+    CRIMSON_LEAVES_SHADOW,
     Box::new(/*trapdoor*/ |_wood, _| stack!(
         paint_svg_task("borderSolidThick", CRIMSON.color),
         paint_svg_task("trapdoor1", CRIMSON.shadow),
@@ -540,8 +545,8 @@ lazy_static!{pub static ref CRIMSON: Wood = nether_fungus(
         paint_svg_task("mushroomCapRed", CRIMSON.leaves_color),
         paint_svg_task("crimsonFungusSpots", FUNGUS_SPOT_COLOR)
     )),
-);}
-lazy_static!{pub static ref WARPED: Wood = nether_fungus(
+));
+pub static WARPED: Lazy<Wood> = Lazy::new(|| nether_fungus(
     "warped",
     c(0x286c6c),
     c(0x3a8d8d),
@@ -581,7 +586,7 @@ lazy_static!{pub static ref WARPED: Wood = nether_fungus(
         paint_svg_task("warpedFungusCap", WARPED.leaves_color),
         paint_svg_task("warpedFungusSpots", FUNGUS_SPOT_COLOR)
     ))
-);}
+));
 
 impl Material for Wood {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {

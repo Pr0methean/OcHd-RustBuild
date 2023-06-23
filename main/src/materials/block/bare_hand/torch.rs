@@ -1,14 +1,12 @@
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use crate::image_tasks::task_spec::{from_svg_task, paint_svg_task, ToPixmapTaskSpec};
 use crate::materials::block::axe::wood::OAK;
 use crate::{group, single_texture_block, stack};
 use crate::image_tasks::color::ComparableColor;
-lazy_static!(
-    static ref TORCH_BASE: ToPixmapTaskSpec = stack!(
-        paint_svg_task("torchBase", OAK.highlight),
-        paint_svg_task("torchShadow", OAK.shadow)
-    );
-);
+pub static TORCH_BASE: Lazy<ToPixmapTaskSpec> = Lazy::new(|| stack!(
+    paint_svg_task("torchBase", OAK.highlight),
+    paint_svg_task("torchShadow", OAK.shadow)
+));
 single_texture_block!(TORCH = ComparableColor::TRANSPARENT,
     TORCH_BASE.to_owned(),
     from_svg_task("torchFlameSmall")

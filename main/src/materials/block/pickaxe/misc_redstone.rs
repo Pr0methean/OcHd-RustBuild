@@ -1,4 +1,4 @@
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use crate::image_tasks::task_spec::{from_svg_task, paint_svg_task, ToPixmapTaskSpec};
 use crate::materials::block::pickaxe::ore::REDSTONE;
 use crate::materials::block::pickaxe::simple_pickaxe_block::SMOOTH_STONE;
@@ -6,12 +6,11 @@ use crate::{block_with_colors, group, paint_stack, redstone_off_on_block, single
 use crate::image_tasks::color::{ComparableColor,c};
 use crate::texture_base::material::TricolorMaterial;
 
-lazy_static!{
-    static ref RC_BASE: ToPixmapTaskSpec = stack!(
+static RC_BASE: Lazy<ToPixmapTaskSpec> = Lazy::new(|| stack!(
         SMOOTH_STONE.material.texture(),
         paint_svg_task("repeaterSideInputs", ComparableColor::STONE_SHADOW)
-    );
-}
+    )
+);
 
 redstone_off_on_block!(REPEATER = stack!(
     RC_BASE.to_owned(),

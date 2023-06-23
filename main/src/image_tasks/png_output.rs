@@ -3,12 +3,12 @@ use include_dir::File;
 use std::io::{Cursor, Write};
 use std::mem::transmute;
 use std::ops::DerefMut;
-use std::sync::Mutex;
+use std::sync::{Mutex};
 use bitstream_io::{BigEndian, BitWrite, BitWriter};
 use bytemuck::cast;
 use itertools::Itertools;
-use lazy_static::lazy_static;
 use log::{info, warn};
+use once_cell::sync::Lazy;
 use oxipng::{BitDepth, ColorType, Deflaters, Options, RawImage};
 
 use resvg::tiny_skia::{ColorU8, Pixmap, PremultipliedColorU8};
@@ -26,47 +26,44 @@ pub type ZipBufferRaw = Cursor<Vec<u8>>;
 
 const PNG_BUFFER_SIZE: usize = 1024 * 1024;
 
-lazy_static!{
-
-    static ref ZIP_BUFFER_SIZE: usize = (*TILE_SIZE as usize) * 32 * 1024;
-    // Pixels are already deflated by oxipng, but they're still compressible, probably because PNG
-    // chunks are compressed independently.
-    static ref PNG_ZIP_OPTIONS: FileOptions = FileOptions::default()
+static ZIP_BUFFER_SIZE: Lazy<usize> = Lazy::new(|| (*TILE_SIZE as usize) * 32 * 1024);
+static PNG_ZIP_OPTIONS: Lazy<FileOptions> = Lazy::new(|| FileOptions::default()
+    .compression_method(Deflated)
+    .with_zopfli_buffer(Some(PNG_BUFFER_SIZE))
+    .compression_level(Some(if *TILE_SIZE < 2048 {
+    264
+} else if *TILE_SIZE < 4096 {
+    24
+} else {
+    8
+})));
+static METADATA_ZIP_OPTIONS: Lazy<FileOptions> = Lazy::new(|| {
+    FileOptions::default()
         .compression_method(Deflated)
-        .with_zopfli_buffer(Some(PNG_BUFFER_SIZE))
-        .compression_level(Some(if *TILE_SIZE < 2048 {
-        264
-    } else if *TILE_SIZE < 4096 {
-        24
+        .compression_level(Some(264))
+});
+pub static ZIP: Lazy<Mutex<ZipWriter<ZipBufferRaw>>> = Lazy::new(|| Mutex::new(ZipWriter::new(Cursor::new(
+    Vec::with_capacity(*ZIP_BUFFER_SIZE)))));
+static OXIPNG_OPTIONS: Lazy<Options> = Lazy::new(|| {
+    let mut options = Options::from_preset(if *TILE_SIZE < 1024 {
+        6
+    } else if *TILE_SIZE < 2048 {
+        5
     } else {
-        8
-    }));
-    static ref METADATA_ZIP_OPTIONS: FileOptions = FileOptions::default()
-        .compression_method(Deflated)
-        .compression_level(Some(264));
-    pub static ref ZIP: Mutex<ZipWriter<ZipBufferRaw>> = Mutex::new(ZipWriter::new(Cursor::new(
-        Vec::with_capacity(*ZIP_BUFFER_SIZE))));
-    static ref OXIPNG_OPTIONS: Options = {
-        let mut options = Options::from_preset(if *TILE_SIZE < 1024 {
-            6
-        } else if *TILE_SIZE < 2048 {
-            5
-        } else {
-            4
-        });
-        options.deflate = if *TILE_SIZE < 64 {
-            Deflaters::Zopfli {iterations: u8::MAX.try_into().unwrap() }
-        } else if *TILE_SIZE < 128 {
-            Deflaters::Zopfli {iterations: 100.try_into().unwrap() }
-        } else if *TILE_SIZE < 4096 {
-            Deflaters::Libdeflater {compression: 12}
-        } else {
-            Deflaters::Libdeflater {compression: 10}
-        };
-        options.optimize_alpha = true;
-        options
+        4
+    });
+    options.deflate = if *TILE_SIZE < 64 {
+        Deflaters::Zopfli {iterations: u8::MAX.try_into().unwrap() }
+    } else if *TILE_SIZE < 128 {
+        Deflaters::Zopfli {iterations: 100.try_into().unwrap() }
+    } else if *TILE_SIZE < 4096 {
+        Deflaters::Libdeflater {compression: 12}
+    } else {
+        Deflaters::Libdeflater {compression: 10}
     };
-}
+    options.optimize_alpha = true;
+    options
+});
 
 pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
                   bit_depth: BitDepth, file_path: String) -> Result<(),CloneableError> {
@@ -196,23 +193,23 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
     let png = RawImage::new(width, height, color_type, bit_depth, raw_bytes)?
         .create_optimized_png(&OXIPNG_OPTIONS)?;
     info!("Finished PNG optimization for {}", file_path);
-    let mut zip = ZIP.lock()?;
-    let writer = zip.deref_mut();
-    writer.start_file(file_path, PNG_ZIP_OPTIONS.to_owned())?;
-    writer.write_all(&png)?;
+    let zip = &*ZIP;
+    let mut writer = zip.lock()?;
+    writer.deref_mut().start_file(file_path, PNG_ZIP_OPTIONS.to_owned())?;
+    writer.deref_mut().write_all(&png)?;
     Ok(())
 }
 
 pub fn copy_out_to_out(source_path: String, dest_path: String) -> Result<(),CloneableError> {
-    ZIP.lock()?.deep_copy_file(&source_path, &dest_path)?;
+    ZIP.lock()?.deref_mut().deep_copy_file(&source_path, &dest_path)?;
     Ok(())
 }
 
 pub fn copy_in_to_out(source: &File, dest_path: String) -> Result<(),CloneableError> {
-    let mut zip = ZIP.lock()?;
-    let writer = zip.deref_mut();
-    writer.start_file(dest_path, METADATA_ZIP_OPTIONS.to_owned())?;
-    writer.write_all(source.contents())?;
+    let zip = &*ZIP;
+    let mut writer = zip.lock()?;
+    writer.deref_mut().start_file(dest_path, METADATA_ZIP_OPTIONS.to_owned())?;
+    writer.deref_mut().write_all(source.contents())?;
     Ok(())
 }
 

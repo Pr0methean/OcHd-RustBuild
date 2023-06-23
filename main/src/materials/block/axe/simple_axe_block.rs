@@ -1,9 +1,7 @@
-use lazy_static::lazy_static;
-
 use crate::{copy_block, group};
 use crate::image_tasks::color::{ComparableColor, c};
 use crate::image_tasks::task_spec::{from_svg_task, paint_svg_task};
-use crate::materials::block::axe::wood::{BIRCH, DARK_OAK, OAK, SPRUCE};
+use crate::materials::block::axe::wood::{BIRCH, DARK_OAK, OAK, OAK_COLOR, SPRUCE};
 use crate::materials::block::bare_hand::simple_bare_hand_block::{HONEYCOMB_BORDER, HONEYCOMB_CELLS};
 use crate::paint_stack;
 use crate::single_texture_block;
@@ -60,13 +58,11 @@ single_texture_block!(COMPOSTER_BOTTOM = OAK.shadow,
     paint_svg_task("borderSolidThick", OAK.shadow),
     paint_svg_task("borderSolid", OAK.color)
 );
-lazy_static! {
-    pub static ref COMPOSTER_TOP: SingleLayerMaterial = SingleLayerMaterial{
-        name: "block/composter_top",
-        layer_name: "borderSolidThick",
-        color: Some(OAK.color)
-    };
-}
+pub const COMPOSTER_TOP: SingleLayerMaterial = SingleLayerMaterial{
+    name: "block/composter_top",
+    layer_name: "borderSolidThick",
+    color: Some(OAK_COLOR)
+};
 
 single_texture_block!(COMPOSTER_SIDE = OAK.color,
     paint_svg_task("railTies", OAK.shadow),

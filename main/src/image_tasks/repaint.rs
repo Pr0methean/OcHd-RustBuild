@@ -1,6 +1,6 @@
-use lazy_static::lazy_static;
 use lockfree_object_pool::LinearObjectPool;
 use log::info;
+use once_cell::sync::Lazy;
 use resvg::tiny_skia::{Mask, Paint, Pixmap, Rect, Transform};
 use crate::{anyhoo, GRID_SIZE, TILE_SIZE};
 
@@ -8,26 +8,26 @@ use crate::image_tasks::{allocate_pixmap_empty, MaybeFromPool};
 use crate::image_tasks::cloneable::CloneableError;
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::MaybeFromPool::NotFromPool;
-lazy_static!{
-    static ref TILE_SIZE_MASK_POOL: LinearObjectPool<Mask> = LinearObjectPool::new(
-        || {
-            info!("Allocating a tile-size Mask for pool");
-            Mask::new(*TILE_SIZE, *TILE_SIZE).expect("Failed to allocate a Mask for pool")
-        },
-        |_| {} // don't need to reset because we always overwrite
-    );
-    static ref GRID_SIZE_MASK_POOL: LinearObjectPool<Mask> = LinearObjectPool::new(
-        || {
-            info!("Allocating a grid-size Mask for pool");
-            Mask::new(GRID_SIZE, GRID_SIZE).expect("Failed to allocate a Mask for pool")
-        },
-        |_| {} // don't need to reset because we always overwrite
-    );
-}
+static TILE_SIZE_MASK_POOL: Lazy<LinearObjectPool<Mask>> = Lazy::new(|| LinearObjectPool::new(
+    || {
+        info!("Allocating a tile-size Mask for pool");
+        let tile_size: u32 = *TILE_SIZE;
+        Mask::new(tile_size, tile_size).expect("Failed to allocate a Mask for pool")
+    },
+    |_| {} // don't need to reset because we always overwrite
+));
+static GRID_SIZE_MASK_POOL: Lazy<LinearObjectPool<Mask>> = Lazy::new(|| LinearObjectPool::new(
+    || {
+        info!("Allocating a grid-size Mask for pool");
+        Mask::new(GRID_SIZE, GRID_SIZE).expect("Failed to allocate a Mask for pool")
+    },
+    |_| {} // don't need to reset because we always overwrite
+));
 
 pub fn prewarm_mask_pool() {
     GRID_SIZE_MASK_POOL.pull();
-    if *TILE_SIZE != GRID_SIZE {
+    let tile_size = *TILE_SIZE;
+    if tile_size != GRID_SIZE {
         TILE_SIZE_MASK_POOL.pull();
     }
 }
@@ -49,14 +49,17 @@ pub fn allocate_mask_for_overwrite(width: u32, height: u32) -> MaybeFromPool<Mas
         MaybeFromPool::FromPool {
             reusable: GRID_SIZE_MASK_POOL.pull(),
         }
-    } else if width == *TILE_SIZE && height == *TILE_SIZE {
-        info!("Borrowing a tile-size Mask from pool");
-        MaybeFromPool::FromPool {
-            reusable: TILE_SIZE_MASK_POOL.pull(),
-        }
     } else {
-        info!("Allocating a Mask outside pool for unusual size {}x{}", width, height);
-        NotFromPool(Mask::new(width, height).expect("Failed to allocate a Mask outside pool"))
+        let tile_size = *TILE_SIZE;
+        if width == tile_size && height == tile_size {
+            info!("Borrowing a tile-size Mask from pool");
+            MaybeFromPool::FromPool {
+                reusable: TILE_SIZE_MASK_POOL.pull(),
+            }
+        } else {
+            info!("Allocating a Mask outside pool for unusual size {}x{}", width, height);
+            NotFromPool(Mask::new(width, height).expect("Failed to allocate a Mask outside pool"))
+        }
     }
 }
 

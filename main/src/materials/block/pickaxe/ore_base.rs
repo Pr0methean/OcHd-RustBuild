@@ -1,4 +1,5 @@
-use lazy_static::lazy_static;
+use std::borrow::ToOwned;
+use once_cell::sync::Lazy;
 use crate::image_tasks::color::{ComparableColor, c};
 use crate::image_tasks::task_spec::paint_svg_task;
 use crate::{block_with_colors, group, paint_stack};
@@ -27,12 +28,11 @@ block_with_colors!(NETHERRACK = c(0x723232), c(0x500000), c(0x854242),
 
 group!(ORE_BASES = STONE, DEEPSLATE, NETHERRACK);
 
+#[derive(Clone)]
 pub struct OreBase {
     pub block_name_prefix: &'static str,
-    pub material: &'static SingleTextureTricolorMaterial,
+    pub material: SingleTextureTricolorMaterial,
 }
-lazy_static! {
-    pub static ref STONE_BASE: OreBase = OreBase {block_name_prefix: "", material: &STONE };
-    pub static ref DEEPSLATE_BASE: OreBase = OreBase {block_name_prefix: "deepslate_", material: &DEEPSLATE};
-    pub static ref NETHERRACK_BASE: OreBase = OreBase {block_name_prefix: "nether_", material: &NETHERRACK};
-}
+pub static STONE_BASE: Lazy<OreBase> = Lazy::new(|| OreBase {block_name_prefix: "", material: STONE.to_owned() });
+pub static DEEPSLATE_BASE: Lazy<OreBase> = Lazy::new(|| OreBase {block_name_prefix: "deepslate_", material: DEEPSLATE.to_owned()});
+pub static NETHERRACK_BASE: Lazy<OreBase> = Lazy::new(|| OreBase {block_name_prefix: "nether_", material: NETHERRACK.to_owned()});

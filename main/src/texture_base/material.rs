@@ -8,7 +8,7 @@ use crate::image_tasks::color::{c, ComparableColor};
 use crate::image_tasks::task_spec::{FileOutputTaskSpec, from_svg_task, out_task, paint_svg_task, ToPixmapTaskSpec};
 
 /// Specification in DSL form of how one or more texture images are to be generated.
-pub trait Material: Send {
+pub trait Material {
     /// Converts this specification to a number of [PngOutput] instances, each of which references
     /// another [TaskSpec] to generate the image it will output.
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec>;
@@ -45,8 +45,8 @@ pub const DEFAULT_GROUP_SIZE: usize = 1024;
 #[macro_export]
 macro_rules! group {
     ($name:ident = $( $members:expr ),* ) => {
-        lazy_static::lazy_static! {pub static ref $name: $crate::texture_base::material::MaterialGroup
-        = {
+        pub static $name: once_cell::sync::Lazy<$crate::texture_base::material::MaterialGroup>
+        = once_cell::sync::Lazy::new(|| {
             let mut tasks: Vec<$crate::image_tasks::task_spec::FileOutputTaskSpec>
                 = Vec::with_capacity($crate::texture_base::material::DEFAULT_GROUP_SIZE);
             $({
@@ -56,7 +56,7 @@ macro_rules! group {
             })*
             tasks.shrink_to_fit();
             $crate::texture_base::material::MaterialGroup { tasks }
-        };}
+        });
     }
 }
 
@@ -116,15 +116,15 @@ impl Material for SingleTextureMaterial {
 #[macro_export]
 macro_rules! material {
     ($name:ident = $directory:expr, $texture:expr) => {
-        lazy_static::lazy_static! {
-            pub static ref $name: $crate::texture_base::material::SingleTextureMaterial =
+        pub static $name: once_cell::sync::Lazy<$crate::texture_base::material::SingleTextureMaterial>
+            = once_cell::sync::Lazy::new(||
                     $crate::texture_base::material::SingleTextureMaterial::new(
                         const_format::concatcp!($directory, "/",
                             const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name))
                         ),
                         $texture.into()
-            );
-        }
+            )
+        );
     }
 }
 
@@ -226,14 +226,14 @@ impl Material for CopiedMaterial {
 #[macro_export]
 macro_rules! copy_block {
     ($name:ident = $base:expr, $base_name:expr) => {
-        lazy_static::lazy_static! {pub static ref $name: $crate::texture_base::material::CopiedMaterial =
-        $crate::texture_base::material::CopiedMaterial {
+        pub static $name: once_cell::sync::Lazy<$crate::texture_base::material::CopiedMaterial> =
+        once_cell::sync::Lazy::new(|| $crate::texture_base::material::CopiedMaterial {
             name: const_format::concatcp!("block/", const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name))),
             source: {
                 use $crate::texture_base::material::Material;
                 $base.get_output_task_by_name($base_name).unwrap()
             }
-        };}
+        });
     }
 }
 
@@ -249,8 +249,8 @@ macro_rules! block_with_colors {
         macro_rules! highlight {
             () => { $highlight }
         }
-        lazy_static::lazy_static! {
-            pub static ref $name: $crate::texture_base::material::SingleTextureTricolorMaterial =
+        pub static $name: once_cell::sync::Lazy<$crate::texture_base::material::SingleTextureTricolorMaterial>
+            = once_cell::sync::Lazy::new(||
             $crate::texture_base::material::SingleTextureTricolorMaterial {
                 colors: $crate::texture_base::material::ColorTriad {
                     color: color!(),
@@ -263,8 +263,8 @@ macro_rules! block_with_colors {
                     ),
                     $crate::stack_on!($background, $($layers),*).into()
                 )
-            };
-        }
+            }
+        );
     }
 }
 
@@ -403,8 +403,8 @@ impl Material for RedstoneOffOnBlockPair {
 #[macro_export]
 macro_rules! redstone_off_on_block {
     ($name:ident = $create_texture:expr ) => {
-        lazy_static::lazy_static! {pub static ref $name: $crate::texture_base::material::RedstoneOffOnBlockPair =
-        $crate::texture_base::material::RedstoneOffOnBlockPair {
+        pub static $name: once_cell::sync::Lazy<$crate::texture_base::material::RedstoneOffOnBlockPair> =
+        once_cell::sync::Lazy::new(|| $crate::texture_base::material::RedstoneOffOnBlockPair {
             name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
             create_texture: Box::new(|state_color| { {
                 macro_rules! state_color {
@@ -412,7 +412,7 @@ macro_rules! redstone_off_on_block {
                 }
                 $create_texture
             } })
-        };}
+        });
     }
 }
 

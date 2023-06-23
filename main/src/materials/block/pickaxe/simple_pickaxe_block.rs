@@ -1,4 +1,4 @@
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use crate::image_tasks::color::{ComparableColor, c};
 use crate::image_tasks::task_spec::{from_svg_task, paint_svg_task, paint_task, stack_alpha, svg_alpha_task, ToPixmapTaskSpec};
 use crate::materials::block::pickaxe::ore_base::DEEPSLATE;
@@ -28,12 +28,10 @@ quartz!(QUARTZ_BLOCK_TOP = color!(),
                 paint_stack!(highlight!(), "borderSolidTopLeft", "streaks")
 );
 
-lazy_static! {
-    pub static ref QUARTZ_BLOCK_BOTTOM: SingleTextureMaterial =
-        SingleTextureMaterial::new("block/quartz_block_bottom", (QUARTZ.refined_block)(&QUARTZ));
-    pub static ref QUARTZ_BLOCK_SIDE: SingleTextureMaterial =
-        SingleTextureMaterial::new("block/quartz_block_side", (QUARTZ.raw_block)(&QUARTZ));
-}
+pub static QUARTZ_BLOCK_BOTTOM: Lazy<SingleTextureMaterial> =
+    Lazy::new(|| SingleTextureMaterial::new("block/quartz_block_bottom", (QUARTZ.refined_block)(&QUARTZ)));
+pub static QUARTZ_BLOCK_SIDE: Lazy<SingleTextureMaterial> =
+    Lazy::new(|| SingleTextureMaterial::new("block/quartz_block_side", (QUARTZ.raw_block)(&QUARTZ)));
 
 macro_rules! stone {
     ($name:ident = $background:expr, $($layers:expr),*) => {
@@ -65,13 +63,11 @@ stone!(SMOOTH_STONE =
     paint_svg_task("borderSolid", extreme_shadow!())
 );
 
-lazy_static! {
-    static ref COBBLESTONE_BASE: ToPixmapTaskSpec = stack_on!(
-        ComparableColor::STONE_HIGHLIGHT,
-        paint_svg_task("checksLarge", ComparableColor::STONE_SHADOW),
-        paint_svg_task("checksSmall", ComparableColor::STONE)
-    );
-}
+static COBBLESTONE_BASE: Lazy<ToPixmapTaskSpec> = Lazy::new(|| stack_on!(
+    ComparableColor::STONE_HIGHLIGHT,
+    paint_svg_task("checksLarge", ComparableColor::STONE_SHADOW),
+    paint_svg_task("checksSmall", ComparableColor::STONE)
+));
 
 stone!(COBBLESTONE =
     ComparableColor::TRANSPARENT,
@@ -130,13 +126,11 @@ sandstone!(CHISELED_SANDSTONE =
     paint_svg_task("creeperFaceSmall", shadow!())
 );
 
-lazy_static!{
-    static ref RED_SANDSTONE_BASE: ToPixmapTaskSpec = stack_on!(
-        RED_SAND.color(),
-        paint_svg_task("checksLarge", RED_SAND.highlight()),
-        paint_svg_task("checksLargeOutline", RED_SAND.shadow())
-    );
-}
+static RED_SANDSTONE_BASE: Lazy<ToPixmapTaskSpec> = Lazy::new(|| stack_on!(
+    RED_SAND.color(),
+    paint_svg_task("checksLarge", RED_SAND.highlight()),
+    paint_svg_task("checksLargeOutline", RED_SAND.shadow())
+));
 
 make_tricolor_block_macro!(red_sandstone, RED_SAND.color(), RED_SAND.shadow(), RED_SAND.highlight());
 

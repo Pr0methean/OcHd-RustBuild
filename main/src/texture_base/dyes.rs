@@ -34,12 +34,14 @@ dyes!(
     WHITE = ComparableColor::WHITE
 );
 
-pub struct DyedBlock {
+pub struct DyedBlock<T = fn(ComparableColor) -> ToPixmapTaskSpec>
+    where T: Fn(ComparableColor) -> ToPixmapTaskSpec {
     pub name: &'static str,
-    pub create_dyed_texture: Box<dyn Fn(ComparableColor) -> ToPixmapTaskSpec + Send + Sync>
+    pub create_dyed_texture: T
 }
 
-impl Material for DyedBlock {
+impl <T> Material for DyedBlock<T>
+    where T: Fn(ComparableColor) -> ToPixmapTaskSpec {
     fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
         let mut out  = Vec::with_capacity(DYES.len());
         for (dye_name, dye_color) in DYES {
@@ -54,17 +56,14 @@ impl Material for DyedBlock {
 #[macro_export]
 macro_rules! dyed_block {
     ($name:ident = $create_dyed_texture:expr) => {
-        lazy_static::lazy_static! {
-            pub static ref $name: $crate::texture_base::dyes::DyedBlock =
-            $crate::texture_base::dyes::DyedBlock {
-                name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
-                create_dyed_texture: Box::new(|color| {
-                    macro_rules! color {
-                        () => { color }
-                    }
-                    $create_dyed_texture
-                })
-            };
-        }
+        pub const $name: $crate::texture_base::dyes::DyedBlock = $crate::texture_base::dyes::DyedBlock {
+            name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
+            create_dyed_texture: |color| {
+                macro_rules! color {
+                    () => { color }
+                }
+                $create_dyed_texture
+            }
+        };
     }
 }
