@@ -11,7 +11,7 @@ use bytemuck::cast;
 use itertools::Itertools;
 use log::{info, warn};
 use once_cell::sync::Lazy;
-use oxipng::{BitDepth, ColorType, Deflaters, IndexSet, Options, RawImage, RowFilter};
+use oxipng::{BitDepth, ColorType, Deflaters, Options, RawImage};
 use oxipng::internal_tests::BufferedZopfliDeflater;
 
 use resvg::tiny_skia::{ColorU8, Pixmap, PremultipliedColorU8};
@@ -52,19 +52,6 @@ static OXIPNG_OPTIONS: Lazy<Options> = Lazy::new(|| {
     options.optimize_alpha = true;
     options
 });
-
-fn png_filters_to_try(file_path: &str) -> Option<IndexSet<RowFilter>> {
-    let tile_size = *TILE_SIZE;
-    if tile_size > 2048 {
-        if file_path.contains("compass") {
-            Some(IndexSet::from([RowFilter::None]))
-        } else {
-            None
-        }
-    } else {
-        None
-    }
-}
 
 pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
                   bit_depth: BitDepth, file_path: String) -> Result<(),CloneableError> {
@@ -190,17 +177,9 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
             bit_writer.into_writer().into_inner()
         }
     };
-    let mut mut_png_options: Options;
-    let png_options = if let Some(png_filters) = png_filters_to_try(&file_path) {
-        mut_png_options = OXIPNG_OPTIONS.clone();
-        mut_png_options.filter = png_filters;
-        &mut_png_options
-    } else {
-        &*OXIPNG_OPTIONS
-    };
     info!("Starting PNG optimization for {}", file_path);
     let png = RawImage::new(width, height, color_type, bit_depth, raw_bytes)?
-        .create_optimized_png(png_options, &*ZOPFLI_DEFLATER)?;
+        .create_optimized_png(&OXIPNG_OPTIONS, &*ZOPFLI_DEFLATER)?;
     info!("Finished PNG optimization for {}", file_path);
     let zip = &*ZIP;
     let mut writer = zip.lock()?;
