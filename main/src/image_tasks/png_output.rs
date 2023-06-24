@@ -1,3 +1,4 @@
+use std::borrow::ToOwned;
 use std::collections::HashMap;
 use include_dir::File;
 use std::io::{Cursor, Write};
@@ -36,7 +37,7 @@ static ZOPFLI_OPTIONS: Lazy<zopfli::Options> = Lazy::new(|| zopfli::Options {
 static ZOPFLI_DEFLATER: Lazy<BufferedZopfliDeflater> = Lazy::new(|| BufferedZopfliDeflater::new(
     (*TILE_SIZE as usize) * (*TILE_SIZE as usize) * 12,
     PNG_BUFFER_SIZE,
-    ZOPFLI_OPTIONS
+    ZOPFLI_OPTIONS.to_owned()
 ));
 static ZIP_BUFFER_SIZE: Lazy<usize> = Lazy::new(|| (*TILE_SIZE as usize) * 32 * 1024);
 static ZIP_OPTIONS: Lazy<FileOptions> = Lazy::new(|| FileOptions::default()
@@ -47,7 +48,7 @@ pub static ZIP: Lazy<Mutex<ZipWriter<ZipBufferRaw>>> = Lazy::new(|| Mutex::new(Z
     Vec::with_capacity(*ZIP_BUFFER_SIZE)))));
 static OXIPNG_OPTIONS: Lazy<Options> = Lazy::new(|| {
     let mut options = Options::from_preset(6);
-        options.deflate = Deflaters::Zopfli { options: ZOPFLI_OPTIONS };
+        options.deflate = Deflaters::Zopfli { options: ZOPFLI_OPTIONS.to_owned() };
     options.optimize_alpha = true;
     options
 });
@@ -199,7 +200,7 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
     };
     info!("Starting PNG optimization for {}", file_path);
     let png = RawImage::new(width, height, color_type, bit_depth, raw_bytes)?
-        .create_optimized_png(&png_options, &*ZOPFLI_DEFLATER)?;
+        .create_optimized_png(png_options, &*ZOPFLI_DEFLATER)?;
     info!("Finished PNG optimization for {}", file_path);
     let zip = &*ZIP;
     let mut writer = zip.lock()?;
