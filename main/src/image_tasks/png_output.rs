@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use include_dir::File;
 use std::io::{Cursor, Write};
 use std::mem::transmute;
+use std::num::NonZeroU64;
 use std::ops::DerefMut;
 use std::sync::{Mutex};
 use bitstream_io::{BigEndian, BitWrite, BitWriter};
@@ -27,11 +28,15 @@ pub type ZipBufferRaw = Cursor<Vec<u8>>;
 
 const PNG_BUFFER_SIZE: usize = 1024 * 1024;
 
+static ZOPFLI_OPTIONS: Lazy<zopfli::Options> = Lazy::new(|| zopfli::Options {
+    iteration_count: None,
+    iterations_without_improvement: NonZeroU64::new(250),
+    maximum_block_splits: (2 * GRID_SIZE) as u16
+});
 static ZOPFLI_DEFLATER: Lazy<BufferedZopfliDeflater> = Lazy::new(|| BufferedZopfliDeflater::new(
-    255.try_into().unwrap(),
     (*TILE_SIZE as usize) * (*TILE_SIZE as usize) * 12,
     PNG_BUFFER_SIZE,
-    (2 * GRID_SIZE) as u16
+    ZOPFLI_OPTIONS
 ));
 static ZIP_BUFFER_SIZE: Lazy<usize> = Lazy::new(|| (*TILE_SIZE as usize) * 32 * 1024);
 static ZIP_OPTIONS: Lazy<FileOptions> = Lazy::new(|| FileOptions::default()
@@ -42,7 +47,7 @@ pub static ZIP: Lazy<Mutex<ZipWriter<ZipBufferRaw>>> = Lazy::new(|| Mutex::new(Z
     Vec::with_capacity(*ZIP_BUFFER_SIZE)))));
 static OXIPNG_OPTIONS: Lazy<Options> = Lazy::new(|| {
     let mut options = Options::from_preset(6);
-        options.deflate = Deflaters::Zopfli {iterations: u8::MAX.try_into().unwrap() };
+        options.deflate = Deflaters::Zopfli { options: ZOPFLI_OPTIONS };
     options.optimize_alpha = true;
     options
 });
