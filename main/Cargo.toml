@@ -21,7 +21,7 @@ include_dir = "0.7.3"
 tikv-jemallocator = "0.5.0"
 zip_next = {version = "0.10.3", default-features = false, features = ["deflate-zlib-ng", "deflate-zopfli"]}
 zopfli = {git = "https://github.com/Pr0methean/zopfli.git", branch = "iterations-without-improvement", optional = true, default-features = false, features = ["std", "zlib"] }
-oxipng = {git = "https://github.com/Pr0methean/oxipng.git", branch = "pr522+pr524", default-features = false, features = ["zopfli"]}
+oxipng = {git = "https://github.com/Pr0methean/oxipng.git", branch = "pr522+pr524", default-features = false, features = ["zopfli", "parallel"]}
 bitstream-io = "1.6.0"
 num_cpus = "1.15.0"
 palette = "0.7.2"
