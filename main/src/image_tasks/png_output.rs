@@ -66,8 +66,13 @@ static OXIPNG_OPTIONS: Lazy<Options> = Lazy::new(|| {
 });
 
 fn png_filters_to_try(file_path: &str) -> Option<IndexSet<RowFilter>> {
-    if file_path.contains("compass") {
-        Some(IndexSet::from([RowFilter::None]))
+    let tile_size = *TILE_SIZE;
+    if tile_size > 2048 {
+        if file_path.contains("compass") {
+            Some(IndexSet::from([RowFilter::None]))
+        } else {
+            None
+        }
     } else {
         None
     }
