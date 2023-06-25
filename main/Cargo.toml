@@ -20,8 +20,8 @@ png = "0.17.9"
 include_dir = "0.7.3"
 tikv-jemallocator = "0.5.0"
 zip_next = {version = "0.10.3", default-features = false, features = ["deflate-zlib-ng", "deflate-zopfli"]}
-zopfli = {git = "https://github.com/Pr0methean/zopfli.git", branch = "iterations-without-improvement", default-features = false, features = ["std", "zlib"] }
-oxipng = {git = "https://github.com/Pr0methean/oxipng.git", branch = "test-zopfli-pr-21", default-features = false, features = ["zopfli"]}
+zopfli = {git = "https://github.com/Pr0methean/zopfli.git", branch = "pr21+pr22", default-features = false, features = ["std", "zlib"] }
+oxipng = {git = "https://github.com/Pr0methean/oxipng.git", branch = "test-zopfli-pr21+pr22", default-features = false, features = ["zopfli"]}
 bitstream-io = "1.6.0"
 num_cpus = "1.15.0"
 palette = "0.7.2"
