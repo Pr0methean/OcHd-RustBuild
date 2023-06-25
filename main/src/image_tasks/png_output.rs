@@ -21,7 +21,7 @@ use zip_next::ZipWriter;
 
 use crate::image_tasks::MaybeFromPool;
 use crate::image_tasks::task_spec::channel_to_bit_depth;
-use crate::{GRID_SIZE, TILE_SIZE};
+use crate::{GRID_SIZE, TILE_SIZE, ZOPFLI_ITERS};
 use crate::image_tasks::cloneable::CloneableError;
 use crate::image_tasks::color::ComparableColor;
 
@@ -31,7 +31,7 @@ const PNG_BUFFER_SIZE: usize = 1024 * 1024;
 
 static ZOPFLI_OPTIONS: Lazy<zopfli::Options> = Lazy::new(|| zopfli::Options {
     iteration_count: None,
-    iterations_without_improvement: NonZeroU64::new(1250),
+    iterations_without_improvement: NonZeroU64::new(*ZOPFLI_ITERS),
     maximum_block_splits: (2 * GRID_SIZE) as u16
 });
 static ZOPFLI_DEFLATER: Lazy<BufferedZopfliDeflater> = Lazy::new(|| BufferedZopfliDeflater::new(

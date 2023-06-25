@@ -102,7 +102,7 @@ jobs:
           no_output_timeout: 1h
           command: |
             cd main
-            ./target/release/ochd << parameters.size >>
+            ./target/release/ochd << parameters.size >> 15
       - store_artifacts:
           path: 'main/out/OcHD-<< parameters.size >>x<< parameters.size >>.zip'
       - store_artifacts:

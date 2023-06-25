@@ -39,11 +39,19 @@ static ARGS: Lazy<Vec<String>> = Lazy::new(|| env::args().collect());
 
 #[cfg(not(any(test,clippy)))]
 static TILE_SIZE: Lazy<u32> = Lazy::new(||
-        ARGS.get(1).expect("Usage: OcHd-RustBuild <tile-size>").parse::<u32>()
+        ARGS.get(1).expect("Usage: OcHd-RustBuild <tile-size> <iterations>").parse::<u32>()
             .expect("Tile size (first command-line argument) must be an integer"));
 
 #[cfg(any(test,clippy))]
 const TILE_SIZE: &u32 = &128;
+
+#[cfg(not(any(test,clippy)))]
+static ZOPFLI_ITERS: Lazy<u64> = Lazy::new(||
+    ARGS.get(2).expect("Usage: OcHd-RustBuild <tile-size> <iterations>").parse::<u64>()
+        .expect("Iterations (second command-line argument) must be an integer"));
+
+#[cfg(any(test,clippy))]
+const ZOPFLI_ITERS: &u32 = &15;
 
 #[global_allocator]
 static ALLOCATOR: Jemalloc = Jemalloc;
