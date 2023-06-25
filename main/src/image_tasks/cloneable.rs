@@ -9,12 +9,12 @@ pub type CloneableResult<T> = Result<Arc<Box<T>>, CloneableError>;
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct CloneableError {
-    message: String
+    message: Arc<str>
 }
 
 impl <T> From<T> for CloneableError where T: ToString {
     fn from(value: T) -> Self {
-        CloneableError {message: value.to_string()}
+        CloneableError {message: value.to_string().into()}
     }
 }
 
@@ -31,7 +31,7 @@ pub enum CloneableLazyTaskState<T> where T: ?Sized {
 
 #[derive(Clone,Debug)]
 pub struct CloneableLazyTask<T> where T: ?Sized {
-    pub name: String,
+    pub name: Arc<str>,
     state: Arc<Mutex<CloneableLazyTaskState<T>>>
 }
 
@@ -59,18 +59,18 @@ impl <T> Debug for CloneableLazyTaskState<T> where T: ?Sized {
 }
 
 impl <T> CloneableLazyTask<T> where T: ?Sized {
-    pub fn new(name: String, base: LazyTaskFunction<T>) -> CloneableLazyTask<T> {
+    pub fn new(name: &str, base: LazyTaskFunction<T>) -> CloneableLazyTask<T> {
         CloneableLazyTask {
-            name,
+            name: name.into(),
             state: Arc::new(Mutex::new(CloneableLazyTaskState::Upcoming {
                 function: base
             }))
         }
     }
 
-    pub fn new_immediate_ok(name: String, result: Box<T>) -> CloneableLazyTask<T> {
+    pub fn new_immediate_ok(name: &str, result: Box<T>) -> CloneableLazyTask<T> {
         CloneableLazyTask {
-            name,
+            name: name.into(),
             state: Arc::new(Mutex::new(CloneableLazyTaskState::Finished {
                 result: Ok(Arc::new(result))
             }))

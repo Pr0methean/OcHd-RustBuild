@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use once_cell::sync::Lazy;
 use crate::{group, paint_stack, stack, stack_on};
 use crate::image_tasks::color::{c, ComparableColor};
@@ -589,12 +590,12 @@ pub static WARPED: Lazy<Wood> = Lazy::new(|| nether_fungus(
 ));
 
 impl Material for Wood {
-    fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
+    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
         let door_common_layers: ToPixmapTaskSpec = (self.door_common_layers)(self);
         let door_bottom: ToPixmapTaskSpec = (self.door_bottom)(self, door_common_layers.to_owned());
         let stripped_log_side: ToPixmapTaskSpec = (self.stripped_log_side)(self);
         let stripped_log_top: ToPixmapTaskSpec = (self.stripped_log_top)(self);
-        vec![
+        Arc::new([
             out_task(&format!("block/{}_{}", self.name, self.log_synonym), (self.bark)(self)),
             out_task(&format!("block/stripped_{}_{}", self.name, self.log_synonym), stripped_log_side),
             out_task(&format!("block/stripped_{}_{}_top", self.name, self.log_synonym), stripped_log_top.to_owned()),
@@ -605,7 +606,7 @@ impl Material for Wood {
             out_task(&format!("block/{}_{}", self.name, self.leaves_synonym), (self.leaves)(self)),
             out_task(&format!("block/{}_{}", self.name, self.sapling_synonym), (self.sapling)(self)),
             out_task(&format!("block/{}_planks", self.name), self.planks())
-        ]
+        ])
     }
 }
 

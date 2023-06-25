@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use crate::image_tasks::color::{ComparableColor, c};
 use crate::image_tasks::task_spec::{FileOutputTaskSpec, out_task, paint_svg_task, ToPixmapTaskSpec};
 use crate::materials::block::axe::wood::{CRIMSON_LEAVES_HIGHLIGHT, CRIMSON_LEAVES_SHADOW};
@@ -18,7 +19,7 @@ where T: Fn(u8) -> ToPixmapTaskSpec, U: Fn() -> ToPixmapTaskSpec
 }
 
 impl Material for Crop {
-    fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
+    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
         let mut output = Vec::with_capacity(self.stages as usize);
         for stage in 0..(self.stages - 1) {
             output.push(out_task(
@@ -30,7 +31,7 @@ impl Material for Crop {
             &format!("block/{}_stage{}", self.name, self.stages - 1),
             (self.create_texture_for_final_stage)()
         ));
-        output
+        output.into()
     }
 }
 
