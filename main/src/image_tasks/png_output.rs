@@ -184,7 +184,7 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
     };
     let raw_image = RawImage::new(width, height, color_type, bit_depth, raw_bytes)?;
     info!("Starting PNG optimization for {}", file_path);
-    let png = OXIPNG_THREAD_POOL.install(||
+    let png = OXIPNG_THREAD_POOL.in_place_scope(|_|
         raw_image.create_optimized_png(&OXIPNG_OPTIONS, &*ZOPFLI_DEFLATER))?;
     info!("Finished PNG optimization for {}", file_path);
     let zip = &*ZIP;
