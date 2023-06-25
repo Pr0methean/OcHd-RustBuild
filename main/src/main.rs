@@ -24,18 +24,25 @@ use std::fs::create_dir_all;
 use std::hint::unreachable_unchecked;
 use std::ops::DerefMut;
 use include_dir::{Dir, DirEntry};
-use rayon::{scope_fifo, ThreadPoolBuilder, yield_local};
+use rayon::{scope_fifo, ThreadPoolBuilder};
 use tikv_jemallocator::Jemalloc;
 use image_tasks::cloneable::{CloneableError};
+use once_cell::sync::Lazy;
 use crate::image_tasks::png_output::{copy_in_to_out, ZIP};
 use crate::image_tasks::prewarm_pixmap_pool;
 use crate::image_tasks::repaint::prewarm_mask_pool;
 
-#[cfg(not(any(test,clippy)))]
-use once_cell::sync::Lazy;
-use rayon::Yield::Executed;
-
 const GRID_SIZE: u32 = 32;
+
+static NUM_CPUS: Lazy<usize> = Lazy::new(|| {
+    let mut cpus = num_cpus::get();
+    if (cpus + 1).count_ones() <= 1 {
+        warn!("Adjusting CPU count from {} to {}", cpus, cpus + 1);
+        // Compensate for missed CPU core on m7g.16xlarge
+        cpus += 1;
+    }
+    cpus
+});
 
 #[cfg(not(any(test,clippy)))]
 static ARGS: Lazy<Vec<String>> = Lazy::new(|| env::args().collect());
@@ -89,14 +96,8 @@ fn main() -> Result<(), CloneableError> {
     info!("Writing output to {}", absolute(&out_file)?.to_string_lossy());
     let tile_size: u32 = *TILE_SIZE;
     info!("Using {} pixels per tile", tile_size);
-    let mut cpus = num_cpus::get();
-    if (cpus as u64 + 1).count_ones() <= 1 {
-        warn!("Adjusting CPU count from {} to {}", cpus, cpus + 1);
-        cpus += 1;
-        // Compensate for missed CPU core on m7g.16xlarge
-        ThreadPoolBuilder::new().num_threads(cpus).build_global()?;
-    }
-    info!("Rayon thread pool has {} threads", cpus);
+    ThreadPoolBuilder::new().num_threads(*NUM_CPUS).build_global()?;
+    info!("Rayon thread pool has {} threads", *NUM_CPUS);
     let start_time = Instant::now();
     rayon::join(
         || rayon::join(
@@ -129,22 +130,15 @@ fn main() -> Result<(), CloneableError> {
         drop(ctx);
         scope_fifo(move |scope| {
             for task in large_tasks {
+                
                 let name = task.to_string();
-                scope.spawn_fifo(move |_| {
-                    // Work around https://github.com/rayon-rs/rayon/issues/1064
-                    while yield_local() == Some(Executed) {}
-                    **task.into_result()
-                        .unwrap_or_else(|err| panic!("Error running task {}: {:?}", name, err))
-                });
+                scope.spawn_fifo(move |_| **task.into_result()
+                    .unwrap_or_else(|err| panic!("Error running task {}: {:?}", name, err)));
             }
             for task in small_tasks {
                 let name = task.to_string();
-                scope.spawn_fifo(move |_| {
-                    // Work around https://github.com/rayon-rs/rayon/issues/1064
-                    while yield_local() == Some(Executed) {}
-                    **task.into_result()
-                        .unwrap_or_else(|err| panic!("Error running task {}: {:?}", name, err))
-                });
+                scope.spawn_fifo(move |_| **task.into_result()
+                    .unwrap_or_else(|err| panic!("Error running task {}: {:?}", name, err)));
             }
         });
     });
