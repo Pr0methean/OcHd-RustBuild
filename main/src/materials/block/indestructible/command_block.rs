@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use crate::image_tasks::color::c;
 use crate::image_tasks::task_spec::{FileOutputTaskSpec, from_svg_task, out_task, paint_svg_task, ToPixmapTaskSpec};
 use crate::{stack, stack_on};
@@ -75,7 +76,7 @@ pub enum CommandBlocks {
 }
 
 impl Material for CommandBlocks {
-    fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
+    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
         COLOR_TYPES.iter().flat_map(|color_type| {
             let background = stack_on!(
                     color_type.colors.color,

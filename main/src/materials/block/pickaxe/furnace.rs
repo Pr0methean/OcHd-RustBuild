@@ -43,10 +43,10 @@ single_texture_block!(BLAST_FURNACE_FRONT =
 material!(BLAST_FURNACE_FRONT_ON = "block",
     ToPixmapTaskSpec::Animate {
         background: Box::new(BLAST_FURNACE_FRONT_BASE.to_owned()),
-        frames: vec![
+        frames: Box::new([
             from_svg_task("blastFurnaceHolesLit"),
             from_svg_task("blastFurnaceHolesLit1")
-        ]
+        ])
     }
 );
 
