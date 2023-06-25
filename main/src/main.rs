@@ -51,7 +51,7 @@ static ZOPFLI_ITERS: Lazy<u64> = Lazy::new(||
         .expect("Iterations (second command-line argument) must be an integer"));
 
 #[cfg(any(test,clippy))]
-const ZOPFLI_ITERS: &u32 = &15;
+const ZOPFLI_ITERS: &u64 = &15;
 
 #[global_allocator]
 static ALLOCATOR: Jemalloc = Jemalloc;
