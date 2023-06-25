@@ -24,13 +24,15 @@ use std::fs::create_dir_all;
 use std::hint::unreachable_unchecked;
 use std::ops::DerefMut;
 use include_dir::{Dir, DirEntry};
-use once_cell::sync::Lazy;
 use rayon::{scope_fifo, ThreadPoolBuilder};
 use tikv_jemallocator::Jemalloc;
 use image_tasks::cloneable::{CloneableError};
 use crate::image_tasks::png_output::{copy_in_to_out, ZIP};
 use crate::image_tasks::prewarm_pixmap_pool;
 use crate::image_tasks::repaint::prewarm_mask_pool;
+
+#[cfg(not(any(test,clippy)))]
+use once_cell::sync::Lazy;
 
 const GRID_SIZE: u32 = 32;
 
