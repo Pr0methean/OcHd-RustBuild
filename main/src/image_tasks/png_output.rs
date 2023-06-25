@@ -13,6 +13,7 @@ use log::{info, warn};
 use once_cell::sync::Lazy;
 use oxipng::{BitDepth, ColorType, Deflaters, Options, RawImage};
 use oxipng::internal_tests::BufferedZopfliDeflater;
+use rayon::Yield::Executed;
 
 use resvg::tiny_skia::{ColorU8, Pixmap, PremultipliedColorU8};
 use zip_next::CompressionMethod::Deflated;
@@ -21,7 +22,7 @@ use zip_next::ZipWriter;
 
 use crate::image_tasks::MaybeFromPool;
 use crate::image_tasks::task_spec::channel_to_bit_depth;
-use crate::{anyhoo, GRID_SIZE, TILE_SIZE, ZOPFLI_ITERS};
+use crate::{GRID_SIZE, TILE_SIZE, ZOPFLI_ITERS};
 use crate::image_tasks::cloneable::CloneableError;
 use crate::image_tasks::color::ComparableColor;
 
@@ -29,9 +30,6 @@ pub type ZipBufferRaw = Cursor<Vec<u8>>;
 
 const PNG_BUFFER_SIZE: usize = 1024 * 1024;
 
-thread_local! {
-    static OXIPNG_MUTEX: Mutex<()> = Default::default();
-}
 static ZOPFLI_OPTIONS: Lazy<zopfli::Options> = Lazy::new(|| zopfli::Options {
     iteration_count: None,
     iterations_without_improvement: NonZeroU64::new(*ZOPFLI_ITERS),
@@ -181,12 +179,8 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
         }
     };
     let raw_image = RawImage::new(width, height, color_type, bit_depth, raw_bytes)?;
-    // Work around https://github.com/rayon-rs/rayon/issues/1064
-    let png = OXIPNG_MUTEX.with(|mutex| -> Result<_, CloneableError> {
-        let _lock = mutex.lock().map_err(|e| anyhoo!(e.to_string()))?;
-        info!("Starting PNG optimization for {}", file_path);
-        Ok(raw_image.create_optimized_png(&OXIPNG_OPTIONS, &*ZOPFLI_DEFLATER)?)
-    })?;
+    info!("Starting PNG optimization for {}", file_path);
+    let png = raw_image.create_optimized_png(&OXIPNG_OPTIONS, &*ZOPFLI_DEFLATER)?;
     info!("Finished PNG optimization for {}", file_path);
     let zip = &*ZIP;
     let mut writer = zip.lock()?;
