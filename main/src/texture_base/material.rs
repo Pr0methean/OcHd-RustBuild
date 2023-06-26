@@ -55,7 +55,6 @@ macro_rules! group {
                 use $crate::texture_base::material::Material;
                 tasks.extend($members.get_output_tasks().iter().cloned());
             })*
-            tasks.shrink_to_fit();
             $crate::texture_base::material::MaterialGroup { tasks: tasks.into() }
         });
     }
