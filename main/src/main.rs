@@ -24,7 +24,7 @@ use std::fs::create_dir_all;
 use std::hint::unreachable_unchecked;
 use std::ops::DerefMut;
 use include_dir::{Dir, DirEntry};
-use rayon::{in_place_scope_fifo, ThreadPoolBuilder, yield_local};
+use rayon::{scope_fifo, ScopeFifo, ThreadPoolBuilder, yield_local};
 use tikv_jemallocator::Jemalloc;
 use image_tasks::cloneable::{CloneableError};
 use crate::image_tasks::png_output::{copy_in_to_out, ZIP};
@@ -126,7 +126,7 @@ fn main() -> Result<(), CloneableError> {
             }
         }
         drop(ctx);
-        in_place_scope_fifo(move |scope| {
+        scope_fifo(move |scope| {
             for task in large_tasks {
                 let name = task.to_string();
                 scope.spawn_fifo(move |_| {
