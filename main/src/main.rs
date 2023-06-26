@@ -24,7 +24,7 @@ use std::fs::create_dir_all;
 use std::hint::unreachable_unchecked;
 use std::ops::DerefMut;
 use include_dir::{Dir, DirEntry};
-use rayon::{in_place_scope_fifo, scope_fifo, ScopeFifo, ThreadPoolBuilder, yield_local};
+use rayon::{in_place_scope_fifo, scope_fifo, ThreadPoolBuilder, yield_local};
 use tikv_jemallocator::Jemalloc;
 use image_tasks::cloneable::{CloneableError};
 use crate::image_tasks::png_output::{copy_in_to_out, ZIP};
@@ -34,7 +34,6 @@ use crate::image_tasks::repaint::prewarm_mask_pool;
 #[cfg(not(any(test,clippy)))]
 use once_cell::sync::Lazy;
 use rayon::Yield::Executed;
-use crate::image_tasks::cloneable::CloneableLazyTask;
 
 const GRID_SIZE: u32 = 32;
 
@@ -129,8 +128,24 @@ fn main() -> Result<(), CloneableError> {
         }
         drop(ctx);
         in_place_scope_fifo(move |scope| {
-            launch_in(large_tasks, scope);
-            launch_in(small_tasks, scope);
+            for task in large_tasks {
+                let name = task.to_string();
+                scope.spawn_fifo(move |_| {
+                    // Work around https://github.com/rayon-rs/rayon/issues/1064
+                    yield_local();
+                    *task.into_result()
+                        .unwrap_or_else(|err| panic!("Error running task {}: {:?}", name, err))
+                });
+            }
+            for task in small_tasks {
+                let name = task.to_string();
+                scope.spawn_fifo(move |_| {
+                    // Work around https://github.com/rayon-rs/rayon/issues/1064
+                    yield_local();
+                    *task.into_result()
+                        .unwrap_or_else(|err| panic!("Error running task {}: {:?}", name, err))
+                });
+            }
         });
     });
     let zip_contents = ZIP.lock()?.deref_mut().finish()
@@ -139,18 +154,4 @@ fn main() -> Result<(), CloneableError> {
     fs::write(out_file.as_path(), zip_contents)?;
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     Ok(())
-}
-
-fn launch_in(mut large_tasks: Vec<CloneableLazyTask<()>>, scope: &ScopeFifo) {
-    for (index, task) in large_tasks.into_iter().enumerate() {
-        let name = task.to_string();
-        scope.spawn_fifo(move |_| {
-            if index % 2 == 0 {
-                // Work around https://github.com/rayon-rs/rayon/issues/1064
-                yield_local();
-            }
-            *task.into_result()
-                .unwrap_or_else(|err| panic!("Error running task {}: {:?}", name, err))
-        });
-    }
 }
