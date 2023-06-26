@@ -25,7 +25,7 @@ use std::hint::unreachable_unchecked;
 use std::ops::DerefMut;
 use include_dir::{Dir, DirEntry};
 use once_cell::sync::Lazy;
-use rayon::{in_place_scope_fifo, scope_fifo, ThreadPoolBuilder};
+use rayon::{scope_fifo, ScopeFifo, scope_fifo, ThreadPoolBuilder};
 use tikv_jemallocator::Jemalloc;
 use image_tasks::cloneable::{CloneableError};
 use crate::image_tasks::png_output::{copy_in_to_out, ZIP};
@@ -116,7 +116,7 @@ fn main() -> Result<(), CloneableError> {
             }
         }
         drop(ctx);
-        in_place_scope_fifo(move |scope| {
+        scope_fifo(move |scope| {
             for task in large_tasks {
                 let name = task.to_string();
                 scope.spawn_fifo(move |_| *task.into_result()
