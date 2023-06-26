@@ -24,7 +24,7 @@ use std::fs::create_dir_all;
 use std::hint::unreachable_unchecked;
 use std::ops::DerefMut;
 use include_dir::{Dir, DirEntry};
-use rayon::{in_place_scope_fifo, scope_fifo, ThreadPoolBuilder, yield_local};
+use rayon::{in_place_scope_fifo, ThreadPoolBuilder, yield_local};
 use tikv_jemallocator::Jemalloc;
 use image_tasks::cloneable::{CloneableError};
 use crate::image_tasks::png_output::{copy_in_to_out, ZIP};
@@ -33,7 +33,6 @@ use crate::image_tasks::repaint::prewarm_mask_pool;
 
 #[cfg(not(any(test,clippy)))]
 use once_cell::sync::Lazy;
-use rayon::Yield::Executed;
 
 const GRID_SIZE: u32 = 32;
 
