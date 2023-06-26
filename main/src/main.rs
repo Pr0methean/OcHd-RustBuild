@@ -132,7 +132,7 @@ fn main() -> Result<(), CloneableError> {
                 let name = task.to_string();
                 scope.spawn_fifo(move |_| {
                     // Work around https://github.com/rayon-rs/rayon/issues/1064
-                    while yield_local() == Some(Executed) {}
+                    yield_local();
                     *task.into_result()
                         .unwrap_or_else(|err| panic!("Error running task {}: {:?}", name, err))
                 });
@@ -141,7 +141,7 @@ fn main() -> Result<(), CloneableError> {
                 let name = task.to_string();
                 scope.spawn_fifo(move |_| {
                     // Work around https://github.com/rayon-rs/rayon/issues/1064
-                    while yield_local() == Some(Executed) {}
+                    yield_local();
                     *task.into_result()
                         .unwrap_or_else(|err| panic!("Error running task {}: {:?}", name, err))
                 });
