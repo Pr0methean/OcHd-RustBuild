@@ -13,7 +13,6 @@ use log::{info, warn};
 use once_cell::sync::Lazy;
 use oxipng::{BitDepth, ColorType, Deflaters, Options, RawImage};
 use oxipng::internal_tests::BufferedZopfliDeflater;
-use rayon::ThreadPoolBuilder;
 
 use resvg::tiny_skia::{ColorU8, Pixmap, PremultipliedColorU8};
 use zip_next::CompressionMethod::Deflated;
@@ -22,7 +21,7 @@ use zip_next::ZipWriter;
 
 use crate::image_tasks::MaybeFromPool;
 use crate::image_tasks::task_spec::channel_to_bit_depth;
-use crate::{GRID_SIZE, NUM_CPUS, TILE_SIZE, ZOPFLI_ITERS};
+use crate::{GRID_SIZE, TILE_SIZE, ZOPFLI_ITERS};
 use crate::image_tasks::cloneable::CloneableError;
 use crate::image_tasks::color::ComparableColor;
 
@@ -30,9 +29,6 @@ pub type ZipBufferRaw = Cursor<Vec<u8>>;
 
 const PNG_BUFFER_SIZE: usize = 1024 * 1024;
 
-static OXIPNG_THREAD_POOL: Lazy<rayon::ThreadPool> = Lazy::new(||
-    ThreadPoolBuilder::new().num_threads(*NUM_CPUS).build().unwrap()
-);
 static ZOPFLI_OPTIONS: Lazy<zopfli::Options> = Lazy::new(|| zopfli::Options {
     iteration_count: None,
     iterations_without_improvement: NonZeroU64::new(*ZOPFLI_ITERS),
@@ -183,8 +179,7 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
     };
     let raw_image = RawImage::new(width, height, color_type, bit_depth, raw_bytes)?;
     info!("Starting PNG optimization for {}", file_path);
-    let png = OXIPNG_THREAD_POOL.install(||
-        raw_image.create_optimized_png(&OXIPNG_OPTIONS, &*ZOPFLI_DEFLATER))?;
+    let png = raw_image.create_optimized_png(&OXIPNG_OPTIONS, &*ZOPFLI_DEFLATER)?;
     info!("Finished PNG optimization for {}", file_path);
     let zip = &*ZIP;
     let mut writer = zip.lock()?;
