@@ -11,6 +11,7 @@ use std::time::Instant;
 
 use log::{info, LevelFilter, warn};
 use texture_base::material::Material;
+use rayon::prelude::*;
 
 use crate::image_tasks::task_spec::{FileOutputTaskSpec, METADATA_DIR, TaskGraphBuildingContext, TaskSpecTraits};
 
@@ -24,7 +25,7 @@ use std::fs::create_dir_all;
 use std::hint::unreachable_unchecked;
 use std::ops::DerefMut;
 use include_dir::{Dir, DirEntry};
-use rayon::{scope_fifo, ScopeFifo, ThreadPoolBuilder, yield_local};
+use rayon::{ThreadPoolBuilder};
 use tikv_jemallocator::Jemalloc;
 use image_tasks::cloneable::{CloneableError};
 use crate::image_tasks::png_output::{copy_in_to_out, ZIP};
@@ -126,25 +127,12 @@ fn main() -> Result<(), CloneableError> {
             }
         }
         drop(ctx);
-        scope_fifo(move |scope| {
-            for task in large_tasks {
-                let name = task.to_string();
-                scope.spawn_fifo(move |_| {
-                    // Work around https://github.com/rayon-rs/rayon/issues/1064
-                    yield_local();
-                    *task.into_result()
-                        .unwrap_or_else(|err| panic!("Error running task {}: {:?}", name, err))
-                });
-            }
-            for task in small_tasks {
-                let name = task.to_string();
-                scope.spawn_fifo(move |_| {
-                    // Work around https://github.com/rayon-rs/rayon/issues/1064
-                    yield_local();
-                    *task.into_result()
-                        .unwrap_or_else(|err| panic!("Error running task {}: {:?}", name, err))
-                });
-            }
+        let mut planned_tasks = large_tasks;
+        planned_tasks.extend_from_slice(&small_tasks);
+        planned_tasks.into_iter().par_bridge().for_each(move |task| {
+            let name = task.name.to_owned();
+            task.into_result()
+                .unwrap_or_else(|err| panic!("Error running task {}: {:?}", name, err));
         });
     });
     let zip_contents = ZIP.lock()?.deref_mut().finish()
