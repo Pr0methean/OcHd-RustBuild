@@ -5,7 +5,7 @@ use replace_with::{replace_with_and_return};
 use std::ops::{DerefMut};
 use crate::{anyhoo};
 
-pub type CloneableResult<T> = Result<Arc<Box<T>>, CloneableError>;
+pub type CloneableResult<T> = Result<Arc<T>, CloneableError>;
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct CloneableError {
@@ -67,12 +67,14 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
             }))
         }
     }
+}
 
+impl <T> CloneableLazyTask<T> {
     pub fn new_immediate_ok(name: &str, result: Box<T>) -> CloneableLazyTask<T> {
         CloneableLazyTask {
             name: name.into(),
             state: Arc::new(Mutex::new(CloneableLazyTaskState::Finished {
-                result: Ok(Arc::new(result))
+                result: Ok(Arc::new(*result))
             }))
         }
     }
@@ -87,7 +89,7 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
                     Ok(state) => match state {
                         CloneableLazyTaskState::Upcoming { function } => {
                             info!("Starting task {}", self.name);
-                            let result: CloneableResult<T> = function().map(Arc::new);
+                            let result: CloneableResult<T> = function().map(Arc::from);
                             info!("Finished task {}", self.name);
                             info!("Unwrapping the only reference to {}", self.name);
                             result
@@ -112,7 +114,7 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
                                 match exec_state {
                                     CloneableLazyTaskState::Upcoming { function} => {
                                         info! ("Starting task {}", self.name);
-                                        let result: CloneableResult<T> = function().map(Arc::new);
+                                        let result: CloneableResult<T> = function().map(Arc::from);
                                         info! ("Finished task {}", self.name);
                                         info!("Unwrapping one of {} references to {} after computing it",
                                             Arc::strong_count(&shared_state), self.name);

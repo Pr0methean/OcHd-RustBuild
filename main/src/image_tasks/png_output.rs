@@ -14,7 +14,6 @@ use once_cell::sync::Lazy;
 use oxipng::{BitDepth, ColorType, Deflaters, Options, RawImage};
 use oxipng::internal_tests::BufferedZopfliDeflater;
 use rayon::ThreadPoolBuilder;
-use rayon::Yield::Executed;
 
 use resvg::tiny_skia::{ColorU8, Pixmap, PremultipliedColorU8};
 use zip_next::CompressionMethod::Deflated;

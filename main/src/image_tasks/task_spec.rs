@@ -73,7 +73,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                     .collect();
                 Box::new(move || {
                     let background_opaque = background_color_desc_future.into_result()?.transparency() == Opaque;
-                    let background: Arc<Box<MaybeFromPool<Pixmap>>> = background_future.into_result()?;
+                    let background: Arc<MaybeFromPool<Pixmap>> = background_future.into_result()?;
                     animate(&background, frame_futures.to_vec(), !background_opaque)
                 })
             },
@@ -87,29 +87,29 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                 let background: Color = (*background).into();
                 let fg_future = foreground.add_to(ctx, tile_size);
                 Box::new(move || {
-                    let fg_image: Arc<Box<MaybeFromPool<Pixmap>>> = fg_future.into_result()?;
+                    let fg_image: Arc<MaybeFromPool<Pixmap>> = fg_future.into_result()?;
                     let mut fg_image = Arc::unwrap_or_clone(fg_image);
                     stack_layer_on_background(background, &mut fg_image)?;
-                    Ok(fg_image)
+                    Ok(fg_image.into())
                 })
             },
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
                 let bg_future = background.add_to(ctx, tile_size);
                 let fg_future = foreground.add_to(ctx, tile_size);
                 Box::new(move || {
-                    let bg_image: Arc<Box<MaybeFromPool<Pixmap>>> = bg_future.into_result()?;
+                    let bg_image: Arc<MaybeFromPool<Pixmap>> = bg_future.into_result()?;
                     let mut out_image = Arc::unwrap_or_clone(bg_image);
-                    let fg_image: Arc<Box<MaybeFromPool<Pixmap>>> = fg_future.into_result()?;
+                    let fg_image: Arc<MaybeFromPool<Pixmap>> = fg_future.into_result()?;
                     stack_layer_on_layer(&mut out_image, fg_image.deref());
-                    Ok(out_image)
+                    Ok(out_image.into())
                 })
             },
             ToPixmapTaskSpec::PaintAlphaChannel { base, color } => {
                 let base_future = base.add_to(ctx, tile_size);
                 let color = color.to_owned();
                 Box::new(move || {
-                    let base_image: Arc<Box<MaybeFromPool<Mask>>> = base_future.into_result()?;
-                    paint(Arc::unwrap_or_clone(base_image).as_ref(), color)
+                    let base_image: Arc<MaybeFromPool<Mask>> = base_future.into_result()?;
+                    paint(&*Arc::unwrap_or_clone(base_image), color).into()
                 })
             },
             UpscaleFromGridSize { base } => {
@@ -149,38 +149,38 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                 let base_future = base.add_to(ctx, tile_size);
                 let alpha = *alpha;
                 Box::new(move || {
-                    let base_result: Arc<Box<MaybeFromPool<Mask>>> = base_future.into_result()?;
+                    let base_result: Arc<MaybeFromPool<Mask>> = base_future.into_result()?;
                     let mut channel = Arc::unwrap_or_clone(base_result);
                     make_semitransparent(&mut channel, alpha);
-                    Ok(channel)
+                    Ok(channel.into())
                 })
             },
             ToAlphaChannelTaskSpec::FromPixmap { base } => {
                 let base_future = base.add_to(ctx, tile_size);
                 Box::new(move || {
-                    let base_image: Arc<Box<MaybeFromPool<Pixmap>>> = base_future.into_result()?;
-                    Ok(Box::new(pixmap_to_mask(&base_image)))
+                    let base_image: Arc<MaybeFromPool<Pixmap>> = base_future.into_result()?;
+                    Ok(pixmap_to_mask(&base_image).into())
                 })
             },
             StackAlphaOnAlpha { background, foreground } => {
                 let bg_future = background.add_to(ctx, tile_size);
                 let fg_future = foreground.add_to(ctx, tile_size);
                 Box::new(move || {
-                    let bg_mask: Arc<Box<MaybeFromPool<Mask>>> = bg_future.into_result()?;
+                    let bg_mask: Arc<MaybeFromPool<Mask>> = bg_future.into_result()?;
                     let mut out_mask = Arc::unwrap_or_clone(bg_mask);
-                    let fg_mask: Arc<Box<MaybeFromPool<Mask>>> = fg_future.into_result()?;
+                    let fg_mask: Arc<MaybeFromPool<Mask>> = fg_future.into_result()?;
                     stack_alpha_on_alpha(&mut out_mask, fg_mask.deref());
-                    Ok(out_mask)
+                    Ok(out_mask.into())
                 })
             },
             ToAlphaChannelTaskSpec::StackAlphaOnBackground { background, foreground } => {
                 let background = *background;
                 let fg_future = foreground.add_to(ctx, tile_size);
                 Box::new(move || {
-                    let fg_arc: Arc<Box<MaybeFromPool<Mask>>> = fg_future.into_result()?;
+                    let fg_arc: Arc<MaybeFromPool<Mask>> = fg_future.into_result()?;
                     let mut fg_image = Arc::unwrap_or_clone(fg_arc);
                     stack_alpha_on_background(background, &mut fg_image);
-                    Ok(fg_image)
+                    Ok(fg_image.into())
                 })
             },
             ToAlphaChannelTaskSpec::UpscaleFromGridSize {base} => {
@@ -190,7 +190,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                 }
                 Box::new(move || {
                     let base_mask = base_future.into_result()?;
-                    Ok(Box::new(upscale_mask(base_mask.deref(), tile_size)?))
+                    Ok(upscale_mask(base_mask.deref(), tile_size)?.into())
                 })
             }
         };
@@ -223,9 +223,9 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
                 let name = name.to_owned();
                 Box::new(move || {
                     let (color_type, bit_depth) = color_description_to_mode(
-                        &**base_color_desc_future.into_result()?, &name);
+                        &*base_color_desc_future.into_result()?, &name);
                     let base_result = base_future.into_result()?;
-                    Ok(Box::new(png_output(*Arc::unwrap_or_clone(base_result),
+                    Ok(Box::new(png_output(Arc::unwrap_or_clone(base_result),
                                            color_type, bit_depth, destination_path)?))
                 })
             }
@@ -429,7 +429,7 @@ fn stack_alpha_vecs(background: &[u8], foreground: &[u8]) -> Vec<u8> {
     combined
 }
 
-fn multiply_alpha_vec(alphas: &Vec<u8>, rhs: u8) -> Vec<u8> {
+fn multiply_alpha_vec(alphas: &[u8], rhs: u8) -> Vec<u8> {
     if rhs == 0 {
         vec![0]
     } else if rhs == u8::MAX {
@@ -958,7 +958,7 @@ impl ToPixmapTaskSpec {
             let task = CloneableLazyTask::new(&self.to_string(), Box::new(move || Ok(Box::new({
                 let colors = color_task.into_result()?;
                 match colors.transparency() {
-                    AlphaChannel => match &**colors {
+                    AlphaChannel => match &*colors {
                         Rgb(_) => ALL_U8S.to_vec(),
                         SpecifiedColors(colors) => if colors.len() <= BINARY_SEARCH_THRESHOLD {
                             let mut alphas: Vec<u8> = colors.iter().map(|color| color.alpha()).collect();
@@ -967,7 +967,7 @@ impl ToPixmapTaskSpec {
                             alphas
                         } else {
                             ALL_U8S.iter().copied()
-                                .filter(|alpha| contains_alpha(colors, *alpha))
+                                .filter(|alpha| contains_alpha(&colors, *alpha))
                                 .collect()
                         }
                     },
