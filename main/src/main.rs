@@ -119,12 +119,12 @@ fn main() -> Result<(), CloneableError> {
         in_place_scope_fifo(move |scope| {
             for task in large_tasks {
                 let name = task.to_string();
-                scope.spawn_fifo(move |_| **task.into_result()
+                scope.spawn_fifo(move |_| *task.into_result()
                     .unwrap_or_else(|err| panic!("Error running task {}: {:?}", name, err)));
             }
             for task in small_tasks {
                 let name = task.to_string();
-                scope.spawn_fifo(move |_| **task.into_result()
+                scope.spawn_fifo(move |_| *task.into_result()
                     .unwrap_or_else(|err| panic!("Error running task {}: {:?}", name, err)));
             }
         });
