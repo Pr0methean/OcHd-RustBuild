@@ -145,7 +145,7 @@ fn launch_in(mut large_tasks: Vec<CloneableLazyTask<()>>, scope: &ScopeFifo) {
     for (index, task) in large_tasks.into_iter().enumerate() {
         let name = task.to_string();
         scope.spawn_fifo(move |_| {
-            if index % 64 == 0 {
+            if index % 2 == 0 {
                 // Work around https://github.com/rayon-rs/rayon/issues/1064
                 yield_local();
             }
