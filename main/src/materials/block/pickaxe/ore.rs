@@ -1,4 +1,5 @@
 use std::borrow::ToOwned;
+use std::sync::Arc;
 use once_cell::sync::Lazy;
 use crate::image_tasks::color::{ComparableColor, c};
 use crate::image_tasks::task_spec::{out_task, paint_svg_task, FileOutputTaskSpec, ToPixmapTaskSpec};
@@ -103,20 +104,7 @@ impl Ore {
 }
 
 impl Material for Ore {
-    fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
-        /*
-                substrates.forEach { oreBase ->
-            out("block/${oreBase.orePrefix}${this@Ore.name}_ore", oreBlock(this@outputTasks, oreBase))
-        }
-        out("block/${this@Ore.name}_block") { block() }
-        if (needsRefining) {
-            out("block/raw_${this@Ore.name}_block") { rawBlock() }
-            out("item/raw_${this@Ore.name}") { rawOre() }
-            out("item/${this@Ore.name}_ingot") { ingot() }
-        } else {
-            out("item/${itemNameOverride ?: this@Ore.name}") { itemForOutput() }
-        }
-         */
+    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
         let mut output = Vec::with_capacity(7);
         for substrate in &self.substrates {
             output.push(out_task(
@@ -145,7 +133,7 @@ impl Material for Ore {
                 &format!("item/{}", self.item_name), (self.raw_item)(self)
             ));
         }
-        output
+        output.into()
     }
 }
 

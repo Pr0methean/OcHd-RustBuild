@@ -1,4 +1,5 @@
-use crate::image_tasks::color::{ComparableColor,c};
+use std::sync::Arc;
+use crate::image_tasks::color::{ComparableColor, c};
 use crate::image_tasks::task_spec::{FileOutputTaskSpec, out_task, paint_svg_task};
 use crate::{group, paint_stack, stack, stack_on};
 use crate::texture_base::material::Material;
@@ -12,12 +13,12 @@ struct CopperOxide {
 }
 
 impl Material for CopperOxide {
-    fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
+    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
         let shared_layers = stack_on!(self.color,
             paint_svg_task("borderSolid", self.shadow),
             paint_stack!(self.highlight, "streaks", "borderSolidTopLeft")
         );
-        vec![
+        Arc::new([
             out_task(
                 &format!("block/{}_copper", self.name),
                 stack!(
@@ -33,7 +34,7 @@ impl Material for CopperOxide {
                     paint_svg_task("cutInQuarters1", self.shadow)
                 )
             ),
-        ]
+        ])
     }
 }
 

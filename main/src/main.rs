@@ -25,7 +25,7 @@ use std::hint::unreachable_unchecked;
 use std::ops::DerefMut;
 use include_dir::{Dir, DirEntry};
 use once_cell::sync::Lazy;
-use rayon::{scope_fifo, ThreadPoolBuilder};
+use rayon::{in_place_scope_fifo, scope_fifo, ThreadPoolBuilder};
 use tikv_jemallocator::Jemalloc;
 use image_tasks::cloneable::{CloneableError};
 use crate::image_tasks::png_output::{copy_in_to_out, ZIP};
@@ -105,7 +105,7 @@ fn main() -> Result<(), CloneableError> {
         let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
         let mut large_tasks = Vec::with_capacity(out_tasks.len());
         let mut small_tasks = Vec::with_capacity(out_tasks.len());
-        for task in out_tasks {
+        for task in out_tasks.into_iter() {
             let new_task = task.add_to(&mut ctx, tile_size);
             if tile_size > GRID_SIZE
                     && let FileOutputTaskSpec::PngOutput {base, .. } = task
@@ -116,15 +116,15 @@ fn main() -> Result<(), CloneableError> {
             }
         }
         drop(ctx);
-        scope_fifo(move |scope| {
+        in_place_scope_fifo(move |scope| {
             for task in large_tasks {
                 let name = task.to_string();
-                scope.spawn_fifo(move |_| **task.into_result()
+                scope.spawn_fifo(move |_| *task.into_result()
                     .unwrap_or_else(|err| panic!("Error running task {}: {:?}", name, err)));
             }
             for task in small_tasks {
                 let name = task.to_string();
-                scope.spawn_fifo(move |_| **task.into_result()
+                scope.spawn_fifo(move |_| *task.into_result()
                     .unwrap_or_else(|err| panic!("Error running task {}: {:?}", name, err)));
             }
         });

@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::task_spec::{FileOutputTaskSpec, from_svg_task, out_task, paint_svg_task};
 use crate::{group, stack};
@@ -13,7 +14,7 @@ pub struct Compass {
 }
 
 impl Material for Compass {
-    fn get_output_tasks(&self) -> Vec<FileOutputTaskSpec> {
+    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
         let base = stack!(
             paint_svg_task("circle32", self.rim_color),
             from_svg_task("compassRim"),
@@ -29,7 +30,7 @@ impl Material for Compass {
                 )
             ));
         }
-        output_tasks
+        output_tasks.into()
     }
 }
 
