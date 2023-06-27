@@ -25,7 +25,7 @@ use std::hint::unreachable_unchecked;
 use std::ops::DerefMut;
 use include_dir::{Dir, DirEntry};
 use once_cell::sync::Lazy;
-use rayon::{in_place_scope_fifo, scope_fifo, ThreadPoolBuilder};
+use rayon::{in_place_scope_fifo, ThreadPoolBuilder};
 use tikv_jemallocator::Jemalloc;
 use image_tasks::cloneable::{CloneableError};
 use crate::image_tasks::png_output::{copy_in_to_out, ZIP};
@@ -116,13 +116,10 @@ fn main() -> Result<(), CloneableError> {
             }
         }
         drop(ctx);
+        let mut planned_tasks = large_tasks;
+        planned_tasks.extend_from_slice(&small_tasks);
         in_place_scope_fifo(move |scope| {
-            for task in large_tasks {
-                let name = task.to_string();
-                scope.spawn_fifo(move |_| *task.into_result()
-                    .unwrap_or_else(|err| panic!("Error running task {}: {:?}", name, err)));
-            }
-            for task in small_tasks {
+            for task in planned_tasks {
                 let name = task.to_string();
                 scope.spawn_fifo(move |_| *task.into_result()
                     .unwrap_or_else(|err| panic!("Error running task {}: {:?}", name, err)));
