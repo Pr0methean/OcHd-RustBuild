@@ -34,6 +34,7 @@ use crate::image_tasks::repaint::prewarm_mask_pool;
 
 #[cfg(not(any(test,clippy)))]
 use once_cell::sync::Lazy;
+use zopfli::prewarm_object_pools;
 
 const GRID_SIZE: u32 = 32;
 
@@ -103,7 +104,8 @@ fn main() -> Result<(), CloneableError> {
         || {
             prewarm_pixmap_pool();
             prewarm_mask_pool();
-            info!("Caches prewarmed");
+            prewarm_object_pools();
+            info!("Object pools prewarmed");
             create_dir_all(out_dir).expect("Failed to create output directory");
             info!("Output directory built");
         },
