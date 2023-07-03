@@ -15,9 +15,9 @@ pub trait Material {
     fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]>;
 
     fn get_output_task_by_name(&self, name: &str) -> Result<FileOutputTaskSpec, CloneableError> {
-        for output_task in self.get_output_tasks().to_vec() {
+        for output_task in self.get_output_tasks().into_iter() {
             if output_task.get_path().contains(name) {
-                return Ok(output_task);
+                return Ok(output_task.to_owned());
             }
         }
         Err(anyhoo!("No output task found with name {}", name))

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 
-use std::ops::{Deref, Mul};
+use std::ops::{Deref, DerefMut, Mul};
 use std::sync::{Arc};
 use BitDepth::Sixteen;
 use ColorType::GrayscaleAlpha;
@@ -109,7 +109,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                 let color = color.to_owned();
                 Box::new(move || {
                     let base_image: Arc<MaybeFromPool<Mask>> = base_future.into_result()?;
-                    paint(&*Arc::unwrap_or_clone(base_image), color).into()
+                    paint(Arc::unwrap_or_clone(base_image).deref_mut(), color)
                 })
             },
             UpscaleFromGridSize { base } => {
@@ -591,7 +591,7 @@ impl ToAlphaChannelTaskSpec {
                 let alpha = *alpha;
                 let base_alphas_task = base.get_possible_alpha_values(ctx);
                 CloneableLazyTask::new(&name, Box::new(move ||
-                    Ok(multiply_alpha_vec(&**base_alphas_task.into_result()?, alpha).into())))
+                    Ok(multiply_alpha_vec(&base_alphas_task.into_result()?, alpha).into())))
             }
             ToAlphaChannelTaskSpec::FromPixmap { base } => {
 
@@ -869,17 +869,17 @@ impl ToPixmapTaskSpec {
             ToPixmapTaskSpec::FromSvg { source } => {
                 if COLOR_SVGS.contains(&&**source) {
                     if SEMITRANSPARENCY_FREE_SVGS.contains(&&**source) {
-                        Right(CloneableLazyTask::new_immediate_ok(&name, Rgb(BinaryTransparency).into()))
+                        Right(CloneableLazyTask::new_immediate_ok(&name, Rgb(BinaryTransparency)))
                     } else {
-                        Right(CloneableLazyTask::new_immediate_ok(&name, Rgb(AlphaChannel).into()))
+                        Right(CloneableLazyTask::new_immediate_ok(&name, Rgb(AlphaChannel)))
                     }
                 } else if SEMITRANSPARENCY_FREE_SVGS.contains(&&**source) {
                     Right(CloneableLazyTask::new_immediate_ok(&name,
-                      SpecifiedColors(Arc::new([ComparableColor::TRANSPARENT, ComparableColor::BLACK])).into()))
+                      SpecifiedColors(Arc::new([ComparableColor::TRANSPARENT, ComparableColor::BLACK]))))
                 } else {
                     Right(CloneableLazyTask::new_immediate_ok(&name,
                         SpecifiedColors(ALL_U8S.iter()
-                        .map(|alpha| ComparableColor { red: 0, green: 0, blue: 0, alpha: *alpha}).collect()).into()))
+                        .map(|alpha| ComparableColor { red: 0, green: 0, blue: 0, alpha: *alpha}).collect())))
                 }
             },
             ToPixmapTaskSpec::PaintAlphaChannel { color, base } => {
@@ -967,7 +967,7 @@ impl ToPixmapTaskSpec {
                             alphas
                         } else {
                             ALL_U8S.iter().copied()
-                                .filter(|alpha| contains_alpha(&colors, *alpha))
+                                .filter(|alpha| contains_alpha(colors, *alpha))
                                 .collect()
                         }
                     },

@@ -70,11 +70,11 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
 }
 
 impl <T> CloneableLazyTask<T> {
-    pub fn new_immediate_ok(name: &str, result: Box<T>) -> CloneableLazyTask<T> {
+    pub fn new_immediate_ok(name: &str, result: T) -> CloneableLazyTask<T> {
         CloneableLazyTask {
             name: name.into(),
             state: Arc::new(Mutex::new(CloneableLazyTaskState::Finished {
-                result: Ok(Arc::new(*result))
+                result: Ok(Arc::new(result))
             }))
         }
     }

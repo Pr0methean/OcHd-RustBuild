@@ -11,7 +11,6 @@ use std::time::Instant;
 
 use log::{info, LevelFilter, warn};
 use texture_base::material::Material;
-use rayon::prelude::*;
 
 use crate::image_tasks::task_spec::{FileOutputTaskSpec, METADATA_DIR, TaskGraphBuildingContext, TaskSpecTraits};
 
@@ -118,7 +117,7 @@ fn main() -> Result<(), CloneableError> {
         let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
         let mut large_tasks = Vec::with_capacity(out_tasks.len());
         let mut small_tasks = Vec::with_capacity(out_tasks.len());
-        for task in out_tasks.into_iter() {
+        for task in out_tasks.iter() {
             let new_task = task.add_to(&mut ctx, tile_size);
             if tile_size > GRID_SIZE
                     && let FileOutputTaskSpec::PngOutput {base, .. } = task
