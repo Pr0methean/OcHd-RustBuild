@@ -23,10 +23,10 @@ impl Material for Compass {
         let mut output_tasks = Vec::with_capacity(COMPASS_ANGLES);
         for angle in 0..COMPASS_ANGLES {
             output_tasks.push(out_task(
-                &format!("item/{}_{:0>2}", self.base_name, angle),
+                format!("item/{}_{:0>2}", self.base_name, angle),
                 stack!(
                     base.to_owned(),
-                    paint_svg_task(&format!("compass{}", angle), self.needle_color)
+                    paint_svg_task(format!("compass{}", angle), self.needle_color)
                 )
             ));
         }

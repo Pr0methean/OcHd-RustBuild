@@ -23,12 +23,12 @@ impl Material for Crop {
         let mut output = Vec::with_capacity(self.stages as usize);
         for stage in 0..(self.stages - 1) {
             output.push(out_task(
-                &format!("block/{}_stage{}", self.name, stage),
+                format!("block/{}_stage{}", self.name, stage),
                 (self.create_texture_for_growing_stage)(stage)
             ));
         }
         output.push(out_task(
-            &format!("block/{}_stage{}", self.name, self.stages - 1),
+            format!("block/{}_stage{}", self.name, self.stages - 1),
             (self.create_texture_for_final_stage)()
         ));
         output.into()
@@ -36,13 +36,13 @@ impl Material for Crop {
 }
 
 fn basic_texture_for_growing_stage(name: &str, stage: u8) -> ToPixmapTaskSpec {
-    paint_svg_task(&format!("{}{}", name, stage), VEG_LEAVES_SHADOW)
+    paint_svg_task(format!("{}{}", name, stage), VEG_LEAVES_SHADOW)
 }
 
 fn root_veg_texture_for_final_stage(crop: &Crop) -> ToPixmapTaskSpec {
     stack!(
         paint_svg_task(
-            &format!("{}{}Stems", crop.name, crop.stages - 1), VEG_LEAVES_HIGHLIGHT),
+            format!("{}{}Stems", crop.name, crop.stages - 1), VEG_LEAVES_HIGHLIGHT),
         paint_svg_task("rootVeg", crop.color)
     )
 }
@@ -52,7 +52,7 @@ pub const NETHER_WART: Crop = Crop {
     stages: 3,
     color: CRIMSON_LEAVES_SHADOW,
     create_texture_for_growing_stage: |stage|
-        paint_svg_task(&format!("wart{}", stage), NETHER_WART.color)
+        paint_svg_task(format!("wart{}", stage), NETHER_WART.color)
     ,
     create_texture_for_final_stage: || stack!(
         paint_svg_task("wart2", NETHER_WART.color),
@@ -91,8 +91,8 @@ pub const WHEAT: Crop = Crop {
     color: c(0x888836),
     create_texture_for_growing_stage: |stage| {
         stack!(
-            paint_svg_task(&format!("wheat{}", stage), c(0x636300)),
-            paint_svg_task(&format!("wheatTexture{}", stage), WHEAT.color)
+            paint_svg_task(format!("wheat{}", stage), c(0x636300)),
+            paint_svg_task(format!("wheatTexture{}", stage), WHEAT.color)
         )
     },
     create_texture_for_final_stage: || stack!(

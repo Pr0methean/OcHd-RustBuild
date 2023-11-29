@@ -40,7 +40,7 @@ pub const MUSIC_DISC_5: MusicDisc = MusicDisc {name: "5", color: &MAGENTA.1 };
 
 impl Material for MusicDisc {
     fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
-        Arc::new([out_task(&format!("item/music_disc_{}", self.name), stack!(
+        Arc::new([out_task(format!("item/music_disc_{}", self.name), stack!(
             paint_svg_task("musicDisc", ComparableColor::STONE_EXTREME_SHADOW),
             paint_svg_task("musicDiscGroove", ComparableColor::DARKEST_GRAY),
             paint_svg_task("musicDiscLabel", *self.color)

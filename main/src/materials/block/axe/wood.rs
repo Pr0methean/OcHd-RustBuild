@@ -596,16 +596,16 @@ impl Material for Wood {
         let stripped_log_side: ToPixmapTaskSpec = (self.stripped_log_side)(self);
         let stripped_log_top: ToPixmapTaskSpec = (self.stripped_log_top)(self);
         Arc::new([
-            out_task(&format!("block/{}_{}", self.name, self.log_synonym), (self.bark)(self)),
-            out_task(&format!("block/stripped_{}_{}", self.name, self.log_synonym), stripped_log_side),
-            out_task(&format!("block/stripped_{}_{}_top", self.name, self.log_synonym), stripped_log_top.to_owned()),
-            out_task(&format!("block/{}_{}_top", self.name, self.log_synonym), (self.log_top)(self, stripped_log_top)),
-            out_task(&format!("block/{}_trapdoor", self.name), (self.trapdoor)(self, door_common_layers.to_owned())),
-            out_task(&format!("block/{}_door_top", self.name), (self.door_top)(self, door_bottom.to_owned(), door_common_layers)),
-            out_task(&format!("block/{}_door_bottom", self.name), door_bottom),
-            out_task(&format!("block/{}_{}", self.name, self.leaves_synonym), (self.leaves)(self)),
-            out_task(&format!("block/{}_{}", self.name, self.sapling_synonym), (self.sapling)(self)),
-            out_task(&format!("block/{}_planks", self.name), self.planks())
+            out_task(format!("block/{}_{}", self.name, self.log_synonym), (self.bark)(self)),
+            out_task(format!("block/stripped_{}_{}", self.name, self.log_synonym), stripped_log_side),
+            out_task(format!("block/stripped_{}_{}_top", self.name, self.log_synonym), stripped_log_top.to_owned()),
+            out_task(format!("block/{}_{}_top", self.name, self.log_synonym), (self.log_top)(self, stripped_log_top)),
+            out_task(format!("block/{}_trapdoor", self.name), (self.trapdoor)(self, door_common_layers.to_owned())),
+            out_task(format!("block/{}_door_top", self.name), (self.door_top)(self, door_bottom.to_owned(), door_common_layers)),
+            out_task(format!("block/{}_door_bottom", self.name), door_bottom),
+            out_task(format!("block/{}_{}", self.name, self.leaves_synonym), (self.leaves)(self)),
+            out_task(format!("block/{}_{}", self.name, self.sapling_synonym), (self.sapling)(self)),
+            out_task(format!("block/{}_planks", self.name), self.planks())
         ])
     }
 }

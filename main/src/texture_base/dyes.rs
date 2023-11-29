@@ -46,7 +46,7 @@ impl <T> Material for DyedBlock<T>
     fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
         let mut out  = Vec::with_capacity(DYES.len());
         for (dye_name, dye_color) in DYES {
-            out.push(out_task(&format!("block/{}_{}", dye_name, self.name),
+            out.push(out_task(format!("block/{}_{}", dye_name, self.name),
                 (self.create_dyed_texture)(*dye_color)
             ));
         }

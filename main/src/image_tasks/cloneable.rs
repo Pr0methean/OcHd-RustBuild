@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::fmt::{Debug, Display, Formatter};
 use log::info;
 use replace_with::{replace_with_and_return};
-use std::ops::{DerefMut};
+use std::ops::{Deref, DerefMut};
 use crate::{anyhoo};
 
 pub type CloneableResult<T> = Result<Arc<T>, CloneableError>;
@@ -15,6 +15,54 @@ pub struct CloneableError {
 impl <T> From<T> for CloneableError where T: ToString {
     fn from(value: T) -> Self {
         CloneableError {message: value.to_string().into()}
+    }
+}
+
+#[derive(Clone)]
+pub enum ArcowStr<'a> {
+    Owned(Arc<str>),
+    Borrowed(&'a str)
+}
+
+impl <'a> Deref for ArcowStr<'a> {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            ArcowStr::Owned(arc) => &*arc,
+            ArcowStr::Borrowed(borrow) => borrow
+        }
+    }
+}
+
+impl <'a> Debug for ArcowStr<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.deref())
+    }
+}
+
+
+impl <'a> Display for ArcowStr<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.deref())
+    }
+}
+
+impl <'a> From<&'a str> for ArcowStr<'a> {
+    fn from(value: &'a str) -> Self {
+        ArcowStr::Borrowed(value)
+    }
+}
+
+impl <'a> From<&'a ArcowStr<'a>> for ArcowStr<'a> {
+    fn from(value: &'a ArcowStr<'a>) -> Self {
+        value.clone()
+    }
+}
+
+impl <'a> From<String> for ArcowStr<'a> {
+    fn from(value: String) -> Self {
+        ArcowStr::Owned(value.into())
     }
 }
 
@@ -31,7 +79,7 @@ pub enum CloneableLazyTaskState<T> where T: ?Sized {
 
 #[derive(Clone,Debug)]
 pub struct CloneableLazyTask<T> where T: ?Sized {
-    pub name: Arc<str>,
+    pub name: ArcowStr<'static>,
     state: Arc<Mutex<CloneableLazyTaskState<T>>>
 }
 
@@ -59,7 +107,8 @@ impl <T> Debug for CloneableLazyTaskState<T> where T: ?Sized {
 }
 
 impl <T> CloneableLazyTask<T> where T: ?Sized {
-    pub fn new(name: &str, base: LazyTaskFunction<T>) -> CloneableLazyTask<T> {
+    pub fn new<U>(name: U, base: LazyTaskFunction<T>) -> CloneableLazyTask<T>
+        where U: Into<ArcowStr<'static>> {
         CloneableLazyTask {
             name: name.into(),
             state: Arc::new(Mutex::new(CloneableLazyTaskState::Upcoming {
@@ -70,7 +119,8 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
 }
 
 impl <T> CloneableLazyTask<T> {
-    pub fn new_immediate_ok(name: &str, result: T) -> CloneableLazyTask<T> {
+    pub fn new_immediate_ok<U>(name: U, result: T) -> CloneableLazyTask<T>
+        where U: Into<ArcowStr<'static>> {
         CloneableLazyTask {
             name: name.into(),
             state: Arc::new(Mutex::new(CloneableLazyTaskState::Finished {

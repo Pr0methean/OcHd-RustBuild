@@ -20,14 +20,14 @@ impl Material for CopperOxide {
         );
         Arc::new([
             out_task(
-                &format!("block/{}_copper", self.name),
+                format!("block/{}_copper", self.name),
                 stack!(
                     shared_layers.to_owned(),
                     paint_svg_task(self.texture_name, self.shadow)
                 )
             ),
             out_task(
-                &format!("block/cut_{}_copper", self.name),
+                format!("block/cut_{}_copper", self.name),
                 stack!(
                     shared_layers,
                     paint_svg_task("cutInQuarters2", self.highlight),
