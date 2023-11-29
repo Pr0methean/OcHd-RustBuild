@@ -83,12 +83,12 @@ impl Material for CommandBlocks {
                     paint_svg_task("diagonalChecks4x", color_type.colors.shadow),
                     paint_svg_task("diagonalChecksFill4x", color_type.colors.highlight));
             let decorated_background = if let Some(decoration) = &color_type.decoration {
-                stack!(background, from_svg_task(decoration))
+                stack!(background, from_svg_task(*decoration))
             } else {
                 background
             };
             SIDE_TYPES.iter().map(move |side_type| {
-                out_task(&format!("block/{}command_block_{}", color_type.prefix, side_type.name),
+                out_task(format!("block/{}command_block_{}", color_type.prefix, side_type.name),
                          stack!(
                     decorated_background.to_owned(),
                     side_type.grid_layers(&color_type.colors)

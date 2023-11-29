@@ -108,29 +108,29 @@ impl Material for Ore {
         let mut output = Vec::with_capacity(7);
         for substrate in &self.substrates {
             output.push(out_task(
-                &format!("block/{}{}_ore", substrate.block_name_prefix, self.name),
+                format!("block/{}{}_ore", substrate.block_name_prefix, self.name),
                 (self.ore_block_for_substrate)(self,
                                                substrate.material.material.texture())));
         }
         if self.name != "quartz" {
             // quartz textures are defined separately in simple_pickaxe_block.rs
             output.push(out_task(
-                &format!("block/{}_block", self.name), (self.refined_block)(self)
+                format!("block/{}_block", self.name), (self.refined_block)(self)
             ));
         }
         if self.needs_refining {
             output.push(out_task(
-                &format!("block/raw_{}_block", self.name), (self.raw_block)(self)
+                format!("block/raw_{}_block", self.name), (self.raw_block)(self)
             ));
             output.push(out_task(
-                &format!("item/raw_{}", self.item_name), (self.raw_item)(self)
+                format!("item/raw_{}", self.item_name), (self.raw_item)(self)
             ));
             output.push(out_task(
-                &format!("item/{}_ingot", self.name), (self.refined_item)(self)
+                format!("item/{}_ingot", self.name), (self.refined_item)(self)
             ));
         } else {
             output.push(out_task(
-                &format!("item/{}", self.item_name), (self.raw_item)(self)
+                format!("item/{}", self.item_name), (self.raw_item)(self)
             ));
         }
         output.into()

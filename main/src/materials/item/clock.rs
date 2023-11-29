@@ -12,9 +12,9 @@ impl Material for Clock {
         let frame = from_svg_task("clockFrame");
         (0..CLOCK_ANGLES).map(|angle| {
             out_task(
-                &format!("item/clock_{:0>2}", angle),
+                format!("item/clock_{:0>2}", angle),
                 stack!(
-                    from_svg_task(&format!("clockDial{}", angle)),
+                    from_svg_task(format!("clockDial{}", angle)),
                     frame.to_owned()
                 )
             )
