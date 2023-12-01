@@ -9,7 +9,7 @@
 use std::path::{absolute, PathBuf};
 use std::time::Instant;
 
-use log::{info, LevelFilter, warn};
+use log::{info, warn};
 use texture_base::material::Material;
 
 use crate::image_tasks::task_spec::{FileOutputTaskSpec, METADATA_DIR, TaskGraphBuildingContext, TaskSpecTraits};
@@ -83,7 +83,7 @@ fn copy_metadata(source_dir: &Dir) {
 }
 
 fn main() -> Result<(), CloneableError> {
-    simple_logging::log_to_file("./log.txt", LevelFilter::Debug).expect("Failed to configure file logging");
+    file_per_thread_logger::initialize("log-");
     let out_dir = PathBuf::from("./out");
     let out_file = out_dir.join(format!("OcHD-{}x{}.zip", *TILE_SIZE, *TILE_SIZE));
     info!("Writing output to {}", absolute(&out_file)?.to_string_lossy());
@@ -94,7 +94,9 @@ fn main() -> Result<(), CloneableError> {
         warn!("Adjusting CPU count from {} to {}", cpus, cpus + 1);
         cpus += 1;
         // Compensate for missed CPU core on m7g.16xlarge
-        ThreadPoolBuilder::new().num_threads(cpus).build_global()?;
+        ThreadPoolBuilder::new().num_threads(cpus)
+            .start_handler(Box::new(|_| file_per_thread_logger::initialize("log-")))
+            .build_global()?;
     }
     info!("Rayon thread pool has {} threads", cpus);
     let start_time = Instant::now();
