@@ -84,6 +84,7 @@ fn copy_metadata(source_dir: &Dir) {
 
 fn main() -> Result<(), CloneableError> {
     file_per_thread_logger::initialize("log-");
+    file_per_thread_logger::allow_uninitialized();
     let out_dir = PathBuf::from("./out");
     let out_file = out_dir.join(format!("OcHD-{}x{}.zip", *TILE_SIZE, *TILE_SIZE));
     info!("Writing output to {}", absolute(&out_file)?.to_string_lossy());
@@ -93,11 +94,10 @@ fn main() -> Result<(), CloneableError> {
     if (cpus as u64 + 1).count_ones() <= 1 {
         warn!("Adjusting CPU count from {} to {}", cpus, cpus + 1);
         cpus += 1;
-        // Compensate for missed CPU core on m7g.16xlarge
-        ThreadPoolBuilder::new().num_threads(cpus)
-            .start_handler(Box::new(|_| file_per_thread_logger::initialize("log-")))
-            .build_global()?;
     }
+    ThreadPoolBuilder::new().num_threads(cpus)
+        .start_handler(Box::new(|_| file_per_thread_logger::initialize("log-")))
+        .build_global()?;
     info!("Rayon thread pool has {} threads", cpus);
     let start_time = Instant::now();
     rayon::join(
