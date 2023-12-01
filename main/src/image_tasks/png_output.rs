@@ -31,7 +31,7 @@ const PNG_BUFFER_SIZE: usize = 1024 * 1024;
 
 static ZOPFLI_OPTIONS: Lazy<zopfli::Options> = Lazy::new(|| zopfli::Options {
     iteration_count: NonZeroU64::MAX,
-    iterations_without_improvement: NonZeroU64::new(*ZOPFLI_ITERS),
+    iterations_without_improvement: NonZeroU64::new(*ZOPFLI_ITERS).unwrap(),
     maximum_block_splits: (2 * GRID_SIZE) as u16
 });
 static ZOPFLI_DEFLATER: Lazy<BufferedZopfliDeflater> = Lazy::new(|| BufferedZopfliDeflater::new(
