@@ -30,7 +30,7 @@ pub type ZipBufferRaw = Cursor<Vec<u8>>;
 const PNG_BUFFER_SIZE: usize = 1024 * 1024;
 
 static ZOPFLI_OPTIONS: Lazy<zopfli::Options> = Lazy::new(|| zopfli::Options {
-    iteration_count: None,
+    iteration_count: NonZeroU64::MAX,
     iterations_without_improvement: NonZeroU64::new(*ZOPFLI_ITERS),
     maximum_block_splits: (2 * GRID_SIZE) as u16
 });
