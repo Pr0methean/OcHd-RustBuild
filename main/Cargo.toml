@@ -25,7 +25,7 @@ include_dir = "0.7.3"
 tikv-jemallocator = "0.5.0"
 zip_next = {version = "0.10.3", default-features = false, features = ["deflate-zlib-ng", "deflate-zopfli"]}
 oxipng = {git = "https://github.com/shssoichiro/oxipng.git", default-features = false, features = ["zopfli"]}
-bitstream-io = "1.6.0"
+bitstream-io = "2.0.0"
 num_cpus = "1.16.0"
 palette = "0.7.2"
 bytemuck = {version = "1.13.1", features = ["derive"]}
