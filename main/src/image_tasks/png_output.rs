@@ -150,7 +150,7 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
             let mut palette_with_error_corrections: HashMap<[u8; 4], u16> = HashMap::new();
             for (premul_bytes, index, _) in sorted_palette.iter() {
                 palette_premul.push(*premul_bytes);
-                palette_with_error_corrections.push(*premul_bytes, index);
+                palette_with_error_corrections.insert(*premul_bytes, *index);
             }
             let mut worst_discrepancy: u16 = 0;
             let mut prev_pixel: PremultipliedColorU8 = cast(palette_premul[0]);
@@ -161,8 +161,8 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
                 } else {
                     let pixel_bytes: [u8; 4] = cast(*pixel);
                     let index = match palette_with_error_corrections.get(&pixel_bytes) {
-                        Ok(index) => {
-                            index
+                        Some(index) => {
+                            *index
                         }
                         None => {
                             let pixel_color = ComparableColor::from(*pixel);
