@@ -40,7 +40,7 @@ static TILE_SIZE_PIXMAP_POOL: Lazy<LinearObjectPool<Pixmap>> = Lazy::new(|| Line
 static GRID_SIZE_PIXMAP_POOL: Lazy<LinearObjectPool<Pixmap>> = Lazy::new(|| LinearObjectPool::new(
     || {
         info!("Allocating a grid-size Pixmap for pool");
-        new_uninit_pixmap(*GRID_SIZE, *GRID_SIZE)
+        new_uninit_pixmap(GRID_SIZE, GRID_SIZE)
     },
     |_| {} // no reset needed if using allocate_pixmap_for_overwrite
 ));
