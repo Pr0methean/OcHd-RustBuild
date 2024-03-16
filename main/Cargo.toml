@@ -10,7 +10,7 @@ codegen-units = 1
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-resvg = "0.37.0"
+resvg = "0.40.0"
 anyhow = "1.0.71"
 once_cell = "1.18.0"
 const_format = {version = "0.2.31", features = ["fmt", "rust_1_64"]}
@@ -24,8 +24,8 @@ png = "0.17.9"
 include_dir = "0.7.3"
 tikv-jemallocator = "0.5.0"
 zip_next = {version = "0.10.3", default-features = false, features = ["deflate-zlib-ng", "deflate-zopfli"]}
-oxipng = {git = "https://github.com/shssoichiro/oxipng.git", default-features = false, features = ["zopfli"]}
-bitstream-io = "2.0.0"
+oxipng = {version = "9.0.0", default-features = false, features = ["zopfli"]}
+bitstream-io = "2.2.0"
 num_cpus = "1.16.0"
 palette = "0.7.2"
 bytemuck = {version = "1.13.1", features = ["derive"]}

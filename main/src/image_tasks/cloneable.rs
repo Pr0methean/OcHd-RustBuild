@@ -1,5 +1,7 @@
+use std::cmp::Ordering;
 use std::sync::{Arc, Mutex};
 use std::fmt::{Debug, Display, Formatter};
+use std::hash::{Hash, Hasher};
 use log::info;
 use replace_with::{replace_with_and_return};
 use std::ops::{Deref, DerefMut};
@@ -9,7 +11,7 @@ pub type CloneableResult<T> = Result<Arc<T>, CloneableError>;
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct CloneableError {
-    message: Arc<str>
+    message: ArcowStr<'static>
 }
 
 impl <T> From<T> for CloneableError where T: ToString {
@@ -18,7 +20,7 @@ impl <T> From<T> for CloneableError where T: ToString {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Eq, Ord)]
 pub enum ArcowStr<'a> {
     Owned(Arc<str>),
     Borrowed(&'a str)
@@ -35,16 +37,27 @@ impl <'a> Deref for ArcowStr<'a> {
     }
 }
 
-impl <'a> Debug for ArcowStr<'a> {
+impl <'a> Display for ArcowStr<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.deref())
     }
 }
 
+impl <'a> PartialEq for ArcowStr<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.deref() == other.deref()
+    }
+}
 
-impl <'a> Display for ArcowStr<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.deref())
+impl <'a> PartialOrd for ArcowStr<'a> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.deref().cmp(other.deref()))
+    }
+}
+
+impl <'a> Hash for ArcowStr<'a> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.deref().hash(state)
     }
 }
 

@@ -1,5 +1,4 @@
 #![feature(absolute_path)]
-#![feature(arc_unwrap_or_clone)]
 #![feature(const_type_id)]
 #![feature(let_chains)]
 #![feature(macro_metavar_expr)]

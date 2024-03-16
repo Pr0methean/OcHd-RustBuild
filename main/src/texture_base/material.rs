@@ -47,6 +47,7 @@ pub const DEFAULT_GROUP_SIZE: usize = 1024;
 #[macro_export]
 macro_rules! group {
     ($name:ident = $( $members:expr ),* ) => {
+        #[allow(unused_mut)]
         pub static $name: once_cell::sync::Lazy<$crate::texture_base::material::MaterialGroup>
         = once_cell::sync::Lazy::new(|| {
             let mut tasks: Vec<$crate::image_tasks::task_spec::FileOutputTaskSpec>

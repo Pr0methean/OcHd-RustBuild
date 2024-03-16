@@ -1,7 +1,9 @@
 use std::path::PathBuf;
+use resvg::render;
 
 use resvg::tiny_skia::{Pixmap, Transform};
-use resvg::usvg::{Options, Tree, TreeParsing};
+use resvg::usvg::{Options, Tree};
+use resvg::usvg::fontdb::Database;
 
 use crate::anyhoo;
 use crate::image_tasks::{allocate_pixmap_empty, MaybeFromPool};
@@ -181,13 +183,13 @@ pub fn from_svg(mut path: String, width: u32) -> Result<MaybeFromPool<Pixmap>,Cl
     path.push_str(".svg");
     let svg = SVG_DIR.get_file(PathBuf::from(&path)).ok_or(
         anyhoo!(format!("File not found: {}", path)))?;
-    let svg_tree = resvg::Tree::from_usvg(
-        &Tree::from_data(svg.contents(), &Options::default())?);
-    let view_box = svg_tree.view_box;
+    let svg_tree = Tree::from_data(svg.contents(), &Options::default(), &Database::new())?;
+    let view_box = svg_tree.view_box();
     let height = f64::from(width) * view_box.rect.height() as f64 / view_box.rect.width() as f64;
-    let scale = (width as f64 / svg_tree.size.width() as f64) as f32;
+    let scale = (width as f64 / svg_tree.size().width() as f64) as f32;
     let mut out = allocate_pixmap_empty(width, height as u32);
-    svg_tree.render(
+    render(
+        &svg_tree,
         Transform::from_scale(scale, scale),
         &mut out.as_mut());
     Ok(out)

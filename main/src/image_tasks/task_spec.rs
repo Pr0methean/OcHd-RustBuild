@@ -41,13 +41,6 @@ use crate::image_tasks::upscale::{upscale_image, upscale_mask};
 pub trait TaskSpecTraits <T>: Clone + Debug + Display + Ord + Eq + Hash {
     fn add_to(&self, ctx: &mut TaskGraphBuildingContext, tile_size: u32)
                          -> CloneableLazyTask<T>;
-
-    fn with_size(self, tile_size: u32) -> TileSized<Self> {
-        TileSized {
-            inner: self,
-            tile_size
-        }
-    }
 }
 
 impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
