@@ -183,6 +183,7 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
                 };
                 bit_writer.write(bit_depth as u8 as u32, index)?;
             }
+            bit_writer.flush()?;
             if let Some(corrected_color_count)
                     = palette_with_error_corrections.len().checked_sub(sorted_palette.len()) {
                 let corrections = palette_with_error_corrections.into_iter()
@@ -200,7 +201,6 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
                 warn!("Corrected {} color errors in {} (worst error amount was {}): {}",
                     corrected_color_count, file_path, worst_discrepancy, corrections);
             }
-            bit_writer.flush()?;
             bit_writer.into_writer().into_inner()
         }
     };
