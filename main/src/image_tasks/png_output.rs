@@ -148,11 +148,12 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
             let mut bit_writer: BitWriter<_, BigEndian> = BitWriter::new(Cursor::new(bytes));
             let mut palette_premul: Vec<[u8; 4]> = Vec::with_capacity(palette.len());
             let mut orig_indices: Vec<u16> = Vec::with_capacity(palette.len());
+            let mut palette_with_error_corrections: HashMap<[u8; 4], u16> = HashMap::new();
             for (premul_bytes, index, _) in sorted_palette.iter() {
                 palette_premul.push(*premul_bytes);
                 orig_indices.push(*index);
+                palette_with_error_corrections.push(*premul_bytes, index);
             }
-            let mut error_corrections: HashMap<[u8; 4], u16> = HashMap::new();
             let mut worst_discrepancy: u16 = 0;
             let mut prev_pixel: PremultipliedColorU8 = cast(palette_premul[0]);
             let mut prev_index: u16 = orig_indices[0];
@@ -161,22 +162,19 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
                     prev_index
                 } else {
                     let pixel_bytes: [u8; 4] = cast(*pixel);
-                    let index = match palette_premul.binary_search(&pixel_bytes) {
+                    let index = match palette_with_error_corrections.get(&pixel_bytes) {
                         Ok(index) => {
                             orig_indices[index]
                         }
-                        Err(_) => match error_corrections.get(&pixel_bytes) {
-                            Some(index) => *index,
-                            None => {
-                                let pixel_color = ComparableColor::from(*pixel);
-                                let (_, orig_index, color)
-                                    = sorted_palette.iter()
-                                    .min_by_key(|(_, _, color)| color.abs_diff(&pixel_color))
-                                    .unwrap();
-                                error_corrections.insert(pixel_bytes, *orig_index);
-                                worst_discrepancy = worst_discrepancy.max(color.abs_diff(&pixel_color));
-                                *orig_index
-                            }
+                        Err(_) => {
+                            let pixel_color = ComparableColor::from(*pixel);
+                            let (_, orig_index, color)
+                                = sorted_palette.iter()
+                                .min_by_key(|(_, _, color)| color.abs_diff(&pixel_color))
+                                .unwrap();
+                            palette_with_error_corrections.insert(pixel_bytes, *orig_index);
+                            worst_discrepancy = worst_discrepancy.max(color.abs_diff(&pixel_color));
+                            *orig_index
                         }
                     };
                     prev_pixel = *pixel;
@@ -185,14 +183,18 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
                 };
                 bit_writer.write(bit_depth as u8 as u32, index)?;
             }
-            if !error_corrections.is_empty() {
-                let corrected_color_count = error_corrections.len();
-                let corrections = error_corrections.into_iter()
-                    .map(|(raw, corrected_index)| {
+            if let Some(corrected_color_count)
+                    = palette_with_error_corrections.len().checked_sub(sorted_palette.len()) {
+                let corrections = palette_with_error_corrections.into_iter()
+                    .flat_map(|(raw, corrected_index)| {
                         let found: PremultipliedColorU8 = cast(raw);
                         let found: ComparableColor = found.into();
                         let corrected = ComparableColor::from(palette[corrected_index as usize]);
-                        format!("{} -> {}", found, corrected)
+                        if found != corrected {
+                            Some(format!("{} -> {}", found, corrected))
+                        } else {
+                            None
+                        }.into_iter()
                     })
                     .join(", ");
                 warn!("Corrected {} color errors in {} (worst error amount was {}): {}",
