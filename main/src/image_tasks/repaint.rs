@@ -12,14 +12,14 @@ static TILE_SIZE_MASK_POOL: Lazy<LinearObjectPool<Mask>> = Lazy::new(|| LinearOb
     || {
         info!("Allocating a tile-size Mask for pool");
         let tile_size: u32 = *TILE_SIZE;
-        Mask::new(tile_size, tile_size).expect("Failed to allocate a Mask for pool")
+        new_mask_uninit(tile_size, tile_size)
     },
     |_| {} // don't need to reset because we always overwrite
 ));
 static GRID_SIZE_MASK_POOL: Lazy<LinearObjectPool<Mask>> = Lazy::new(|| LinearObjectPool::new(
     || {
         info!("Allocating a grid-size Mask for pool");
-        Mask::new(GRID_SIZE, GRID_SIZE).expect("Failed to allocate a Mask for pool")
+        new_mask_uninit(GRID_SIZE, GRID_SIZE)
     },
     |_| {} // don't need to reset because we always overwrite
 ));
@@ -43,6 +43,16 @@ impl Clone for MaybeFromPool<Mask> {
     }
 }
 
+fn new_mask_uninit(width: u32, height: u32) -> Mask {
+    let data_len = width as usize * height as usize;
+    let mut data = Vec::with_capacity(data_len);
+    unsafe {
+        data.set_len(data_len);
+    }
+    Mask::from_vec(data, IntSize::from_wh(width, height).unwrap())
+        .unwrap_or_else(|| panic!("Failed to allocate a {}x{} Mask", width, height))
+}
+
 pub fn allocate_mask_for_overwrite(width: u32, height: u32) -> MaybeFromPool<Mask> {
     if width == GRID_SIZE && height == GRID_SIZE {
         info!("Borrowing a grid-size Mask from pool");
@@ -58,12 +68,7 @@ pub fn allocate_mask_for_overwrite(width: u32, height: u32) -> MaybeFromPool<Mas
             }
         } else {
             info!("Allocating a Mask outside pool for unusual size {}x{}", width, height);
-            let data_len = width as usize * height as usize;
-            let mut data = Vec::with_capacity(data_len);
-            unsafe {
-                data.set_len(data_len);
-            }
-            NotFromPool(Mask::from_vec(data, IntSize::from_wh(width, height).unwrap()).expect("Failed to allocate a Mask outside pool"))
+            NotFromPool(new_mask_uninit(width, height))
         }
     }
 }
