@@ -58,7 +58,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                 .add_to(ctx, tile_size);
         }
         let function: LazyTaskFunction<MaybeFromPool<Pixmap>> = match self {
-            ToPixmapTaskSpec::None { .. } => panic!("Tried to add None task to graph"),
+            ToPixmapTaskSpec::None { .. } => debug_assert_unreachable("Tried to add None task to graph"),
             ToPixmapTaskSpec::Animate { background, frames } => {
                 let background_future = background.add_to(ctx, tile_size);
                 let background_color_desc_future = background.get_color_description_task(ctx);
@@ -554,7 +554,7 @@ fn palette_bit_depth(len: usize) -> BitDepth {
     } else if len <= 256 {
         Eight
     } else {
-        panic!("Indexed mode with more than 256 colors not supported")
+        debug_assert_unreachable("Indexed mode with more than 256 colors not supported")
     }
 }
 
@@ -568,7 +568,7 @@ pub const fn channel_to_bit_depth(input: u8, depth: BitDepth) -> u16 {
             (input as u16 + (0x11/2)) / 0x11
         },
         Eight => input as u16,
-        Sixteen => debug_assert_unreachable()
+        Sixteen => debug_assert_unreachable("16-bit depth")
     }
 }
 
@@ -687,7 +687,7 @@ fn color_description_to_mode(color_description: &ColorDescription,
                             Two => vec![gray(0x00), gray(0x55), gray(0xAA), gray(0xFF)],
                             Four => (0..16).map(|n| gray(n * 0x11)).collect(),
                             Eight => ALL_U8S.iter().copied().map(gray).collect(),
-                            Sixteen => debug_assert_unreachable()
+                            Sixteen => debug_assert_unreachable("16-bit depth")
                         };
                         match grayscale_shades.into_iter().find(|color| !colors.contains(color)) {
                             Some(unused) => (
@@ -699,7 +699,7 @@ fn color_description_to_mode(color_description: &ColorDescription,
                                 Two => (Grayscale {transparent_shade: Some(0x2222)}, Four),
                                 Four => (Grayscale {transparent_shade: Some(0x0808)}, Eight),
                                 Eight => (GrayscaleAlpha, Eight),
-                                Sixteen => debug_assert_unreachable()
+                                Sixteen => debug_assert_unreachable("16-bit depth")
                             }
                         }
                     },
@@ -743,9 +743,7 @@ fn contains_alpha(vec: &[ComparableColor], needle_alpha: u8) -> bool {
             return false;
         }
         let next_least_alpha = vec[1].alpha();
-        if next_least_alpha == 0 {
-            panic!("Transparent color included twice");
-        }
+        debug_assert_ne!(0, next_least_alpha, "Transparent color included twice");
         match needle_alpha.cmp(&next_least_alpha) {
             Ordering::Less => return false,
             Ordering::Equal => return true,
@@ -791,7 +789,7 @@ pub fn contains_semitransparency(vec: &[ComparableColor]) -> bool {
         0 => if vec.len() == 1 {
             false
         } else { match vec[1].alpha {
-            0 => panic!("Transparent color included twice"),
+            0 => unreachable!(),
             u8::MAX => false,
             _ => true
         }
@@ -817,7 +815,7 @@ impl ToPixmapTaskSpec {
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } =>
                 background.is_grid_perfect(ctx) && foreground.is_grid_perfect(ctx),
             UpscaleFromGridSize { .. } => true,
-            ToPixmapTaskSpec::None => debug_assert_unreachable()
+            ToPixmapTaskSpec::None => debug_assert_unreachable("ToPixmapTaskSpec::None::is_grid_perfect()")
         }
     }
 
@@ -838,7 +836,7 @@ impl ToPixmapTaskSpec {
         #[allow(clippy::type_complexity)]
         let desc: Either<Box<dyn FnOnce() -> Result<ColorDescription, CloneableError> + Send>,
                 CloneableLazyTask<ColorDescription>> = match self {
-            ToPixmapTaskSpec::None => debug_assert_unreachable(),
+            ToPixmapTaskSpec::None => debug_assert_unreachable("ToPixmapTaskSpec::None::get_color_description_task()"),
             ToPixmapTaskSpec::Animate { background, frames } => {
                 pixels *= frames.len();
                 let background_desc_task = background.get_color_description_task(ctx);
@@ -1004,7 +1002,7 @@ impl ToPixmapTaskSpec {
                     None
                 }
             }
-            ToPixmapTaskSpec::None => debug_assert_unreachable()
+            ToPixmapTaskSpec::None => debug_assert_unreachable("ToPixmapTaskSpec::None::alpha_and_color()")
         }
     }
 }
@@ -1131,7 +1129,7 @@ pub fn out_task<T: Into<Cow<'static, str>>>(name: T, base: ToPixmapTaskSpec) -> 
 
 fn stack_alpha_presorted(mut layers: Vec<ToAlphaChannelTaskSpec>) -> ToAlphaChannelTaskSpec {
     match layers.len() {
-        0 => panic!("Attempt to create empty stack of alpha channels"),
+        0 => debug_assert_unreachable("Attempt to create empty stack of alpha channels"),
         1 => layers[0].to_owned(),
         x => {
             let last = layers.remove(x - 1);

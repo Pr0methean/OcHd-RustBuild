@@ -48,9 +48,9 @@ const TILE_SIZE: &u32 = &128;
 static ALLOCATOR: Jemalloc = Jemalloc;
 
 #[allow(unreachable_code)]
-pub const fn debug_assert_unreachable<T>() -> T {
+pub const fn debug_assert_unreachable<T>(msg: &'static str) -> T {
     #[cfg(debug_assertions)]
-    unreachable!();
+    unreachable!(msg);
     unsafe {unreachable_unchecked()}
 }
 
