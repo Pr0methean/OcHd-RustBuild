@@ -5,7 +5,7 @@ use std::ops::{Deref, DerefMut};
 use lockfree_object_pool::{LinearObjectPool, LinearReusable};
 use log::info;
 use once_cell::sync::Lazy;
-use resvg::tiny_skia::{Color, Pixmap};
+use resvg::tiny_skia::{Color, IntSize, Pixmap};
 use crate::{GRID_SIZE, TILE_SIZE};
 
 pub mod color;
@@ -19,10 +19,20 @@ pub mod make_semitransparent;
 pub mod upscale;
 pub(crate) mod cloneable;
 
+fn new_uninit_pixmap(width: u32, height: u32) -> Pixmap {
+    let data_len = 4 * (width as usize) * (height as usize);
+    let mut data = Vec::with_capacity(data_len);
+    unsafe {
+        data.set_len(data_len);
+    }
+    Pixmap::from_vec(data, IntSize::from_wh(width, height).unwrap())
+        .unwrap_or_else(|| panic!("Failed to allocate a {}x{} pixmap", width, height))
+}
+
 static TILE_SIZE_PIXMAP_POOL: Lazy<LinearObjectPool<Pixmap>> = Lazy::new(|| LinearObjectPool::new(
         || {
             info!("Allocating a tile-size Pixmap for pool");
-            Pixmap::new(*TILE_SIZE, *TILE_SIZE).expect("Failed to allocate a Pixmap for pool")
+            new_uninit_pixmap(*TILE_SIZE, *TILE_SIZE)
         },
         |_| {} // no reset needed if using allocate_pixmap_for_overwrite
     )
@@ -30,7 +40,7 @@ static TILE_SIZE_PIXMAP_POOL: Lazy<LinearObjectPool<Pixmap>> = Lazy::new(|| Line
 static GRID_SIZE_PIXMAP_POOL: Lazy<LinearObjectPool<Pixmap>> = Lazy::new(|| LinearObjectPool::new(
     || {
         info!("Allocating a grid-size Pixmap for pool");
-        Pixmap::new(GRID_SIZE, GRID_SIZE).expect("Failed to allocate a Pixmap for pool")
+        new_uninit_pixmap(*GRID_SIZE, *GRID_SIZE)
     },
     |_| {} // no reset needed if using allocate_pixmap_for_overwrite
 ));
@@ -134,7 +144,7 @@ pub fn allocate_pixmap_for_overwrite(width: u32, height: u32) -> MaybeFromPool<P
     } else {
         info!("Allocating a Pixmap outside pool (not required empty) for unusual size {}x{}",
             width, height);
-        MaybeFromPool::NotFromPool(Pixmap::new(width, height).unwrap())
+        MaybeFromPool::NotFromPool(new_uninit_pixmap(width, height))
     }
 }
 

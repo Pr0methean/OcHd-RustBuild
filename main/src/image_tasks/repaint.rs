@@ -1,7 +1,7 @@
 use lockfree_object_pool::LinearObjectPool;
 use log::info;
 use once_cell::sync::Lazy;
-use resvg::tiny_skia::{Mask, Paint, Pixmap, Rect, Transform};
+use resvg::tiny_skia::{IntSize, Mask, Paint, Pixmap, Rect, Transform};
 use crate::{anyhoo, GRID_SIZE, TILE_SIZE};
 
 use crate::image_tasks::{allocate_pixmap_empty, MaybeFromPool};
@@ -58,7 +58,12 @@ pub fn allocate_mask_for_overwrite(width: u32, height: u32) -> MaybeFromPool<Mas
             }
         } else {
             info!("Allocating a Mask outside pool for unusual size {}x{}", width, height);
-            NotFromPool(Mask::new(width, height).expect("Failed to allocate a Mask outside pool"))
+            let data_len = width as usize * height as usize;
+            let mut data = Vec::with_capacity(data_len);
+            unsafe {
+                data.set_len(data_len);
+            }
+            NotFromPool(Mask::from_vec(data, IntSize::from_wh(width, height).unwrap()).expect("Failed to allocate a Mask outside pool"))
         }
     }
 }

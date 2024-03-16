@@ -197,7 +197,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
 impl TaskSpecTraits<()> for FileOutputTaskSpec {
     fn add_to(&self, ctx: &mut TaskGraphBuildingContext, tile_size: u32)
                          -> CloneableLazyTask<()> {
-        let name: String = self.to_string();
+        let name = format!("{}", self);
         if let Some(existing_future)
                 = ctx.output_task_to_future_map.get(self) {
             info!("Matched an existing node: {}", name);
