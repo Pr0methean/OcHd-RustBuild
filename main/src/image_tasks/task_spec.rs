@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
@@ -257,7 +256,7 @@ impl <T> Display for TileSized<T> where T: Display {
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum ToPixmapTaskSpec {
     Animate {background: Box<ToPixmapTaskSpec>, frames: Box<[ToPixmapTaskSpec]>},
-    FromSvg {source: Cow<'static, str>},
+    FromSvg {source: ArcowStr<'static>},
     PaintAlphaChannel {base: Box<ToAlphaChannelTaskSpec>, color: ComparableColor},
     StackLayerOnColor {background: ComparableColor, foreground: Box<ToPixmapTaskSpec>},
     StackLayerOnLayer {background: Box<ToPixmapTaskSpec>, foreground: Box<ToPixmapTaskSpec>},
@@ -1078,11 +1077,11 @@ pub const METADATA_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/metadata");
 
 pub const ASSET_DIR: &str = "assets/minecraft/textures/";
 
-pub fn from_svg_task<T: Into<Cow<'static, str>>>(name: T) -> ToPixmapTaskSpec {
+pub fn from_svg_task<T: Into<ArcowStr<'static>>>(name: T) -> ToPixmapTaskSpec {
     ToPixmapTaskSpec::FromSvg {source: name.into()}
 }
 
-pub fn svg_alpha_task<T: Into<Cow<'static, str>>>(name: T) -> ToAlphaChannelTaskSpec {
+pub fn svg_alpha_task<T: Into<ArcowStr<'static>>>(name: T) -> ToAlphaChannelTaskSpec {
     ToAlphaChannelTaskSpec::FromPixmap { base: from_svg_task(name) }
 }
 
@@ -1109,7 +1108,7 @@ pub fn paint_task(base: ToAlphaChannelTaskSpec, color: ComparableColor) -> ToPix
     ToPixmapTaskSpec::PaintAlphaChannel { base: Box::new(base), color }
 }
 
-pub fn paint_svg_task<T: Into<Cow<'static, str>> + Display>(name: T, color: ComparableColor) -> ToPixmapTaskSpec {
+pub fn paint_svg_task<T: Into<ArcowStr<'static>> + Display>(name: T, color: ComparableColor) -> ToPixmapTaskSpec {
     let name = name.into();
     if color == ComparableColor::BLACK
         && COLOR_SVGS.binary_search(&name.as_ref()).is_err() {
