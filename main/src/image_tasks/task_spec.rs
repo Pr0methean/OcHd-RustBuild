@@ -278,8 +278,8 @@ pub enum ToAlphaChannelTaskSpec {
 /// [TaskSpec] for a task that doesn't produce a heap object as output.
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum FileOutputTaskSpec {
-    PngOutput {base: ToPixmapTaskSpec, destination_name: Cow<'static, str>},
-    Copy {original: Box<FileOutputTaskSpec>, link_name: Cow<'static, str>}
+    PngOutput {base: ToPixmapTaskSpec, destination_name: ArcowStr<'static>},
+    Copy {original: Box<FileOutputTaskSpec>, link_name: ArcowStr<'static>}
 }
 
 impl FileOutputTaskSpec {
@@ -1123,7 +1123,7 @@ pub fn paint_svg_task<T: Into<Cow<'static, str>> + Display>(name: T, color: Comp
     }
 }
 
-pub fn out_task<T: Into<Cow<'static, str>>>(name: T, base: ToPixmapTaskSpec) -> FileOutputTaskSpec {
+pub fn out_task<T: Into<ArcowStr<'static>>>(name: T, base: ToPixmapTaskSpec) -> FileOutputTaskSpec {
     FileOutputTaskSpec::PngOutput {base, destination_name: name.into() }
 }
 

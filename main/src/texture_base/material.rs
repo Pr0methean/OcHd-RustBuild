@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::Arc;
@@ -298,8 +297,8 @@ pub struct DoubleTallBlock {
 
 impl Material for DoubleTallBlock {
     fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
-        Arc::new([out_task(Cow::Owned(format!("block/{}_bottom", self.name)), self.bottom.to_owned()),
-            out_task(Cow::Owned(format!("block/{}_top", self.name)), self.top.to_owned())
+        Arc::new([out_task(format!("block/{}_bottom", self.name), self.bottom.to_owned()),
+            out_task(format!("block/{}_top", self.name), self.top.to_owned())
         ])
     }
 }
@@ -318,11 +317,11 @@ impl Material for GroundCoverBlock {
     fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
         Arc::new([
             out_task(
-                Cow::Owned(format!("block/{}{}", self.name, self.top_name_suffix)),
+                format!("block/{}{}", self.name, self.top_name_suffix),
                 self.top.to_owned()
             ),
             out_task(
-                Cow::Owned(format!("block/{}_side", self.name)),
+                format!("block/{}_side", self.name),
                 ToPixmapTaskSpec::StackLayerOnLayer {
                     background: Box::new(self.base.to_owned()),
                     foreground: Box::new(self.cover_side.to_owned())
@@ -391,11 +390,11 @@ pub struct RedstoneOffOnBlockPair {
 impl Material for RedstoneOffOnBlockPair {
     fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
         Arc::new([out_task(
-                Cow::Owned(format!("block/{}", self.name)),
+                format!("block/{}", self.name),
                 (self.create_texture)(ComparableColor::BLACK)
         ),
         out_task(
-            Cow::Owned(format!("block/{}_on", self.name)),
+            format!("block/{}_on", self.name),
             (self.create_texture)(REDSTONE_ON)
         )])
     }
