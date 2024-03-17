@@ -12,7 +12,7 @@ use once_cell::sync::Lazy;
 use oxipng::{BitDepth, ColorType, Deflaters, IndexSet, Options, RawImage, RowFilter};
 
 use resvg::tiny_skia::{ColorU8, Pixmap, PremultipliedColorU8};
-use zip_next::CompressionMethod::Deflated;
+use zip_next::CompressionMethod;
 use zip_next::write::FileOptions;
 use zip_next::ZipWriter;
 
@@ -27,8 +27,9 @@ pub type ZipBufferRaw = Cursor<Vec<u8>>;
 const PNG_BUFFER_SIZE: usize = 1024 * 1024;
 
 static ZIP_BUFFER_SIZE: Lazy<usize> = Lazy::new(|| (*TILE_SIZE as usize) * 32 * 1024);
+#[cfg(not(debug_assertions))]
 static PNG_ZIP_OPTIONS: Lazy<FileOptions> = Lazy::new(|| FileOptions::default()
-    .compression_method(Deflated)
+    .compression_method(CompressionMethod::Deflated)
     .with_zopfli_buffer(Some(PNG_BUFFER_SIZE))
     .compression_level(Some(if *TILE_SIZE < 2048 {
     264
@@ -37,13 +38,18 @@ static PNG_ZIP_OPTIONS: Lazy<FileOptions> = Lazy::new(|| FileOptions::default()
 } else {
     8
 })));
+#[cfg(debug_assertions)]
+static PNG_ZIP_OPTIONS: Lazy<FileOptions> = Lazy::new(|| FileOptions::default()
+    .compression_method(CompressionMethod::Stored));
+
 static METADATA_ZIP_OPTIONS: Lazy<FileOptions> = Lazy::new(|| {
     FileOptions::default()
-        .compression_method(Deflated)
+        .compression_method(CompressionMethod::Deflated)
         .compression_level(Some(264))
 });
 pub static ZIP: Lazy<Mutex<ZipWriter<ZipBufferRaw>>> = Lazy::new(|| Mutex::new(ZipWriter::new(Cursor::new(
     Vec::with_capacity(*ZIP_BUFFER_SIZE)))));
+#[cfg(not(debug_assertions))]
 static OXIPNG_OPTIONS: Lazy<Options> = Lazy::new(|| {
     let mut options = Options::from_preset(if *TILE_SIZE < 1024 {
         6
@@ -64,6 +70,8 @@ static OXIPNG_OPTIONS: Lazy<Options> = Lazy::new(|| {
     options.optimize_alpha = true;
     options
 });
+#[cfg(debug_assertions)]
+static OXIPNG_OPTIONS: Lazy<Options> = Lazy::new(|| Options::from_preset(0));
 
 fn png_filters_to_try(file_path: &str) -> Option<IndexSet<RowFilter>> {
     let tile_size = *TILE_SIZE;

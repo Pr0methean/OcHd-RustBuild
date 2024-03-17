@@ -423,6 +423,7 @@ fn stack_alpha_vecs(background: &[u8], foreground: &[u8]) -> Vec<u8> {
 }
 
 fn multiply_alpha_vec(alphas: &[u8], rhs: u8) -> Vec<u8> {
+    debug_assert!(alphas.windows(2).all(|window| window[0] < window[1]));
     if rhs == 0 {
         vec![0]
     } else if rhs == u8::MAX {
@@ -784,21 +785,25 @@ fn contains_alpha(vec: &[ComparableColor], needle_alpha: u8) -> bool {
 }
 
 pub fn contains_semitransparency(vec: &[ComparableColor]) -> bool {
+    debug_assert!(vec.windows(2).all(|window| window[0] < window[1]));
     match vec[0].alpha {
-        0 => if vec.len() == 1 {
-            false
-        } else { match vec[1].alpha {
-            0 => unreachable!(),
-            u8::MAX => false,
-            _ => true
-        }
+        0 => {
+            if vec.len() == 1 {
+                false
+            } else {
+                match vec[1].alpha {
+                    0 => debug_assert_unreachable("Duplicate transparent color"),
+                    u8::MAX => false,
+                    _ => true
+                }
+            }
         }
         u8::MAX => false,
         _ => true,
     }
 }
 
-const BLACK_TRANSPARENT: &[ComparableColor] = &[ComparableColor::BLACK, ComparableColor::TRANSPARENT];
+const BLACK_TRANSPARENT: &[ComparableColor] = &[ComparableColor::TRANSPARENT, ComparableColor::BLACK];
 const BLACK_TO_TRANSPARENT: &[ComparableColor] = &create_black_to_transparent();
 
 const fn create_black_to_transparent() -> [ComparableColor; u8::MAX as usize + 1] {
@@ -898,7 +903,8 @@ impl ToPixmapTaskSpec {
                 let color = *color;
                 Left(Box::new(move || Ok(SpecifiedColors({
                     let alpha_array = ALPHA_MULTIPLICATION_TABLE[color.alpha() as usize];
-                    let mut colored_alphas: Vec<ComparableColor> = base_task.into_result()?
+                    let base_alphas = base_task.into_result()?;
+                    let mut colored_alphas: Vec<ComparableColor> = base_alphas
                         .iter()
                         .copied()
                         .map(|alpha| ComparableColor {
@@ -973,7 +979,6 @@ impl ToPixmapTaskSpec {
                         Rgb(_) => ALL_U8S.to_vec(),
                         SpecifiedColors(colors) => if colors.len() <= BINARY_SEARCH_THRESHOLD {
                             let mut alphas: Vec<u8> = colors.iter().map(|color| color.alpha()).collect();
-                            alphas.sort();
                             alphas.dedup();
                             alphas
                         } else {
