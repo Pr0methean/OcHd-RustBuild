@@ -1127,8 +1127,7 @@ pub fn paint_task(base: ToAlphaChannelTaskSpec, color: ComparableColor) -> ToPix
     ToPixmapTaskSpec::PaintAlphaChannel { base: Box::new(base), color }
 }
 
-pub fn paint_svg_task<T: Into<Arcow<'static, str>> + Display>(name: T, color: ComparableColor) -> ToPixmapTaskSpec {
-    let name = name.into();
+pub fn paint_svg_task<T: Into<Arcow<'static, str>> + AsRef<str> + Display>(name: T, color: ComparableColor) -> ToPixmapTaskSpec {
     if color == ComparableColor::BLACK
         && COLOR_SVGS.binary_search(&name.as_ref()).is_err() {
         info!("Simplified {}@{} -> {}", name, color, name);
