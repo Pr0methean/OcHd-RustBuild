@@ -139,24 +139,19 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
             info!("Writing {} in indexed mode with {} colors", file_path, palette.len());
             let bytes = Vec::with_capacity(image.width() as usize * image.height() as usize
                 * bit_depth as u8 as usize / 8);
-            let mut sorted_palette: Vec<([u8; 4], u16, ComparableColor)> = Vec::with_capacity(palette.len());
-            for (index, color) in palette.iter().enumerate() {
-                let color = ColorU8::from_rgba(color.r, color.g, color.b, color.a);
-                sorted_palette.push((cast(color.premultiply()), index as u16, ComparableColor::from(color)));
-            }
-            sorted_palette.sort_by_key(|(premult_bytes, _, _)| *premult_bytes);
             let mut bit_writer: BitWriter<_, BigEndian> = BitWriter::new(Cursor::new(bytes));
             let mut palette_premul: Vec<[u8; 4]> = Vec::with_capacity(palette.len());
-            let mut orig_indices: Vec<u16> = Vec::with_capacity(palette.len());
-            let mut palette_with_error_corrections: HashMap<[u8; 4], u16> = HashMap::new();
-            for (premul_bytes, index, _) in sorted_palette.iter() {
-                palette_premul.push(*premul_bytes);
-                orig_indices.push(*index);
-                palette_with_error_corrections.insert(*premul_bytes, *index);
+            let mut palette_demult: Vec<ComparableColor> = Vec::with_capacity(palette.len());
+            let mut palette_with_error_corrections: HashMap<[u8; 4], usize> = HashMap::new();
+            for (index, color) in palette.iter().enumerate() {
+                let premul_bytes = cast(ColorU8::from_rgba(color.r, color.g, color.b, color.a).premultiply());
+                palette_premul.push(premul_bytes);
+                palette_with_error_corrections.insert(premul_bytes, index);
+                palette_demult.push(ComparableColor::from(*color));
             }
             let mut worst_discrepancy: u16 = 0;
             let mut prev_pixel: PremultipliedColorU8 = cast(palette_premul[0]);
-            let mut prev_index: u16 = orig_indices[0];
+            let mut prev_index: u16 = 0;
             for pixel in image.pixels() {
                 let index = if prev_pixel == *pixel {
                     prev_index
@@ -164,19 +159,22 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
                     let pixel_bytes: [u8; 4] = cast(*pixel);
                     let index = match palette_with_error_corrections.get(&pixel_bytes) {
                         Some(index) => {
-                            orig_indices[index]
+                            *index
                         }
                         None => {
                             let pixel_color = ComparableColor::from(*pixel);
-                            let (_, orig_index, color)
-                                = sorted_palette.iter()
-                                .min_by_key(|(_, _, color)| color.abs_diff(&pixel_color))
+                            let (index, (_, discrepancy))
+                                = palette_demult
+                                .iter()
+                                .map(|color| (color, color.abs_diff(&pixel_color)))
+                                .enumerate()
+                                .min_by_key(|(_, (_, discrepancy))| *discrepancy)
                                 .unwrap();
-                            palette_with_error_corrections.insert(pixel_bytes, *orig_index);
-                            worst_discrepancy = worst_discrepancy.max(color.abs_diff(&pixel_color));
-                            *orig_index
+                            palette_with_error_corrections.insert(pixel_bytes, index);
+                            worst_discrepancy = worst_discrepancy.max(discrepancy);
+                            index
                         }
-                    };
+                    } as u16;
                     prev_pixel = *pixel;
                     prev_index = index;
                     index
@@ -185,12 +183,12 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
             }
             bit_writer.flush()?;
             if let Some(corrected_color_count)
-                    = palette_with_error_corrections.len().checked_sub(sorted_palette.len()) {
+                    = palette_with_error_corrections.len().checked_sub(palette.len()) {
                 let corrections = palette_with_error_corrections.into_iter()
                     .flat_map(|(raw, corrected_index)| {
                         let found: PremultipliedColorU8 = cast(raw);
                         let found: ComparableColor = found.into();
-                        let corrected = ComparableColor::from(palette[corrected_index as usize]);
+                        let corrected = palette_demult[corrected_index];
                         if found != corrected {
                             Some(format!("{} -> {}", found, corrected))
                         } else {
