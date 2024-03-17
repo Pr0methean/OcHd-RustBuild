@@ -43,6 +43,7 @@ impl Clone for MaybeFromPool<Mask> {
     }
 }
 
+#[allow(clippy::uninit_vec)]
 fn new_mask_uninit(width: u32, height: u32) -> Mask {
     let data_len = width as usize * height as usize;
     let mut data = Vec::with_capacity(data_len);

@@ -23,6 +23,7 @@ use std::fs::create_dir_all;
 use std::hint::unreachable_unchecked;
 use std::ops::DerefMut;
 use include_dir::{Dir, DirEntry};
+#[cfg(not(any(test,clippy)))]
 use once_cell::sync::Lazy;
 use rayon::{in_place_scope_fifo, ThreadPoolBuilder};
 use tikv_jemallocator::Jemalloc;
@@ -104,7 +105,7 @@ fn main() -> Result<(), CloneableError> {
         let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
         let mut large_tasks = Vec::with_capacity(out_tasks.len());
         let mut small_tasks = Vec::with_capacity(out_tasks.len());
-        for task in out_tasks.into_iter() {
+        for task in out_tasks.iter() {
             let new_task = task.add_to(&mut ctx, tile_size);
             if tile_size > GRID_SIZE
                     && let FileOutputTaskSpec::PngOutput {base, .. } = task

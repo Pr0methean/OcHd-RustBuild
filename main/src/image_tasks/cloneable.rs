@@ -11,7 +11,7 @@ pub type CloneableResult<T> = Result<Arc<T>, CloneableError>;
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct CloneableError {
-    message: ArcowStr<'static>
+    message: Arcow<'static, str>
 }
 
 impl <T> From<T> for CloneableError where T: ToString {
@@ -20,62 +20,77 @@ impl <T> From<T> for CloneableError where T: ToString {
     }
 }
 
-#[derive(Clone, Debug, Eq, Ord)]
-pub enum ArcowStr<'a> {
-    Owned(Arc<str>),
-    Borrowed(&'a str)
+#[derive(Debug, Eq, Ord)]
+pub enum Arcow<'a, T: ?Sized> {
+    Owned(Arc<T>),
+    Borrowed(&'a T)
 }
 
-impl <'a> Deref for ArcowStr<'a> {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
+impl <'a, T: ?Sized> Clone for Arcow<'a, T> {
+    fn clone(&self) -> Self {
         match self {
-            ArcowStr::Owned(arc) => &*arc,
-            ArcowStr::Borrowed(borrow) => borrow
+            Arcow::Owned(arc) => Arcow::Owned(arc.clone()),
+            Arcow::Borrowed(borrow) => Arcow::Borrowed(borrow)
         }
     }
 }
 
-impl <'a> Display for ArcowStr<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.deref())
+impl <'a, T: ?Sized> Deref for Arcow<'a, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Arcow::Owned(arc) => arc,
+            Arcow::Borrowed(borrow) => borrow
+        }
     }
 }
 
-impl <'a> PartialEq for ArcowStr<'a> {
+impl <'a, T: Display + ?Sized> Display for Arcow<'a, T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.deref().to_string())
+    }
+}
+
+impl <'a, T: Eq + ?Sized> PartialEq for Arcow<'a, T> {
     fn eq(&self, other: &Self) -> bool {
         self.deref() == other.deref()
     }
 }
 
-impl <'a> PartialOrd for ArcowStr<'a> {
+impl <'a, T: Eq + Ord + ?Sized> PartialOrd for Arcow<'a, T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.deref().cmp(other.deref()))
     }
 }
 
-impl <'a> Hash for ArcowStr<'a> {
+impl <'a, T: Hash + ?Sized> Hash for Arcow<'a, T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.deref().hash(state)
     }
 }
 
-impl <'a> From<&'a str> for ArcowStr<'a> {
-    fn from(value: &'a str) -> Self {
-        ArcowStr::Borrowed(value)
+impl <'a, T: ?Sized> From<&'a T> for Arcow<'a, T> {
+    fn from(value: &'a T) -> Self {
+        Arcow::Borrowed(value)
     }
 }
 
-impl <'a> From<&'a ArcowStr<'a>> for ArcowStr<'a> {
-    fn from(value: &'a ArcowStr<'a>) -> Self {
-        value.clone()
+impl <'a, T> From<T> for Arcow<'a, T> {
+    fn from(value: T) -> Self {
+        Arcow::Owned(value.into())
     }
 }
 
-impl <'a> From<String> for ArcowStr<'a> {
+impl <'a> From<String> for Arcow<'a, str> {
     fn from(value: String) -> Self {
-        ArcowStr::Owned(value.into())
+        Arcow::<'a, str>::Owned(value.into())
+    }
+}
+
+impl <'a, T> From<Vec<T>> for Arcow<'a, [T]> {
+    fn from(value: Vec<T>) -> Self {
+        Arcow::Owned(value.into_boxed_slice().into())
     }
 }
 
@@ -92,7 +107,7 @@ pub enum CloneableLazyTaskState<T> where T: ?Sized {
 
 #[derive(Clone,Debug)]
 pub struct CloneableLazyTask<T> where T: ?Sized {
-    pub name: ArcowStr<'static>,
+    pub name: Arcow<'static, str>,
     state: Arc<Mutex<CloneableLazyTaskState<T>>>
 }
 
@@ -121,7 +136,7 @@ impl <T> Debug for CloneableLazyTaskState<T> where T: ?Sized {
 
 impl <T> CloneableLazyTask<T> where T: ?Sized {
     pub fn new<U>(name: U, base: LazyTaskFunction<T>) -> CloneableLazyTask<T>
-        where U: Into<ArcowStr<'static>> {
+        where U: Into<Arcow<'static, str>> {
         CloneableLazyTask {
             name: name.into(),
             state: Arc::new(Mutex::new(CloneableLazyTaskState::Upcoming {
@@ -132,12 +147,12 @@ impl <T> CloneableLazyTask<T> where T: ?Sized {
 }
 
 impl <T> CloneableLazyTask<T> {
-    pub fn new_immediate_ok<U>(name: U, result: Box<T>) -> CloneableLazyTask<T>
-        where U: Into<ArcowStr<'static>> {
+    pub fn new_immediate_ok<U>(name: U, result: T) -> CloneableLazyTask<T>
+        where U: Into<Arcow<'static, str>> {
         CloneableLazyTask {
             name: name.into(),
             state: Arc::new(Mutex::new(CloneableLazyTaskState::Finished {
-                result: Ok(Arc::new(*result))
+                result: Ok(Arc::new(result))
             }))
         }
     }

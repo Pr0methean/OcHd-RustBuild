@@ -212,7 +212,7 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
     };
     info!("Starting PNG optimization for {}", file_path);
     let png = RawImage::new(width, height, color_type, bit_depth, raw_bytes)?
-        .create_optimized_png(&png_options)?;
+        .create_optimized_png(png_options)?;
     info!("Finished PNG optimization for {}", file_path);
     let zip = &*ZIP;
     let mut writer = zip.lock()?;

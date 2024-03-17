@@ -19,6 +19,7 @@ pub mod make_semitransparent;
 pub mod upscale;
 pub(crate) mod cloneable;
 
+#[allow(clippy::uninit_vec)]
 fn new_uninit_pixmap(width: u32, height: u32) -> Pixmap {
     let data_len = 4 * (width as usize) * (height as usize);
     let mut data = Vec::with_capacity(data_len);

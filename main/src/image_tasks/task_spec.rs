@@ -23,7 +23,7 @@ use oxipng::ColorType::{Grayscale, Indexed, RGB, RGBA};
 use resvg::tiny_skia::{Color, Mask, Pixmap};
 
 use crate::image_tasks::animate::animate;
-use crate::image_tasks::cloneable::{ArcowStr, CloneableError, CloneableLazyTask, LazyTaskFunction};
+use crate::image_tasks::cloneable::{Arcow, CloneableError, CloneableLazyTask, LazyTaskFunction};
 use crate::image_tasks::color::{BIT_DEPTH_FOR_CHANNEL, ComparableColor, gray};
 use crate::image_tasks::from_svg::{COLOR_SVGS, from_svg, SEMITRANSPARENCY_FREE_SVGS};
 use crate::image_tasks::make_semitransparent::{ALPHA_MULTIPLICATION_TABLE, ALPHA_STACKING_TABLE, make_semitransparent};
@@ -34,7 +34,7 @@ use crate::image_tasks::stack::{stack_alpha_on_alpha, stack_alpha_on_background,
 use crate::image_tasks::task_spec::ColorDescription::{Rgb, SpecifiedColors};
 use crate::image_tasks::task_spec::ToAlphaChannelTaskSpec::StackAlphaOnAlpha;
 use crate::image_tasks::task_spec::ToPixmapTaskSpec::UpscaleFromGridSize;
-use crate::image_tasks::task_spec::Transparency::{AlphaChannel, BinaryTransparency, Opaque};
+use crate::image_tasks::task_spec::Transparency::{AlphaChannel, Binary, Opaque};
 use crate::image_tasks::upscale::{upscale_image, upscale_mask};
 
 pub trait TaskSpecTraits <T>: Clone + Debug + Display + Ord + Eq + Hash {
@@ -102,7 +102,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                 let color = color.to_owned();
                 Box::new(move || {
                     let base_image: Arc<MaybeFromPool<Mask>> = base_future.into_result()?;
-                    paint(&*Arc::unwrap_or_clone(base_image), color).into()
+                    paint(Arc::unwrap_or_clone(base_image).deref(), color)
                 })
             },
             UpscaleFromGridSize { base } => {
@@ -256,7 +256,7 @@ impl <T> Display for TileSized<T> where T: Display {
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum ToPixmapTaskSpec {
     Animate {background: Box<ToPixmapTaskSpec>, frames: Box<[ToPixmapTaskSpec]>},
-    FromSvg {source: ArcowStr<'static>},
+    FromSvg {source: Arcow<'static, str> },
     PaintAlphaChannel {base: Box<ToAlphaChannelTaskSpec>, color: ComparableColor},
     StackLayerOnColor {background: ComparableColor, foreground: Box<ToPixmapTaskSpec>},
     StackLayerOnLayer {background: Box<ToPixmapTaskSpec>, foreground: Box<ToPixmapTaskSpec>},
@@ -277,8 +277,8 @@ pub enum ToAlphaChannelTaskSpec {
 /// [TaskSpec] for a task that doesn't produce a heap object as output.
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum FileOutputTaskSpec {
-    PngOutput {base: ToPixmapTaskSpec, destination_name: ArcowStr<'static>},
-    Copy {original: Box<FileOutputTaskSpec>, link_name: ArcowStr<'static>}
+    PngOutput {base: ToPixmapTaskSpec, destination_name: Arcow<'static, str> },
+    Copy {original: Box<FileOutputTaskSpec>, link_name: Arcow<'static, str> }
 }
 
 impl FileOutputTaskSpec {
@@ -439,7 +439,7 @@ fn multiply_alpha_vec(alphas: &[u8], rhs: u8) -> Vec<u8> {
 
 #[derive(Clone)]
 pub enum ColorDescription {
-    SpecifiedColors(Arc<[ComparableColor]>),
+    SpecifiedColors(Arcow<'static, [ComparableColor]>),
     Rgb(Transparency)
 }
 
@@ -447,8 +447,8 @@ impl Transparency {
     pub fn stack_on(&self, other: &Transparency) -> Transparency {
         if *self == Opaque || *other == Opaque {
             Opaque
-        } else if *self == BinaryTransparency && *other == BinaryTransparency {
-            BinaryTransparency
+        } else if *self == Binary && *other == Binary {
+            Binary
         } else {
             AlphaChannel
         }
@@ -460,7 +460,7 @@ impl Transparency {
         } else if *self == Opaque && *other == Opaque {
             Opaque
         } else {
-            BinaryTransparency
+            Binary
         }
     }
 }
@@ -474,7 +474,7 @@ impl ColorDescription {
                 if contains_semitransparency(colors) {
                     AlphaChannel
                 } else if colors[0].alpha() == 0 {
-                    BinaryTransparency
+                    Binary
                 } else {
                     Opaque
                 }
@@ -510,7 +510,7 @@ impl ColorDescription {
                     SpecifiedColors(fg_colors) => {
                         match self.transparency() {
                             Opaque => SpecifiedColors(fg_colors.clone()),
-                            BinaryTransparency => {
+                            Binary => {
                                 let mut combined_colors = (**bg_colors).to_vec();
                                 combined_colors.extend(fg_colors.iter().filter(
                                     |color| color.alpha() == u8::MAX
@@ -539,7 +539,7 @@ impl ColorDescription {
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum Transparency {
     Opaque,
-    BinaryTransparency,
+    Binary,
     AlphaChannel
 }
 
@@ -584,7 +584,7 @@ impl ToAlphaChannelTaskSpec {
                 let alpha = *alpha;
                 let base_alphas_task = base.get_possible_alpha_values(ctx);
                 CloneableLazyTask::new(name, Box::new(move ||
-                    Ok(multiply_alpha_vec(&**base_alphas_task.into_result()?, alpha).into())))
+                    Ok(multiply_alpha_vec(&base_alphas_task.into_result()?, alpha).into())))
             }
             ToAlphaChannelTaskSpec::FromPixmap { base } => {
                  base.get_possible_alpha_values(ctx)
@@ -653,7 +653,7 @@ fn color_description_to_mode(color_description: &ColorDescription,
                     info!("Using RGB mode for {}", task_name);
                     match transparency {
                         Opaque => (RGB {transparent_color: None}, Eight),
-                        BinaryTransparency => (RGB {
+                        Binary => (RGB {
                             transparent_color: Some(RGB16::new(0xc0c0,0xffff,0x3e3e))
                         }, Eight),
                         AlphaChannel => (RGBA, Eight)
@@ -679,7 +679,7 @@ fn color_description_to_mode(color_description: &ColorDescription,
 
                 let (grayscale_mode, grayscale_bit_depth) = match transparency {
                     AlphaChannel => (GrayscaleAlpha, Eight),
-                    BinaryTransparency => {
+                    Binary => {
                         let grayscale_bit_depth = get_grayscale_bit_depth(colors);
                         let grayscale_shades = match grayscale_bit_depth {
                             One => vec![ComparableColor::BLACK, ComparableColor::WHITE],
@@ -723,7 +723,7 @@ fn color_description_to_mode(color_description: &ColorDescription,
             }
         },
         Rgb(Opaque) => (RGB {transparent_color: None}, Eight),
-        Rgb(BinaryTransparency) => (RGB {
+        Rgb(Binary) => (RGB {
             transparent_color: Some(RGB16::new(0xc0c0,0xffff,0x3e3e))
         }, Eight),
         Rgb(AlphaChannel) => (RGBA, Eight)
@@ -798,6 +798,27 @@ pub fn contains_semitransparency(vec: &[ComparableColor]) -> bool {
     }
 }
 
+const BLACK_TRANSPARENT: &[ComparableColor] = &[ComparableColor::BLACK, ComparableColor::TRANSPARENT];
+const BLACK_TO_TRANSPARENT: &[ComparableColor] = &create_black_to_transparent();
+
+const fn create_black_to_transparent() -> [ComparableColor; u8::MAX as usize + 1] {
+    let mut table = [ComparableColor::BLACK; u8::MAX as usize + 1];
+    let mut x = 0;
+    loop {
+        table[x] = ComparableColor {
+            alpha: x as u8,
+            red: 0,
+            green: 0,
+            blue: 0
+        };
+        if x == u8::MAX as usize {
+            return table;
+        } else {
+            x += 1;
+        }
+    }
+}
+
 impl ToPixmapTaskSpec {
 
     /// If true, this texture has no gradients, diagonals or curves, so it can be rendered at a
@@ -824,8 +845,7 @@ impl ToPixmapTaskSpec {
         if let Some(desc) = ctx.pixmap_task_to_color_map.get(self) {
             return (*desc).to_owned();
         }
-        let name: ArcowStr<'static>
-            = ArcowStr::from(format!("Color description for {}", self));
+        let name: Arcow<'static, str> = format!("Color description for {}", self).into();
         let side_length = if *TILE_SIZE == GRID_SIZE || self.is_grid_perfect(ctx) {
             GRID_SIZE
         } else {
@@ -861,17 +881,16 @@ impl ToPixmapTaskSpec {
                 let name = name.clone();
                 if COLOR_SVGS.contains(&&**source) {
                     if SEMITRANSPARENCY_FREE_SVGS.contains(&&**source) {
-                        Right(CloneableLazyTask::new_immediate_ok(name, Rgb(BinaryTransparency).into()))
+                        Right(CloneableLazyTask::new_immediate_ok(name, Rgb(Binary)))
                     } else {
-                        Right(CloneableLazyTask::new_immediate_ok(name, Rgb(AlphaChannel).into()))
+                        Right(CloneableLazyTask::new_immediate_ok(name, Rgb(AlphaChannel)))
                     }
                 } else if SEMITRANSPARENCY_FREE_SVGS.contains(&&**source) {
                     Right(CloneableLazyTask::new_immediate_ok(name,
-                      SpecifiedColors(Arc::new([ComparableColor::TRANSPARENT, ComparableColor::BLACK])).into()))
+                      SpecifiedColors(BLACK_TRANSPARENT.into())))
                 } else {
                     Right(CloneableLazyTask::new_immediate_ok(name,
-                        SpecifiedColors(ALL_U8S.iter()
-                        .map(|alpha| ComparableColor { red: 0, green: 0, blue: 0, alpha: *alpha}).collect()).into()))
+                        SpecifiedColors(BLACK_TO_TRANSPARENT.into())))
                 }
             },
             ToPixmapTaskSpec::PaintAlphaChannel { color, base } => {
@@ -898,7 +917,7 @@ impl ToPixmapTaskSpec {
                 let background = *background;
                 let fg_task = foreground.get_color_description_task(ctx);
                 Left(Box::new(move || Ok(
-                    fg_task.into_result()?.stack_on(&SpecifiedColors(Arc::new([background])), pixels + 1)
+                    fg_task.into_result()?.stack_on(&SpecifiedColors(vec![background].into()), pixels + 1)
                 )))
             }
             ToPixmapTaskSpec::StackLayerOnLayer { background, foreground } => {
@@ -959,11 +978,11 @@ impl ToPixmapTaskSpec {
                             alphas
                         } else {
                             ALL_U8S.iter().copied()
-                                .filter(|alpha| contains_alpha(&colors, *alpha))
+                                .filter(|alpha| contains_alpha(colors, *alpha))
                                 .collect()
                         }
                     },
-                    BinaryTransparency => vec![0, u8::MAX],
+                    Binary => vec![0, u8::MAX],
                     Opaque => vec![u8::MAX]
                 }
             }))));
@@ -1077,11 +1096,11 @@ pub const METADATA_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/metadata");
 
 pub const ASSET_DIR: &str = "assets/minecraft/textures/";
 
-pub fn from_svg_task<T: Into<ArcowStr<'static>>>(name: T) -> ToPixmapTaskSpec {
+pub fn from_svg_task<T: Into<Arcow<'static, str>>>(name: T) -> ToPixmapTaskSpec {
     ToPixmapTaskSpec::FromSvg {source: name.into()}
 }
 
-pub fn svg_alpha_task<T: Into<ArcowStr<'static>>>(name: T) -> ToAlphaChannelTaskSpec {
+pub fn svg_alpha_task<T: Into<Arcow<'static, str>>>(name: T) -> ToAlphaChannelTaskSpec {
     ToAlphaChannelTaskSpec::FromPixmap { base: from_svg_task(name) }
 }
 
@@ -1108,7 +1127,7 @@ pub fn paint_task(base: ToAlphaChannelTaskSpec, color: ComparableColor) -> ToPix
     ToPixmapTaskSpec::PaintAlphaChannel { base: Box::new(base), color }
 }
 
-pub fn paint_svg_task<T: Into<ArcowStr<'static>> + Display>(name: T, color: ComparableColor) -> ToPixmapTaskSpec {
+pub fn paint_svg_task<T: Into<Arcow<'static, str>> + Display>(name: T, color: ComparableColor) -> ToPixmapTaskSpec {
     let name = name.into();
     if color == ComparableColor::BLACK
         && COLOR_SVGS.binary_search(&name.as_ref()).is_err() {
@@ -1122,7 +1141,7 @@ pub fn paint_svg_task<T: Into<ArcowStr<'static>> + Display>(name: T, color: Comp
     }
 }
 
-pub fn out_task<T: Into<ArcowStr<'static>>>(name: T, base: ToPixmapTaskSpec) -> FileOutputTaskSpec {
+pub fn out_task<T: Into<Arcow<'static, str>>>(name: T, base: ToPixmapTaskSpec) -> FileOutputTaskSpec {
     FileOutputTaskSpec::PngOutput {base, destination_name: name.into() }
 }
 
