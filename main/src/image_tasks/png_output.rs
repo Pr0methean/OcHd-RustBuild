@@ -9,7 +9,9 @@ use bytemuck::cast;
 use itertools::Itertools;
 use log::{info, warn};
 use once_cell::sync::Lazy;
-use oxipng::{BitDepth, ColorType, Deflaters, IndexSet, Options, RawImage, RowFilter};
+use oxipng::{BitDepth, ColorType, IndexSet, Options, RawImage, RowFilter};
+#[cfg(not(debug_assertions))]
+use oxipng::Deflaters;
 
 use resvg::tiny_skia::{ColorU8, Pixmap, PremultipliedColorU8};
 use zip_next::CompressionMethod;
@@ -24,6 +26,7 @@ use crate::image_tasks::color::ComparableColor;
 
 pub type ZipBufferRaw = Cursor<Vec<u8>>;
 
+#[cfg(not(debug_assertions))]
 const PNG_BUFFER_SIZE: usize = 1024 * 1024;
 
 static ZIP_BUFFER_SIZE: Lazy<usize> = Lazy::new(|| (*TILE_SIZE as usize) * 32 * 1024);
@@ -191,7 +194,8 @@ pub fn png_output(image: MaybeFromPool<Pixmap>, color_type: ColorType,
             }
             bit_writer.flush()?;
             if let Some(corrected_color_count)
-                    = palette_with_error_corrections.len().checked_sub(palette.len()) {
+                    = palette_with_error_corrections.len().checked_sub(palette.len())
+                && corrected_color_count > 0 {
                 let corrections = palette_with_error_corrections.into_iter()
                     .flat_map(|(raw, corrected_index)| {
                         let found: PremultipliedColorU8 = cast(raw);
