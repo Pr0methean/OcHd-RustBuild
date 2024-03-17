@@ -1,14 +1,14 @@
-use std::path::PathBuf;
 use resvg::render;
+use std::path::PathBuf;
 
 use resvg::tiny_skia::{Pixmap, Transform};
-use resvg::usvg::{Options, Tree};
 use resvg::usvg::fontdb::Database;
+use resvg::usvg::{Options, Tree};
 
 use crate::anyhoo;
-use crate::image_tasks::{allocate_pixmap_empty, MaybeFromPool};
 use crate::image_tasks::cloneable::CloneableError;
 use crate::image_tasks::task_spec::SVG_DIR;
+use crate::image_tasks::{allocate_pixmap_empty, MaybeFromPool};
 
 pub const COLOR_SVGS: &[&str] = &[
     "barrelSlats",
@@ -176,13 +176,14 @@ pub const SEMITRANSPARENCY_FREE_SVGS: &[&str] = &[
     "topStripeThick",
     "torchBase",
     "torchShadow",
-    "trapdoor1"
+    "trapdoor1",
 ];
 
-pub fn from_svg(mut path: String, width: u32) -> Result<MaybeFromPool<Pixmap>,CloneableError> {
+pub fn from_svg(mut path: String, width: u32) -> Result<MaybeFromPool<Pixmap>, CloneableError> {
     path.push_str(".svg");
-    let svg = SVG_DIR.get_file(PathBuf::from(&path)).ok_or(
-        anyhoo!(format!("File not found: {}", path)))?;
+    let svg = SVG_DIR
+        .get_file(PathBuf::from(&path))
+        .ok_or(anyhoo!(format!("File not found: {}", path)))?;
     let svg_tree = Tree::from_data(svg.contents(), &Options::default(), &Database::new())?;
     let view_box = svg_tree.view_box();
     let height = f64::from(width) * view_box.rect.height() as f64 / view_box.rect.width() as f64;
@@ -191,6 +192,7 @@ pub fn from_svg(mut path: String, width: u32) -> Result<MaybeFromPool<Pixmap>,Cl
     render(
         &svg_tree,
         Transform::from_scale(scale, scale),
-        &mut out.as_mut());
+        &mut out.as_mut(),
+    );
     Ok(out)
 }

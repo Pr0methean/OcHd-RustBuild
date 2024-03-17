@@ -11,11 +11,19 @@ use crate::materials::block::bare_hand::wool::WOOL;
 mod biome_colorized_plant;
 mod cave_vines;
 mod crop;
-mod sunflower;
 pub mod simple_bare_hand_block;
+mod sunflower;
 mod tnt;
 mod torch;
 mod wool;
 
-group!(BARE_HAND_BLOCKS = BIOME_COLORIZED, CAVE_VINE_VARIANTS, CROPS, SUNFLOWER,
-        SIMPLE_BARE_HAND_BLOCKS, TNT, TORCHES, WOOL);
+group!(
+    BARE_HAND_BLOCKS = BIOME_COLORIZED,
+    CAVE_VINE_VARIANTS,
+    CROPS,
+    SUNFLOWER,
+    SIMPLE_BARE_HAND_BLOCKS,
+    TNT,
+    TORCHES,
+    WOOL
+);

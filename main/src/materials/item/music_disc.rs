@@ -1,9 +1,9 @@
-use std::sync::Arc;
-use crate::image_tasks::color::{ComparableColor};
-use crate::image_tasks::task_spec::{FileOutputTaskSpec, out_task, paint_svg_task};
-use crate::{group, single_texture_item, stack};
+use crate::image_tasks::color::ComparableColor;
+use crate::image_tasks::task_spec::{out_task, paint_svg_task, FileOutputTaskSpec};
 use crate::texture_base::dyes::*;
-use crate::texture_base::material::{Material};
+use crate::texture_base::material::Material;
+use crate::{group, single_texture_item, stack};
+use std::sync::Arc;
 
 macro_rules! discs {
     ($($name:ident = $dye:expr),+) => {
@@ -17,7 +17,7 @@ macro_rules! discs {
 
 pub struct MusicDisc {
     name: &'static str,
-    color: &'static ComparableColor
+    color: &'static ComparableColor,
 }
 
 discs!(
@@ -35,22 +35,39 @@ discs!(
     CHIRP = GRAY
 );
 
-pub const MUSIC_DISC_13: MusicDisc = MusicDisc {name: "13", color: &PINK.1 };
-pub const MUSIC_DISC_5: MusicDisc = MusicDisc {name: "5", color: &MAGENTA.1 };
+pub const MUSIC_DISC_13: MusicDisc = MusicDisc {
+    name: "13",
+    color: &PINK.1,
+};
+pub const MUSIC_DISC_5: MusicDisc = MusicDisc {
+    name: "5",
+    color: &MAGENTA.1,
+};
 
 impl Material for MusicDisc {
     fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
-        Arc::new([out_task(format!("item/music_disc_{}", self.name), stack!(
-            paint_svg_task("musicDisc", ComparableColor::STONE_EXTREME_SHADOW),
-            paint_svg_task("musicDiscGroove", ComparableColor::DARKEST_GRAY),
-            paint_svg_task("musicDiscLabel", *self.color)
-        ))])
+        Arc::new([out_task(
+            format!("item/music_disc_{}", self.name),
+            stack!(
+                paint_svg_task("musicDisc", ComparableColor::STONE_EXTREME_SHADOW),
+                paint_svg_task("musicDiscGroove", ComparableColor::DARKEST_GRAY),
+                paint_svg_task("musicDiscLabel", *self.color)
+            ),
+        )])
     }
 }
 
-single_texture_item!(MUSIC_DISC_11 =
-    paint_svg_task("musicDiscBroken", ComparableColor::DARKEST_GRAY),
-    paint_svg_task("musicDiscGrooveBroken", ComparableColor::STONE_EXTREME_SHADOW)
+single_texture_item!(
+    MUSIC_DISC_11 = paint_svg_task("musicDiscBroken", ComparableColor::DARKEST_GRAY),
+    paint_svg_task(
+        "musicDiscGrooveBroken",
+        ComparableColor::STONE_EXTREME_SHADOW
+    )
 );
 
-group!(MUSIC_DISCS = NORMAL_MUSIC_DISCS, MUSIC_DISC_13, MUSIC_DISC_5, MUSIC_DISC_11);
+group!(
+    MUSIC_DISCS = NORMAL_MUSIC_DISCS,
+    MUSIC_DISC_13,
+    MUSIC_DISC_5,
+    MUSIC_DISC_11
+);

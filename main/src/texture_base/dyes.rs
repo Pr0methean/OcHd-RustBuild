@@ -1,8 +1,8 @@
-use std::sync::Arc;
 use crate::image_tasks::color::c;
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::task_spec::{out_task, FileOutputTaskSpec, ToPixmapTaskSpec};
 use crate::texture_base::material::Material;
+use std::sync::Arc;
 
 macro_rules! dyes {
     ($($name:tt = $color:expr),+) => {
@@ -36,18 +36,23 @@ dyes!(
 );
 
 pub struct DyedBlock<T = fn(ComparableColor) -> ToPixmapTaskSpec>
-    where T: Fn(ComparableColor) -> ToPixmapTaskSpec {
+where
+    T: Fn(ComparableColor) -> ToPixmapTaskSpec,
+{
     pub name: &'static str,
-    pub create_dyed_texture: T
+    pub create_dyed_texture: T,
 }
 
-impl <T> Material for DyedBlock<T>
-    where T: Fn(ComparableColor) -> ToPixmapTaskSpec {
+impl<T> Material for DyedBlock<T>
+where
+    T: Fn(ComparableColor) -> ToPixmapTaskSpec,
+{
     fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
-        let mut out  = Vec::with_capacity(DYES.len());
+        let mut out = Vec::with_capacity(DYES.len());
         for (dye_name, dye_color) in DYES {
-            out.push(out_task(format!("block/{}_{}", dye_name, self.name),
-                (self.create_dyed_texture)(*dye_color)
+            out.push(out_task(
+                format!("block/{}_{}", dye_name, self.name),
+                (self.create_dyed_texture)(*dye_color),
             ));
         }
         out.into()
@@ -57,14 +62,17 @@ impl <T> Material for DyedBlock<T>
 #[macro_export]
 macro_rules! dyed_block {
     ($name:ident = $create_dyed_texture:expr) => {
-        pub const $name: $crate::texture_base::dyes::DyedBlock = $crate::texture_base::dyes::DyedBlock {
-            name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
-            create_dyed_texture: |color| {
-                macro_rules! color {
-                    () => { color }
-                }
-                $create_dyed_texture
-            }
-        };
-    }
+        pub const $name: $crate::texture_base::dyes::DyedBlock =
+            $crate::texture_base::dyes::DyedBlock {
+                name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
+                create_dyed_texture: |color| {
+                    macro_rules! color {
+                        () => {
+                            color
+                        };
+                    }
+                    $create_dyed_texture
+                },
+            };
+    };
 }

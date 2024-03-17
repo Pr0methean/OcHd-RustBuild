@@ -1,16 +1,16 @@
+use oxipng::{BitDepth, RGBA8};
+use palette::blend::Compose;
+use palette::Srgba;
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::ops::Mul;
-use palette::{Srgba};
-use palette::blend::{Compose};
-use oxipng::{BitDepth, RGBA8};
 
-use resvg::tiny_skia::{Color};
+use bytemuck::{cast, Pod, Zeroable};
+use resvg::tiny_skia::Color;
 use resvg::tiny_skia::ColorU8;
 use resvg::tiny_skia::PremultipliedColor;
 use resvg::tiny_skia::PremultipliedColorU8;
-use bytemuck::{cast, Pod, Zeroable};
 
 /// Wrapper around [ColorU8] that implements important missing traits such as [Eq], [Hash], [Copy],
 /// [Clone] and [Ord]. Represents a 24-bit sRGB color + 8-bit alpha value (not premultiplied).
@@ -59,53 +59,60 @@ const fn bit_depth_for_channel_value() -> [BitDepth; u8::MAX as usize + 1] {
 pub const BIT_DEPTH_FOR_CHANNEL: [BitDepth; u8::MAX as usize + 1] = bit_depth_for_channel_value();
 
 impl ComparableColor {
-    pub const fn red(&self) -> u8 { self.red}
-    pub const fn green(&self) -> u8 { self.green}
-    pub const fn blue(&self) -> u8 { self.blue}
-    pub const fn alpha(&self) -> u8 { self.alpha}
+    pub const fn red(&self) -> u8 {
+        self.red
+    }
+    pub const fn green(&self) -> u8 {
+        self.green
+    }
+    pub const fn blue(&self) -> u8 {
+        self.blue
+    }
+    pub const fn alpha(&self) -> u8 {
+        self.alpha
+    }
 
     pub fn under<T>(self, foregrounds: T) -> Vec<ComparableColor>
-        where T: Iterator<Item=ComparableColor> {
+    where
+        T: Iterator<Item = ComparableColor>,
+    {
         if self.alpha == 0 {
             foregrounds.collect()
         } else {
             let self_as_f32 = self.as_f32_srgba().premultiply();
-            foregrounds.map(|fg_color| {
-                match fg_color.alpha() {
+            foregrounds
+                .map(|fg_color| match fg_color.alpha() {
                     0 => self,
                     u8::MAX => fg_color,
                     _ => {
                         let foreground_as_f32 = fg_color.as_f32_srgba().premultiply();
-                        let blended_as_srgb8: Srgba<u8>
-                            = (foreground_as_f32.over(self_as_f32)).unpremultiply().into_format();
+                        let blended_as_srgb8: Srgba<u8> = (foreground_as_f32.over(self_as_f32))
+                            .unpremultiply()
+                            .into_format();
                         ComparableColor {
                             red: blended_as_srgb8.red,
                             green: blended_as_srgb8.green,
                             blue: blended_as_srgb8.blue,
-                            alpha: blended_as_srgb8.alpha
+                            alpha: blended_as_srgb8.alpha,
                         }
                     }
-                }
-            }).collect()
+                })
+                .collect()
         }
     }
 
     pub fn as_f32_srgba(&self) -> Srgba<f32> {
-        Srgba::<u8>::new(
-            self.red,
-            self.green,
-            self.blue,
-            self.alpha).into_format()
+        Srgba::<u8>::new(self.red, self.green, self.blue, self.alpha).into_format()
     }
 
-    pub const TRANSPARENT: ComparableColor = rgba(0,0,0,0);
+    pub const TRANSPARENT: ComparableColor = rgba(0, 0, 0, 0);
     pub const BLACK: ComparableColor = gray(0);
-    pub const RED: ComparableColor = rgb(u8::MAX,0,0);
-    pub const GREEN: ComparableColor = rgb(0,u8::MAX,0);
-    pub const BLUE: ComparableColor = rgb(0,0,u8::MAX);
-    pub const YELLOW: ComparableColor = rgb(u8::MAX,u8::MAX,0);
-    pub const MAGENTA: ComparableColor = rgb(u8::MAX,0,u8::MAX);
-    pub const CYAN: ComparableColor = rgb(0,u8::MAX,u8::MAX);
+    pub const RED: ComparableColor = rgb(u8::MAX, 0, 0);
+    pub const GREEN: ComparableColor = rgb(0, u8::MAX, 0);
+    pub const BLUE: ComparableColor = rgb(0, 0, u8::MAX);
+    pub const YELLOW: ComparableColor = rgb(u8::MAX, u8::MAX, 0);
+    pub const MAGENTA: ComparableColor = rgb(u8::MAX, 0, u8::MAX);
+    pub const CYAN: ComparableColor = rgb(0, u8::MAX, u8::MAX);
     pub const WHITE: ComparableColor = gray(u8::MAX);
 
     pub const STONE_EXTREME_SHADOW: ComparableColor = gray(0x55);
@@ -135,9 +142,7 @@ impl ComparableColor {
     pub const RESERVED_FOR_TRANSPARENCY: ComparableColor = c(0xc0ff3e);
 
     pub const fn is_gray(&self) -> bool {
-        self.alpha == 0
-            || (self.green == self.red
-            && self.blue == self.red)
+        self.alpha == 0 || (self.green == self.red && self.blue == self.red)
     }
 
     pub const fn is_binary_alpha(&self) -> bool {
@@ -176,7 +181,7 @@ impl Mul<f32> for ComparableColor {
             red: self.red,
             green: self.green,
             blue: self.blue,
-            alpha: (out_alpha + 0.5) as u8
+            alpha: (out_alpha + 0.5) as u8,
         }
     }
 }
@@ -186,7 +191,11 @@ impl Display for ComparableColor {
         if self.alpha == 0 {
             write!(f, "transparent")
         } else {
-            write!(f, "#{:02x}{:02x}{:02x}{:02x}", self.red, self.green, self.blue, self.alpha)
+            write!(
+                f,
+                "#{:02x}{:02x}{:02x}{:02x}",
+                self.red, self.green, self.blue, self.alpha
+            )
         }
     }
 }
@@ -199,7 +208,12 @@ impl From<Color> for ComparableColor {
 
 impl From<RGBA8> for ComparableColor {
     fn from(value: RGBA8) -> Self {
-        ComparableColor {red: value.r, green: value.g, blue: value.b, alpha: value.a}
+        ComparableColor {
+            red: value.r,
+            green: value.g,
+            blue: value.b,
+            alpha: value.a,
+        }
     }
 }
 
@@ -254,8 +268,8 @@ impl From<ComparableColor> for PremultipliedColorU8 {
 
 impl PartialEq<Self> for ComparableColor {
     fn eq(&self, other: &Self) -> bool {
-        (self.alpha == 0 && other.alpha == 0) ||
-            (self.red == other.red
+        (self.alpha == 0 && other.alpha == 0)
+            || (self.red == other.red
                 && self.green == other.green
                 && self.blue == other.blue
                 && self.alpha == other.alpha)
@@ -278,7 +292,7 @@ fn test_eq() {
     assert_ne!(ComparableColor::BLACK, ComparableColor::TRANSPARENT);
 
     // When alpha is zero (totally transparent), the color values don't matter
-    assert_eq!(rgba(0,0,0,0),rgba(u8::MAX, u8::MAX, u8::MAX, 0));
+    assert_eq!(rgba(0, 0, 0, 0), rgba(u8::MAX, u8::MAX, u8::MAX, 0));
 }
 
 impl Hash for ComparableColor {
@@ -297,9 +311,15 @@ fn test_under() {
     use std::iter::once;
 
     let semi_black = rgba(0, 0, 0, 127);
-    assert_eq!(ComparableColor::TRANSPARENT.under(once(semi_black)), &[semi_black]);
+    assert_eq!(
+        ComparableColor::TRANSPARENT.under(once(semi_black)),
+        &[semi_black]
+    );
     assert_eq!(ComparableColor::WHITE.under(once(semi_black)), &[gray(128)]);
-    assert_eq!(semi_black.under(once(ComparableColor::WHITE)), &[ComparableColor::WHITE]);
+    assert_eq!(
+        semi_black.under(once(ComparableColor::WHITE)),
+        &[ComparableColor::WHITE]
+    );
     assert_eq!(semi_black.under(once(semi_black)), &[rgba(0, 0, 0, 191)]);
 }
 
@@ -315,7 +335,7 @@ fn test_hash() {
     let red_hash = hash(ComparableColor::RED);
     let green_hash = hash(ComparableColor::GREEN);
     let blue_hash = hash(ComparableColor::BLUE);
-    let transparent_hash_1 = hash(rgba(0,0,0,0));
+    let transparent_hash_1 = hash(rgba(0, 0, 0, 0));
     let transparent_hash_2 = hash(rgba(u8::MAX, u8::MAX, u8::MAX, 0));
 
     assert_ne!(black_hash, red_hash);
@@ -328,18 +348,24 @@ fn test_hash() {
     assert_ne!(green_hash, blue_hash);
 
     // When alpha is zero (totally transparent), the color values don't matter
-    assert_eq!(transparent_hash_1,transparent_hash_2);
+    assert_eq!(transparent_hash_1, transparent_hash_2);
 }
 
 const fn rgb(r: u8, g: u8, b: u8) -> ComparableColor {
     ComparableColor {
-        red: r, green: g, blue: b, alpha: u8::MAX
+        red: r,
+        green: g,
+        blue: b,
+        alpha: u8::MAX,
     }
 }
 
 const fn rgba(r: u8, g: u8, b: u8, a: u8) -> ComparableColor {
     ComparableColor {
-        red: r, green: g, blue: b, alpha: a
+        red: r,
+        green: g,
+        blue: b,
+        alpha: a,
     }
 }
 
@@ -362,22 +388,54 @@ pub const fn c(rgb: u32) -> ComparableColor {
         red: bytes[1],
         green: bytes[2],
         blue: bytes[3],
-        alpha: u8::MAX
+        alpha: u8::MAX,
     }
 }
 
 #[test]
 fn test_c() {
-    assert_eq!(c(0xc0ffee),
-               ComparableColor { red: 0xc0, green: 0xff, blue: 0xee, alpha: u8::MAX }
+    assert_eq!(
+        c(0xc0ffee),
+        ComparableColor {
+            red: 0xc0,
+            green: 0xff,
+            blue: 0xee,
+            alpha: u8::MAX
+        }
     )
 }
 
 #[test]
 fn test_ord() {
-    assert_eq!(ComparableColor::TRANSPARENT,
-               ComparableColor {red: u8::MAX, green: u8::MAX, blue: u8::MAX, alpha: 0});
-    assert!(ComparableColor::TRANSPARENT < ComparableColor {red: 0, green: 0, blue: 0, alpha: 1});
-    assert!(ComparableColor {red: u8::MAX, green: u8::MAX, blue: u8::MAX, alpha: 1}
-        < ComparableColor {red: 0, green: 0, blue: 0, alpha: 2});
+    assert_eq!(
+        ComparableColor::TRANSPARENT,
+        ComparableColor {
+            red: u8::MAX,
+            green: u8::MAX,
+            blue: u8::MAX,
+            alpha: 0
+        }
+    );
+    assert!(
+        ComparableColor::TRANSPARENT
+            < ComparableColor {
+                red: 0,
+                green: 0,
+                blue: 0,
+                alpha: 1
+            }
+    );
+    assert!(
+        ComparableColor {
+            red: u8::MAX,
+            green: u8::MAX,
+            blue: u8::MAX,
+            alpha: 1
+        } < ComparableColor {
+            red: 0,
+            green: 0,
+            blue: 0,
+            alpha: 2
+        }
+    );
 }

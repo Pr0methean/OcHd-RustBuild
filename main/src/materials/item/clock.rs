@@ -1,7 +1,7 @@
-use std::sync::Arc;
-use crate::image_tasks::task_spec::{FileOutputTaskSpec, from_svg_task, out_task};
+use crate::image_tasks::task_spec::{from_svg_task, out_task, FileOutputTaskSpec};
 use crate::stack;
 use crate::texture_base::material::Material;
+use std::sync::Arc;
 
 const CLOCK_ANGLES: usize = 64;
 
@@ -10,16 +10,18 @@ pub struct Clock {}
 impl Material for Clock {
     fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
         let frame = from_svg_task("clockFrame");
-        (0..CLOCK_ANGLES).map(|angle| {
-            out_task(
-                format!("item/clock_{:0>2}", angle),
-                stack!(
-                    from_svg_task(format!("clockDial{}", angle)),
-                    frame.to_owned()
+        (0..CLOCK_ANGLES)
+            .map(|angle| {
+                out_task(
+                    format!("item/clock_{:0>2}", angle),
+                    stack!(
+                        from_svg_task(format!("clockDial{}", angle)),
+                        frame.to_owned()
+                    ),
                 )
-            )
-        }).collect()
+            })
+            .collect()
     }
 }
 
-pub const CLOCK: Clock = Clock{};
+pub const CLOCK: Clock = Clock {};

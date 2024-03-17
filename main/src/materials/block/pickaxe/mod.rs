@@ -13,20 +13,32 @@ use crate::materials::block::pickaxe::polishable::POLISHABLE;
 use crate::materials::block::pickaxe::rail::RAILS;
 use crate::materials::block::pickaxe::simple_pickaxe_block::SIMPLE_PICKAXE_BLOCKS;
 
-pub mod ore_base;
-pub mod simple_pickaxe_block;
-pub mod ore;
-mod rail;
-mod polishable;
-mod glass;
+mod bone_block;
+mod concrete;
 mod copper_oxide;
 mod dyed_terracotta;
-mod concrete;
-mod nylium;
-mod bone_block;
 mod furnace;
+mod glass;
 mod misc_redstone;
+mod nylium;
+pub mod ore;
+pub mod ore_base;
+mod polishable;
+mod rail;
+pub mod simple_pickaxe_block;
 
-group!(PICKAXE_BLOCKS = ORE_BASES, SIMPLE_PICKAXE_BLOCKS, ORES, RAILS, POLISHABLE,
-    GLASS_VARIANTS, COPPER_OXIDES, TERRACOTTA, CONCRETE, NYLIUM, BONE_BLOCK, FURNACES,
-    MISC_REDSTONE);
+group!(
+    PICKAXE_BLOCKS = ORE_BASES,
+    SIMPLE_PICKAXE_BLOCKS,
+    ORES,
+    RAILS,
+    POLISHABLE,
+    GLASS_VARIANTS,
+    COPPER_OXIDES,
+    TERRACOTTA,
+    CONCRETE,
+    NYLIUM,
+    BONE_BLOCK,
+    FURNACES,
+    MISC_REDSTONE
+);

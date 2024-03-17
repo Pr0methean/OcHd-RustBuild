@@ -1,9 +1,11 @@
-use std::sync::Arc;
-use crate::image_tasks::color::{ComparableColor, c};
-use crate::image_tasks::task_spec::{out_task, paint_svg_task, FileOutputTaskSpec, ToPixmapTaskSpec};
-use crate::{block_with_colors, group, paint_stack, single_texture_block, stack};
+use crate::image_tasks::color::{c, ComparableColor};
+use crate::image_tasks::task_spec::{
+    out_task, paint_svg_task, FileOutputTaskSpec, ToPixmapTaskSpec,
+};
 use crate::materials::block::pickaxe::ore::GOLD;
 use crate::texture_base::material::{ColorTriad, Material, TricolorMaterial};
+use crate::{block_with_colors, group, paint_stack, single_texture_block, stack};
+use std::sync::Arc;
 
 pub struct PolishableBlock {
     pub name: &'static str,
@@ -29,7 +31,10 @@ impl Material for PolishableBlock {
     fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
         Arc::new([
             out_task(format!("block/{}", self.name), self.texture()),
-            out_task(format!("block/polished_{}", self.name), self.polished_texture()),
+            out_task(
+                format!("block/polished_{}", self.name),
+                self.polished_texture(),
+            ),
         ])
     }
 }
@@ -72,42 +77,67 @@ macro_rules! polishable {
     }
 }
 
-polishable!(ANDESITE = ComparableColor::STONE, ComparableColor::STONE_SHADOW, ComparableColor::STONE_HIGHLIGHT,
+polishable!(
+    ANDESITE = ComparableColor::STONE,
+    ComparableColor::STONE_SHADOW,
+    ComparableColor::STONE_HIGHLIGHT,
     color!(),
     paint_svg_task("bigRingsBottomLeftTopRight", highlight!()),
     paint_svg_task("bigRingsTopLeftBottomRight", shadow!())
 );
 
-polishable!(DIORITE = ComparableColor::STONE_EXTREME_HIGHLIGHT, ComparableColor::STONE, ComparableColor::WHITE,
+polishable!(
+    DIORITE = ComparableColor::STONE_EXTREME_HIGHLIGHT,
+    ComparableColor::STONE,
+    ComparableColor::WHITE,
     color!(),
     paint_svg_task("bigRingsBottomLeftTopRight", shadow!()),
     paint_svg_task("bigRingsTopLeftBottomRight", highlight!())
 );
 
-polishable!(GRANITE = c(0x9f6b58),c(0x624033),c(0xFFCDB2),
+polishable!(
+    GRANITE = c(0x9f6b58),
+    c(0x624033),
+    c(0xFFCDB2),
     color!(),
     paint_svg_task("bigDotsBottomLeftTopRight", shadow!()),
-    paint_stack!(highlight!(), "bigDotsTopLeftBottomRight",
-        "bigDotsFillBottomLeftTopRight"),
+    paint_stack!(
+        highlight!(),
+        "bigDotsTopLeftBottomRight",
+        "bigDotsFillBottomLeftTopRight"
+    ),
     paint_svg_task("bigDotsFillTopLeftBottomRight", shadow!())
 );
 
-polishable!(BLACKSTONE = c(0x2e2e36), ComparableColor::BLACK, ComparableColor::STONE_EXTREME_SHADOW,
+polishable!(
+    BLACKSTONE = c(0x2e2e36),
+    ComparableColor::BLACK,
+    ComparableColor::STONE_EXTREME_SHADOW,
     shadow!(),
     paint_svg_task("bigDotsBottomLeftTopRight", highlight!()),
     paint_svg_task("bigDotsTopLeftBottomRight", color!())
 );
 
-single_texture_block!(GILDED_BLACKSTONE =
-    ComparableColor::TRANSPARENT,
+single_texture_block!(
+    GILDED_BLACKSTONE = ComparableColor::TRANSPARENT,
     BLACKSTONE.polished_texture(),
     paint_svg_task("bigRingsBottomLeftTopRight", GOLD.color())
 );
 
-block_with_colors!(BLACKSTONE_TOP = ComparableColor::DEEPSLATE_SHADOW, ComparableColor::BLACK, ComparableColor::STONE_EXTREME_SHADOW,
+block_with_colors!(
+    BLACKSTONE_TOP = ComparableColor::DEEPSLATE_SHADOW,
+    ComparableColor::BLACK,
+    ComparableColor::STONE_EXTREME_SHADOW,
     shadow!(),
     paint_svg_task("bigRingsBottomLeftTopRight", color!()),
     paint_svg_task("bigRingsTopLeftBottomRight", highlight!())
 );
 
-group!(POLISHABLE = ANDESITE, DIORITE, GRANITE, BLACKSTONE, GILDED_BLACKSTONE, BLACKSTONE_TOP);
+group!(
+    POLISHABLE = ANDESITE,
+    DIORITE,
+    GRANITE,
+    BLACKSTONE,
+    GILDED_BLACKSTONE,
+    BLACKSTONE_TOP
+);

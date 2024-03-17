@@ -6,7 +6,9 @@ use crate::anyhoo;
 use crate::image_tasks::cloneable::CloneableError;
 
 use crate::image_tasks::color::{c, ComparableColor};
-use crate::image_tasks::task_spec::{FileOutputTaskSpec, from_svg_task, out_task, paint_svg_task, ToPixmapTaskSpec};
+use crate::image_tasks::task_spec::{
+    from_svg_task, out_task, paint_svg_task, FileOutputTaskSpec, ToPixmapTaskSpec,
+};
 
 /// Specification in DSL form of how one or more texture images are to be generated.
 pub trait Material {
@@ -25,7 +27,7 @@ pub trait Material {
 }
 
 pub struct MaterialGroup {
-    pub(crate) tasks: Arc<[FileOutputTaskSpec]>
+    pub(crate) tasks: Arc<[FileOutputTaskSpec]>,
 }
 
 impl Material for MaterialGroup {
@@ -64,7 +66,7 @@ macro_rules! group {
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct SingleTextureMaterial {
     pub name: &'static str,
-    texture: ToPixmapTaskSpec
+    texture: ToPixmapTaskSpec,
 }
 
 impl SingleTextureMaterial {
@@ -72,14 +74,14 @@ impl SingleTextureMaterial {
         self.texture.to_owned()
     }
     pub const fn new(name: &'static str, texture: ToPixmapTaskSpec) -> Self {
-        SingleTextureMaterial {name, texture}
+        SingleTextureMaterial { name, texture }
     }
 }
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct SingleTextureTricolorMaterial {
     pub material: SingleTextureMaterial,
-    pub colors: ColorTriad
+    pub colors: ColorTriad,
 }
 
 impl Material for SingleTextureTricolorMaterial {
@@ -117,16 +119,19 @@ impl Material for SingleTextureMaterial {
 #[macro_export]
 macro_rules! material {
     ($name:ident = $directory:expr, $texture:expr) => {
-        pub static $name: once_cell::sync::Lazy<$crate::texture_base::material::SingleTextureMaterial>
-            = once_cell::sync::Lazy::new(||
-                    $crate::texture_base::material::SingleTextureMaterial::new(
-                        const_format::concatcp!($directory, "/",
-                            const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name))
-                        ),
-                        $texture.into()
+        pub static $name: once_cell::sync::Lazy<
+            $crate::texture_base::material::SingleTextureMaterial,
+        > = once_cell::sync::Lazy::new(|| {
+            $crate::texture_base::material::SingleTextureMaterial::new(
+                const_format::concatcp!(
+                    $directory,
+                    "/",
+                    const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name))
+                ),
+                $texture.into(),
             )
-        );
-    }
+        });
+    };
 }
 
 #[macro_export]
@@ -142,24 +147,26 @@ macro_rules! single_layer_material {
     ($name:ident = $directory:expr, $layer_name:expr, $color:expr ) => {
         pub const $name: $crate::texture_base::material::SingleLayerMaterial =
             $crate::texture_base::material::SingleLayerMaterial {
-            name: const_format::concatcp!(
-                $directory, "/",
-                const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
-            ),
-            layer_name: $layer_name,
-            color: Some($color)
-        };
+                name: const_format::concatcp!(
+                    $directory,
+                    "/",
+                    const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
+                ),
+                layer_name: $layer_name,
+                color: Some($color),
+            };
     };
     ($name:ident = $directory:expr, $layer_name:expr) => {
         pub const $name: $crate::texture_base::material::SingleLayerMaterial =
             $crate::texture_base::material::SingleLayerMaterial {
-            name: const_format::concatcp!(
-                $directory, "/",
-                const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
-            ),
-            layer_name: $layer_name,
-            color: None
-        };
+                name: const_format::concatcp!(
+                    $directory,
+                    "/",
+                    const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
+                ),
+                layer_name: $layer_name,
+                color: None,
+            };
     };
 }
 
@@ -212,14 +219,14 @@ macro_rules! single_layer_particle {
 
 pub struct CopiedMaterial {
     pub name: &'static str,
-    pub source: FileOutputTaskSpec
+    pub source: FileOutputTaskSpec,
 }
 
 impl Material for CopiedMaterial {
     fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
         Arc::new([FileOutputTaskSpec::Copy {
             original: Box::new(self.source.to_owned()),
-            link_name: self.name.into()
+            link_name: self.name.into(),
         }])
     }
 }
@@ -228,14 +235,17 @@ impl Material for CopiedMaterial {
 macro_rules! copy_block {
     ($name:ident = $base:expr, $base_name:expr) => {
         pub static $name: once_cell::sync::Lazy<$crate::texture_base::material::CopiedMaterial> =
-        once_cell::sync::Lazy::new(|| $crate::texture_base::material::CopiedMaterial {
-            name: const_format::concatcp!("block/", const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name))),
-            source: {
-                use $crate::texture_base::material::Material;
-                $base.get_output_task_by_name($base_name).unwrap()
-            }
-        });
-    }
+            once_cell::sync::Lazy::new(|| $crate::texture_base::material::CopiedMaterial {
+                name: const_format::concatcp!(
+                    "block/",
+                    const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name))
+                ),
+                source: {
+                    use $crate::texture_base::material::Material;
+                    $base.get_output_task_by_name($base_name).unwrap()
+                },
+            });
+    };
 }
 
 #[macro_export]
@@ -292,13 +302,17 @@ macro_rules! make_tricolor_block_macro {
 pub struct DoubleTallBlock {
     pub name: &'static str,
     pub bottom: ToPixmapTaskSpec,
-    pub top: ToPixmapTaskSpec
+    pub top: ToPixmapTaskSpec,
 }
 
 impl Material for DoubleTallBlock {
     fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
-        Arc::new([out_task(format!("block/{}_bottom", self.name), self.bottom.to_owned()),
-            out_task(format!("block/{}_top", self.name), self.top.to_owned())
+        Arc::new([
+            out_task(
+                format!("block/{}_bottom", self.name),
+                self.bottom.to_owned(),
+            ),
+            out_task(format!("block/{}_top", self.name), self.top.to_owned()),
         ])
     }
 }
@@ -318,15 +332,15 @@ impl Material for GroundCoverBlock {
         Arc::new([
             out_task(
                 format!("block/{}{}", self.name, self.top_name_suffix),
-                self.top.to_owned()
+                self.top.to_owned(),
             ),
             out_task(
                 format!("block/{}_side", self.name),
                 ToPixmapTaskSpec::StackLayerOnLayer {
                     background: Box::new(self.base.to_owned()),
-                    foreground: Box::new(self.cover_side.to_owned())
-                }
-            )
+                    foreground: Box::new(self.cover_side.to_owned()),
+                },
+            ),
         ])
     }
 }
@@ -346,19 +360,27 @@ impl TricolorMaterial for GroundCoverBlock {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn ground_cover_block(name: &'static str,
-                          top_name_suffix: &'static str,
-                          base: &SingleTextureMaterial,
-                          color: ComparableColor,
-                          shadow: ComparableColor,
-                          highlight: ComparableColor,
-                          cover_side: ToPixmapTaskSpec,
-                          top: ToPixmapTaskSpec
-)->GroundCoverBlock {
+pub fn ground_cover_block(
+    name: &'static str,
+    top_name_suffix: &'static str,
+    base: &SingleTextureMaterial,
+    color: ComparableColor,
+    shadow: ComparableColor,
+    highlight: ComparableColor,
+    cover_side: ToPixmapTaskSpec,
+    top: ToPixmapTaskSpec,
+) -> GroundCoverBlock {
     GroundCoverBlock {
-        name, top_name_suffix, base: base.texture(),
-        colors: ColorTriad {color, shadow, highlight},
-        cover_side, top
+        name,
+        top_name_suffix,
+        base: base.texture(),
+        colors: ColorTriad {
+            color,
+            shadow,
+            highlight,
+        },
+        cover_side,
+        top,
     }
 }
 
@@ -371,12 +393,14 @@ pub struct SingleLayerMaterial {
 
 impl Material for SingleLayerMaterial {
     fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
-        Arc::new([out_task(self.name,
-             if let Some(color) = self.color {
-                 paint_svg_task(self.layer_name, color)
-             } else {
-                 from_svg_task(self.layer_name)
-             })])
+        Arc::new([out_task(
+            self.name,
+            if let Some(color) = self.color {
+                paint_svg_task(self.layer_name, color)
+            } else {
+                from_svg_task(self.layer_name)
+            },
+        )])
     }
 }
 
@@ -384,41 +408,47 @@ pub const REDSTONE_ON: ComparableColor = c(0xff5e5e);
 
 pub struct RedstoneOffOnBlockPair {
     pub name: &'static str,
-    pub create_texture: Box<dyn Fn(ComparableColor) -> ToPixmapTaskSpec + Send + Sync>
+    pub create_texture: Box<dyn Fn(ComparableColor) -> ToPixmapTaskSpec + Send + Sync>,
 }
 
 impl Material for RedstoneOffOnBlockPair {
     fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
-        Arc::new([out_task(
+        Arc::new([
+            out_task(
                 format!("block/{}", self.name),
-                (self.create_texture)(ComparableColor::BLACK)
-        ),
-        out_task(
-            format!("block/{}_on", self.name),
-            (self.create_texture)(REDSTONE_ON)
-        )])
+                (self.create_texture)(ComparableColor::BLACK),
+            ),
+            out_task(
+                format!("block/{}_on", self.name),
+                (self.create_texture)(REDSTONE_ON),
+            ),
+        ])
     }
 }
 
 #[macro_export]
 macro_rules! redstone_off_on_block {
     ($name:ident = $create_texture:expr ) => {
-        pub static $name: once_cell::sync::Lazy<$crate::texture_base::material::RedstoneOffOnBlockPair> =
-        once_cell::sync::Lazy::new(|| $crate::texture_base::material::RedstoneOffOnBlockPair {
+        pub static $name: once_cell::sync::Lazy<
+            $crate::texture_base::material::RedstoneOffOnBlockPair,
+        > = once_cell::sync::Lazy::new(|| $crate::texture_base::material::RedstoneOffOnBlockPair {
             name: const_format::map_ascii_case!(const_format::Case::Lower, &stringify!($name)),
-            create_texture: Box::new(|state_color| { {
+            create_texture: Box::new(|state_color| {
                 macro_rules! state_color {
-                    () => {state_color}
+                    () => {
+                        state_color
+                    };
                 }
                 $create_texture
-            } })
+            }),
         });
-    }
+    };
 }
 
 pub type TextureSupplier<T> = Box<dyn Fn(&T) -> ToPixmapTaskSpec + Send + Sync>;
 pub type TextureUnaryFunc<T> = Box<dyn Fn(&T, ToPixmapTaskSpec) -> ToPixmapTaskSpec + Send + Sync>;
-pub type TextureBinaryFunc<T> = Box<dyn Fn(&T, ToPixmapTaskSpec, ToPixmapTaskSpec) -> ToPixmapTaskSpec + Send + Sync>;
+pub type TextureBinaryFunc<T> =
+    Box<dyn Fn(&T, ToPixmapTaskSpec, ToPixmapTaskSpec) -> ToPixmapTaskSpec + Send + Sync>;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ColorTriad {

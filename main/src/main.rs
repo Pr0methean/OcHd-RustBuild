@@ -8,41 +8,48 @@
 use std::path::{absolute, PathBuf};
 use std::time::Instant;
 
-use log::{info, LevelFilter, warn};
+use log::{info, warn, LevelFilter};
 use texture_base::material::Material;
 
-use crate::image_tasks::task_spec::{FileOutputTaskSpec, METADATA_DIR, TaskGraphBuildingContext, TaskSpecTraits};
+use crate::image_tasks::task_spec::{
+    FileOutputTaskSpec, TaskGraphBuildingContext, TaskSpecTraits, METADATA_DIR,
+};
 
 mod image_tasks;
-mod texture_base;
 mod materials;
-#[cfg(not(any(test,clippy)))]
+mod texture_base;
+mod u8set;
+
+use crate::image_tasks::png_output::{copy_in_to_out, ZIP};
+use crate::image_tasks::prewarm_pixmap_pool;
+use crate::image_tasks::repaint::prewarm_mask_pool;
+use image_tasks::cloneable::CloneableError;
+use include_dir::{Dir, DirEntry};
+#[cfg(not(any(test, clippy)))]
+use once_cell::sync::Lazy;
+use rayon::{in_place_scope_fifo, ThreadPoolBuilder};
+#[cfg(not(any(test, clippy)))]
 use std::env;
 use std::fs;
 use std::fs::create_dir_all;
 use std::hint::unreachable_unchecked;
 use std::ops::DerefMut;
-use include_dir::{Dir, DirEntry};
-#[cfg(not(any(test,clippy)))]
-use once_cell::sync::Lazy;
-use rayon::{in_place_scope_fifo, ThreadPoolBuilder};
 use tikv_jemallocator::Jemalloc;
-use image_tasks::cloneable::{CloneableError};
-use crate::image_tasks::png_output::{copy_in_to_out, ZIP};
-use crate::image_tasks::prewarm_pixmap_pool;
-use crate::image_tasks::repaint::prewarm_mask_pool;
 
 const GRID_SIZE: u32 = 32;
 
-#[cfg(not(any(test,clippy)))]
+#[cfg(not(any(test, clippy)))]
 static ARGS: Lazy<Vec<String>> = Lazy::new(|| env::args().collect());
 
-#[cfg(not(any(test,clippy)))]
-static TILE_SIZE: Lazy<u32> = Lazy::new(||
-        ARGS.get(1).expect("Usage: OcHd-RustBuild <tile-size>").parse::<u32>()
-            .expect("Tile size (first command-line argument) must be an integer"));
+#[cfg(not(any(test, clippy)))]
+static TILE_SIZE: Lazy<u32> = Lazy::new(|| {
+    ARGS.get(1)
+        .expect("Usage: OcHd-RustBuild <tile-size>")
+        .parse::<u32>()
+        .expect("Tile size (first command-line argument) must be an integer")
+});
 
-#[cfg(any(test,clippy))]
+#[cfg(any(test, clippy))]
 const TILE_SIZE: &u32 = &128;
 
 #[global_allocator]
@@ -52,30 +59,30 @@ static ALLOCATOR: Jemalloc = Jemalloc;
 #[allow(unused_variables)]
 pub const fn debug_assert_unreachable<T>(msg: &'static str) -> T {
     debug_assert!(false, "{}", msg);
-    unsafe {unreachable_unchecked()}
+    unsafe { unreachable_unchecked() }
 }
 
 fn copy_metadata(source_dir: &Dir) {
-    source_dir.entries().iter().for_each(
-        |entry| {
-            match entry {
-                DirEntry::Dir(dir) => {
-                    copy_metadata(dir);
-                }
-                DirEntry::File(file) => {
-                    copy_in_to_out(file, file.path().to_string_lossy().into())
-                        .expect("Failed to copy a file");
-                }
-            }
+    source_dir.entries().iter().for_each(|entry| match entry {
+        DirEntry::Dir(dir) => {
+            copy_metadata(dir);
         }
-    );
+        DirEntry::File(file) => {
+            copy_in_to_out(file, file.path().to_string_lossy().into())
+                .expect("Failed to copy a file");
+        }
+    });
 }
 
 fn main() -> Result<(), CloneableError> {
-    simple_logging::log_to_file("./log.txt", LevelFilter::Info).expect("Failed to configure file logging");
+    simple_logging::log_to_file("./log.txt", LevelFilter::Info)
+        .expect("Failed to configure file logging");
     let out_dir = PathBuf::from("./out");
     let out_file = out_dir.join(format!("OcHD-{}x{}.zip", *TILE_SIZE, *TILE_SIZE));
-    info!("Writing output to {}", absolute(&out_file)?.to_string_lossy());
+    info!(
+        "Writing output to {}",
+        absolute(&out_file)?.to_string_lossy()
+    );
     let tile_size: u32 = *TILE_SIZE;
     info!("Using {} pixels per tile", tile_size);
     let mut cpus = num_cpus::get();
@@ -88,46 +95,58 @@ fn main() -> Result<(), CloneableError> {
     info!("Rayon thread pool has {} threads", cpus);
     let start_time = Instant::now();
     rayon::join(
-        || rayon::join(
         || {
-            prewarm_pixmap_pool();
-            prewarm_mask_pool();
-            info!("Caches prewarmed");
-            create_dir_all(out_dir).expect("Failed to create output directory");
-            info!("Output directory built");
+            rayon::join(
+                || {
+                    prewarm_pixmap_pool();
+                    prewarm_mask_pool();
+                    info!("Caches prewarmed");
+                    create_dir_all(out_dir).expect("Failed to create output directory");
+                    info!("Output directory built");
+                },
+                || {
+                    copy_metadata(&METADATA_DIR);
+                    info!("Metadata copied");
+                },
+            )
         },
         || {
-            copy_metadata(&METADATA_DIR);
-            info!("Metadata copied");
-        }),
-    || {
-        let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
-        let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
-        let mut large_tasks = Vec::with_capacity(out_tasks.len());
-        let mut small_tasks = Vec::with_capacity(out_tasks.len());
-        for task in out_tasks.iter() {
-            let new_task = task.add_to(&mut ctx, tile_size);
-            if tile_size > GRID_SIZE
-                    && let FileOutputTaskSpec::PngOutput {base, .. } = task
-                    && !base.is_grid_perfect(&mut ctx) {
-                large_tasks.push(new_task);
-            } else {
-                small_tasks.push(new_task);
+            let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
+            let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
+            let mut large_tasks = Vec::with_capacity(out_tasks.len());
+            let mut small_tasks = Vec::with_capacity(out_tasks.len());
+            for task in out_tasks.iter() {
+                let new_task = task.add_to(&mut ctx, tile_size);
+                if tile_size > GRID_SIZE
+                    && let FileOutputTaskSpec::PngOutput { base, .. } = task
+                    && !base.is_grid_perfect(&mut ctx)
+                {
+                    large_tasks.push(new_task);
+                } else {
+                    small_tasks.push(new_task);
+                }
             }
-        }
-        drop(ctx);
-        let mut planned_tasks = large_tasks;
-        planned_tasks.extend_from_slice(&small_tasks);
-        in_place_scope_fifo(move |scope| {
-            for task in planned_tasks {
-                let name = task.to_string();
-                scope.spawn_fifo(move |_| *task.into_result()
-                    .unwrap_or_else(|err| panic!("Error running task {}: {:?}", name, err)));
-            }
-        });
-    });
-    let zip_contents = ZIP.lock()?.deref_mut().finish()
-        .expect("Failed to finalize ZIP file").into_inner();
+            drop(ctx);
+            let mut planned_tasks = large_tasks;
+            planned_tasks.extend_from_slice(&small_tasks);
+            in_place_scope_fifo(move |scope| {
+                for task in planned_tasks {
+                    let name = task.to_string();
+                    scope.spawn_fifo(move |_| {
+                        *task
+                            .into_result()
+                            .unwrap_or_else(|err| panic!("Error running task {}: {:?}", name, err))
+                    });
+                }
+            });
+        },
+    );
+    let zip_contents = ZIP
+        .lock()?
+        .deref_mut()
+        .finish()
+        .expect("Failed to finalize ZIP file")
+        .into_inner();
     info!("ZIP file size is {} bytes", zip_contents.len());
     fs::write(out_file.as_path(), zip_contents)?;
     info!("Finished after {} ns", start_time.elapsed().as_nanos());

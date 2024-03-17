@@ -1,8 +1,8 @@
-use std::sync::Arc;
 use crate::image_tasks::color::ComparableColor;
-use crate::image_tasks::task_spec::{FileOutputTaskSpec, from_svg_task, out_task, paint_svg_task};
-use crate::{group, stack};
+use crate::image_tasks::task_spec::{from_svg_task, out_task, paint_svg_task, FileOutputTaskSpec};
 use crate::texture_base::material::Material;
+use crate::{group, stack};
+use std::sync::Arc;
 
 const COMPASS_ANGLES: usize = 32;
 
@@ -10,7 +10,7 @@ pub struct Compass {
     rim_color: ComparableColor,
     dial_color: ComparableColor,
     needle_color: ComparableColor,
-    base_name: &'static str
+    base_name: &'static str,
 }
 
 impl Material for Compass {
@@ -27,7 +27,7 @@ impl Material for Compass {
                 stack!(
                     base.to_owned(),
                     paint_svg_task(format!("compass{}", angle), self.needle_color)
-                )
+                ),
             ));
         }
         output_tasks.into()
@@ -38,14 +38,14 @@ const COMPASS: Compass = Compass {
     rim_color: ComparableColor::WHITE,
     dial_color: ComparableColor::DEEPSLATE_SHADOW,
     needle_color: ComparableColor::RED,
-    base_name: "compass"
+    base_name: "compass",
 };
 
 const RECOVERY_COMPASS: Compass = Compass {
     rim_color: ComparableColor::CYAN,
     dial_color: ComparableColor::BLACK,
     needle_color: ComparableColor::CYAN,
-    base_name: "recovery_compass"
+    base_name: "recovery_compass",
 };
 
 group!(COMPASSES = COMPASS, RECOVERY_COMPASS);

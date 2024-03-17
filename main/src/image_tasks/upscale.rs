@@ -1,10 +1,13 @@
-use std::iter::repeat;
-use resvg::tiny_skia::{Mask, Pixmap};
-use crate::image_tasks::{allocate_pixmap_for_overwrite, MaybeFromPool};
-use crate::image_tasks::repaint::allocate_mask_for_overwrite;
 use crate::image_tasks::cloneable::CloneableError;
+use crate::image_tasks::repaint::allocate_mask_for_overwrite;
+use crate::image_tasks::{allocate_pixmap_for_overwrite, MaybeFromPool};
+use resvg::tiny_skia::{Mask, Pixmap};
+use std::iter::repeat;
 
-pub fn upscale_image(source: &Pixmap, new_width: u32) -> Result<MaybeFromPool<Pixmap>, CloneableError> {
+pub fn upscale_image(
+    source: &Pixmap,
+    new_width: u32,
+) -> Result<MaybeFromPool<Pixmap>, CloneableError> {
     let scale_factor = new_width / source.width();
     let new_height = scale_factor * source.height();
     let mut out_scanline = Vec::with_capacity(new_width as usize);
@@ -12,8 +15,7 @@ pub fn upscale_image(source: &Pixmap, new_width: u32) -> Result<MaybeFromPool<Pi
     for y in 0..source.height() {
         out_scanline.clear();
         for x in 0..source.width() {
-            out_scanline.extend(repeat(source.pixel(x, y).unwrap())
-                .take(scale_factor as usize));
+            out_scanline.extend(repeat(source.pixel(x, y).unwrap()).take(scale_factor as usize));
         }
         let start_out_y = (y * scale_factor) as usize;
         let end_out_y = start_out_y + scale_factor as usize;
@@ -34,8 +36,10 @@ pub fn upscale_mask(source: &Mask, new_width: u32) -> Result<MaybeFromPool<Mask>
     for y in 0..source.height() {
         out_scanline.clear();
         for x in 0..source.width() {
-            out_scanline.extend(repeat(source.data()[(y * source.width() + x) as usize])
-                .take(scale_factor as usize));
+            out_scanline.extend(
+                repeat(source.data()[(y * source.width() + x) as usize])
+                    .take(scale_factor as usize),
+            );
         }
         let start_out_y = (y * scale_factor) as usize;
         let end_out_y = start_out_y + scale_factor as usize;
