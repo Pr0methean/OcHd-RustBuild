@@ -914,7 +914,6 @@ impl ToPixmapTaskSpec {
                             alpha: alpha_array[alpha as usize]
                         })
                         .collect();
-                    colored_alphas.sort();
                     colored_alphas.dedup();
                     colored_alphas.into()
                 }))))
