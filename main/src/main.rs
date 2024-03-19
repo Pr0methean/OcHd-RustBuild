@@ -89,19 +89,21 @@ fn main() -> Result<(), CloneableError> {
     );
     let tile_size: u32 = *TILE_SIZE;
     info!("Using {} pixels per tile", tile_size);
+    let mut global_builder = ThreadPoolBuilder::new().use_current_thread();
     match available_parallelism() {
         Ok(parallelism) => {
             let adjusted_parallelism = parallelism.get() + 1;
             if adjusted_parallelism.count_ones() <= 1 {
                 warn!("Adjusting CPU count from {} to {}", parallelism, adjusted_parallelism);
                 // Compensate for missed CPU core on m7g.16xlarge
-                ThreadPoolBuilder::new().num_threads(adjusted_parallelism).build_global()?;
+                global_builder = global_builder.num_threads(adjusted_parallelism);
             } else {
                 info!("Rayon thread pool has {} threads", parallelism);
             }
         }
         Err(e) => warn!("Unable to get available parallelism: {}", e)
     }
+    global_builder.build_global()?;
     let start_time = Instant::now();
     rayon::join(
         || {
