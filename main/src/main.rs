@@ -34,6 +34,7 @@ use std::fs;
 use std::fs::create_dir_all;
 use std::hint::unreachable_unchecked;
 use std::ops::DerefMut;
+use std::thread::available_parallelism;
 use tikv_jemallocator::Jemalloc;
 
 const GRID_SIZE: u32 = 32;
@@ -88,14 +89,19 @@ fn main() -> Result<(), CloneableError> {
     );
     let tile_size: u32 = *TILE_SIZE;
     info!("Using {} pixels per tile", tile_size);
-    let mut cpus = num_cpus::get();
-    if (cpus as u64 + 1).count_ones() <= 1 {
-        warn!("Adjusting CPU count from {} to {}", cpus, cpus + 1);
-        cpus += 1;
-        // Compensate for missed CPU core on m7g.16xlarge
-        ThreadPoolBuilder::new().num_threads(cpus).build_global()?;
+    match available_parallelism() {
+        Ok(parallelism) => {
+            let adjusted_parallelism = parallelism.get() + 1;
+            if adjusted_parallelism.count_ones() <= 1 {
+                warn!("Adjusting CPU count from {} to {}", parallelism, adjusted_parallelism);
+                // Compensate for missed CPU core on m7g.16xlarge
+                ThreadPoolBuilder::new().num_threads(adjusted_parallelism).build_global()?;
+            } else {
+                info!("Rayon thread pool has {} threads", parallelism);
+            }
+        }
+        Err(e) => warn!("Unable to get available parallelism: {}", e)
     }
-    info!("Rayon thread pool has {} threads", cpus);
     let start_time = Instant::now();
     rayon::join(
         || {
