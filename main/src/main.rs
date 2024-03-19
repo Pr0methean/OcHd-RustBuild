@@ -59,7 +59,9 @@ static ALLOCATOR: Jemalloc = Jemalloc;
 #[allow(unused_variables)]
 #[inline(always)]
 pub const fn debug_assert_unreachable(msg: &'static str) -> ! {
-    debug_assert!(false, "{}", msg);
+    if cfg!(debug_assertions) {
+        panic!("{}", msg);
+    }
     unsafe { unreachable_unchecked() }
 }
 
