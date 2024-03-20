@@ -122,7 +122,6 @@ impl From<&'static str> for Name {
 impl<'a, UnsizedType: ?Sized, SizedType: Clone> Arcow<'a, UnsizedType, SizedType>
     where SizedType: Borrow<UnsizedType> {
     pub fn cloning_from(value: SizedType) -> Self {
-        debug_assert!(size_of::<SizedType>() <= 4 * size_of::<usize>());
         Arcow::Cloning(value)
     }
 }
