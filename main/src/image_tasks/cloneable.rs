@@ -5,7 +5,7 @@ use replace_with::replace_with_and_return;
 use std::cmp::Ordering;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
-use std::mem::size_of;
+use std::mem::{size_of, size_of_val};
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
 
@@ -120,21 +120,27 @@ impl From<&'static str> for Name {
 }
 
 impl<'a, UnsizedType: ?Sized, SizedType: Clone> Arcow<'a, UnsizedType, SizedType>
+    where SizedType: Borrow<UnsizedType> {
+    pub fn cloning_from(value: SizedType) -> Self {
+        debug_assert!(size_of::<SizedType>() <= 4 * size_of::<usize>());
+        Arcow::Cloning(value)
+    }
+}
+
+impl<'a, UnsizedType: ?Sized, SizedType: Clone> Arcow<'a, UnsizedType, SizedType>
     where SizedType: Borrow<UnsizedType>, Arc<UnsizedType>: From<SizedType> {
     pub fn borrowing_from(value: &'a UnsizedType) -> Self {
         Arcow::Borrowing(value)
     }
 
-    pub fn sharing_ref_to(value: SizedType) -> Self {
-        Arcow::SharingRef(value.into())
-    }
-}
+    const ARC_THRESHOLD: usize = 8 * size_of::<usize>();
 
-impl<'a, UnsizedType: ?Sized, SizedType: Clone> Arcow<'a, UnsizedType, SizedType>
-    where SizedType: Borrow<UnsizedType> {
-    pub fn cloning_from(value: SizedType) -> Self {
-        debug_assert!(size_of::<SizedType>() <= 4 * size_of::<usize>());
-        Arcow::Cloning(value)
+    pub fn from_owned(value: SizedType) -> Self {
+        if size_of_val(&value) > Self::ARC_THRESHOLD {
+            Arcow::SharingRef(value.into())
+        } else {
+            Arcow::Cloning(value)
+        }
     }
 }
 

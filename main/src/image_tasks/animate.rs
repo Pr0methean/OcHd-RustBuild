@@ -39,5 +39,5 @@ pub fn animate(
             None,
         );
     }
-    Ok(Arcow::sharing_ref_to(out))
+    Ok(Arcow::from_owned(out))
 }

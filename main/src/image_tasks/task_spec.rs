@@ -100,7 +100,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                     let fg_image = fg_future.into_result()?;
                     fg_image.consume(|mut out_image| {
                         stack_layer_on_background(background, &mut out_image)?;
-                        Ok(Arcow::sharing_ref_to(out_image))
+                        Ok(Arcow::from_owned(out_image))
                     })
                 })
             }
@@ -115,7 +115,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                     bg_image.consume(|mut out_image| {
                         let fg_image = fg_future.into_result()?;
                         stack_layer_on_layer(&mut out_image, fg_image.deref());
-                        Ok(Arcow::sharing_ref_to(out_image))
+                        Ok(Arcow::from_owned(out_image))
                     })
                 })
             }
@@ -134,7 +134,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                 }
                 Box::new(move || {
                     let base_image = base_future.into_result()?;
-                    Ok(Arcow::sharing_ref_to(upscale_image(base_image.deref(), tile_size)?))
+                    Ok(Arcow::from_owned(upscale_image(base_image.deref(), tile_size)?))
                 })
             }
         };
@@ -172,7 +172,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                     let base_result = base_future.into_result()?;
                     base_result.consume(|mut channel| {
                         make_semitransparent(&mut channel, alpha);
-                        Ok(Arcow::sharing_ref_to(channel))
+                        Ok(Arcow::from_owned(channel))
                     })
                 })
             }
@@ -180,7 +180,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                 let base_future = base.add_to(ctx, tile_size);
                 Box::new(move || {
                     let base_image = base_future.into_result()?;
-                    base_image.consume(|base_image| Ok(Arcow::sharing_ref_to(pixmap_to_mask(&base_image))))
+                    base_image.consume(|base_image| Ok(Arcow::from_owned(pixmap_to_mask(&base_image))))
                 })
             }
             StackAlphaOnAlpha {
@@ -194,7 +194,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                     let fg_mask = fg_future.into_result()?;
                     bg_mask.consume(|mut out_mask| {
                         stack_alpha_on_alpha(&mut out_mask, fg_mask.deref());
-                        Ok(Arcow::sharing_ref_to(out_mask))
+                        Ok(Arcow::from_owned(out_mask))
                     })
                 })
             }
@@ -208,7 +208,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                     let fg_arc = fg_future.into_result()?;
                     fg_arc.consume(|mut fg_image| {
                         stack_alpha_on_background(background, &mut fg_image);
-                        Ok(Arcow::sharing_ref_to(fg_image))
+                        Ok(Arcow::from_owned(fg_image))
                     })
                 })
             }
@@ -219,7 +219,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                 }
                 Box::new(move || {
                     let base_mask = base_future.into_result()?;
-                    Ok(Arcow::sharing_ref_to(upscale_mask(base_mask.deref(), tile_size)?))
+                    Ok(Arcow::from_owned(upscale_mask(base_mask.deref(), tile_size)?))
                 })
             }
         };
@@ -253,7 +253,7 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
                         color_description_to_mode(&*base_color_desc_future.into_result()?, &name);
                     let base_result = base_future.into_result()?;
                     base_result.consume(|image| {
-                        Ok(Arcow::sharing_ref_to(png_output(
+                        Ok(Arcow::cloning_from(png_output(
                             image,
                             color_type,
                             bit_depth,
@@ -583,7 +583,7 @@ impl ColorDescription {
                     combined_colors.extend(neighbor_colors.iter());
                     combined_colors.sort();
                     combined_colors.dedup();
-                    SpecifiedColors(Arcow::sharing_ref_to(combined_colors))
+                    SpecifiedColors(Arcow::from_owned(combined_colors))
                 }
             },
         }
@@ -606,7 +606,7 @@ impl ColorDescription {
                                 combined_colors.sort();
                                 combined_colors.dedup();
                                 combined_colors.truncate(max_colors);
-                                SpecifiedColors(Arcow::sharing_ref_to(combined_colors))
+                                SpecifiedColors(Arcow::from_owned(combined_colors))
                             }
                             AlphaChannel => {
                                 // Using dedup() rather than unique() uses too much memory
@@ -620,7 +620,7 @@ impl ColorDescription {
                                     .take(max_colors)
                                     .collect();
                                 combined_colors.sort();
-                                SpecifiedColors(Arcow::sharing_ref_to(combined_colors))
+                                SpecifiedColors(Arcow::from_owned(combined_colors))
                             }
                         }
                     }
@@ -685,7 +685,7 @@ impl ToAlphaChannelTaskSpec {
                 CloneableLazyTask::new(
                     name,
                     Box::new(move || {
-                        Ok(Arcow::sharing_ref_to(multiply_alpha_vec(*base_alphas_task.into_result()?, alpha)))
+                        Ok(Arcow::from_owned(multiply_alpha_vec(*base_alphas_task.into_result()?, alpha)))
                     }),
                 )
             }
@@ -699,7 +699,7 @@ impl ToAlphaChannelTaskSpec {
                 CloneableLazyTask::new(
                     name,
                     Box::new(move || {
-                        Ok(Arcow::sharing_ref_to(
+                        Ok(Arcow::from_owned(
                             stack_alpha_vecs(*bg_task.into_result()?, *fg_task.into_result()?)
                         ))
                     }),
@@ -1117,7 +1117,7 @@ impl ToPixmapTaskSpec {
                             })
                             .collect();
                         colored_alphas.dedup();
-                        Arcow::sharing_ref_to(colored_alphas)
+                        Arcow::from_owned(colored_alphas)
                     }))
                 }))
             }
@@ -1130,7 +1130,7 @@ impl ToPixmapTaskSpec {
                 Left(Box::new(move || {
                     Ok(fg_task
                         .into_result()?
-                        .stack_on(&SpecifiedColors(Arcow::sharing_ref_to(vec![background])), pixels + 1))
+                        .stack_on(&SpecifiedColors(Arcow::cloning_from(vec![background])), pixels + 1))
                 }))
             }
             ToPixmapTaskSpec::StackLayerOnLayer {
@@ -1170,9 +1170,9 @@ impl ToPixmapTaskSpec {
                                         .collect();
                                     actual_colors.sort();
                                     actual_colors.dedup();
-                                    Arcow::sharing_ref_to(SpecifiedColors(Arcow::sharing_ref_to(actual_colors)))
+                                    Arcow::from_owned(SpecifiedColors(Arcow::sharing_ref_to(actual_colors)))
                                 } else {
-                                    Arcow::sharing_ref_to(SpecifiedColors(colors.clone()))
+                                    Arcow::from_owned(SpecifiedColors(colors.clone()))
                                 }
                             }
                             Rgb(Opaque) => Arcow::cloning_from(RGB_OPAQUE.clone()),
