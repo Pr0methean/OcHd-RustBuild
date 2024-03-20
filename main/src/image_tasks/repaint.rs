@@ -105,7 +105,7 @@ pub fn paint(
         Transform::default(),
         Some(input),
     );
-    Ok(Arcow::sharing_from(output))
+    Ok(Arcow::sharing_ref_to(output))
 }
 
 #[test]

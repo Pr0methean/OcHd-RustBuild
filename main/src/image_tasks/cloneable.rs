@@ -27,7 +27,7 @@ where
 #[derive(Debug)]
 pub enum Arcow<'a, UnsizedType: ?Sized, SizedType: Clone + 'a>
 where SizedType: Borrow<UnsizedType>{
-    Sharing(Arc<UnsizedType>),
+    SharingRef(Arc<UnsizedType>),
     Cloning(SizedType),
     Borrowing(&'a UnsizedType),
 }
@@ -40,7 +40,7 @@ impl<'a, UnsizedType: ?Sized, SizedType: Clone> Clone for Arcow<'a, UnsizedType,
 where SizedType: Borrow<UnsizedType>{
     fn clone(&self) -> Self {
         match self {
-            Arcow::Sharing(arc) => Arcow::Sharing(arc.clone()),
+            Arcow::SharingRef(arc) => Arcow::SharingRef(arc.clone()),
             Arcow::Borrowing(borrow) => Arcow::Borrowing(borrow),
             Arcow::Cloning(value) => Arcow::Cloning(value.clone())
         }
@@ -53,7 +53,7 @@ impl<'a, UnsizedType: ?Sized, SizedType: Clone> Deref for Arcow<'a, UnsizedType,
 
     fn deref(&self) -> &Self::Target {
         match self {
-            Arcow::Sharing(arc) => arc,
+            Arcow::SharingRef(arc) => arc,
             Arcow::Borrowing(borrow) => borrow,
             Arcow::Cloning(value) => (*value).borrow()
         }
@@ -70,7 +70,7 @@ impl<UnsizedType: ?Sized, SizedType: Clone> Display for Arcow<'_, UnsizedType, S
 impl<UnsizedType: ?Sized, SizedType: Clone> PartialEq for Arcow<'_, UnsizedType, SizedType>
     where SizedType: Borrow<UnsizedType>, for<'a> &'a UnsizedType: PartialEq {
     fn eq(&self, other: &Self) -> bool {
-        if let Arcow::Sharing(arc) = self && let Arcow::Sharing(other_arc) = other
+        if let Arcow::SharingRef(arc) = self && let Arcow::SharingRef(other_arc) = other
                 && Arc::ptr_eq(arc, other_arc) {
             return true;
         }
@@ -84,7 +84,7 @@ impl<'a, UnsizedType: ?Sized + Eq, SizedType: Clone> Eq for Arcow<'a, UnsizedTyp
 impl<'a, UnsizedType: ?Sized + PartialOrd, SizedType: Clone> PartialOrd for Arcow<'a, UnsizedType, SizedType>
     where SizedType: Borrow<UnsizedType>{
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        if let Arcow::Sharing(arc) = self && let Arcow::Sharing(other_arc) = other
+        if let Arcow::SharingRef(arc) = self && let Arcow::SharingRef(other_arc) = other
                 && Arc::ptr_eq(arc, other_arc) {
             return Some(Ordering::Equal);
         }
@@ -108,7 +108,7 @@ impl<UnsizedType: ?Sized, SizedType: Clone> Hash for Arcow<'_, UnsizedType, Size
 
 impl From<String> for Name {
     fn from(value: String) -> Self {
-        Arcow::Sharing(value.into())
+        Arcow::SharingRef(value.into())
     }
 }
 
@@ -124,8 +124,8 @@ impl<'a, UnsizedType: ?Sized, SizedType: Clone> Arcow<'a, UnsizedType, SizedType
         Arcow::Borrowing(value)
     }
 
-    pub fn sharing_from(value: SizedType) -> Self {
-        Arcow::Sharing(value.into())
+    pub fn sharing_ref_to(value: SizedType) -> Self {
+        Arcow::SharingRef(value.into())
     }
 }
 
@@ -141,7 +141,7 @@ impl<'a, UnsizedType, SizedType: Clone> Arcow<'a, UnsizedType, SizedType>
 
     pub fn consume<R, T: FnOnce(UnsizedType) -> R>(self, action: T) -> R {
         match self {
-            Arcow::Sharing(arc) => action(Arc::unwrap_or_clone(arc)),
+            Arcow::SharingRef(arc) => action(Arc::unwrap_or_clone(arc)),
             Arcow::Cloning(value) => action(value.into()),
             Arcow::Borrowing(borrow) => action(borrow.clone())
         }
