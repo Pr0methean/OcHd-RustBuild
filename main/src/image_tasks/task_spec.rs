@@ -714,7 +714,7 @@ impl ToAlphaChannelTaskSpec {
                 CloneableLazyTask::new(
                     name,
                     Box::new(move || {
-                        Ok(Arcow::sharing_ref_to(stack_alpha_vecs(
+                        Ok(Arcow::cloning_from(stack_alpha_vecs(
                             U8BitSet::from_iter([background_alpha]),
                             *fg_task.into_result()?,
                         )))
@@ -1084,14 +1084,14 @@ impl ToPixmapTaskSpec {
                 let name = name.clone();
                 if COLOR_SVGS.contains(&&**source) {
                     if SEMITRANSPARENCY_FREE_SVGS.contains(&&**source) {
-                        Right(CloneableLazyTask::new_immediate_ok(name, Arcow::cloning_from(&RGB_BINARY)))
+                        Right(CloneableLazyTask::new_immediate_ok(name, Arcow::cloning_from(RGB_BINARY.clone())))
                     } else {
-                        Right(CloneableLazyTask::new_immediate_ok(name, Arcow::cloning_from(&RGBA_DESCRIPTION)))
+                        Right(CloneableLazyTask::new_immediate_ok(name, Arcow::cloning_from(RGBA_DESCRIPTION.clone())))
                     }
                 } else if SEMITRANSPARENCY_FREE_SVGS.contains(&&**source) {
                     Right(CloneableLazyTask::new_immediate_ok(
                         name,
-                        Arcow::cloning_from(&SPECIFIED_BLACK_TRANSPARENT),
+                        Arcow::cloning_from(SPECIFIED_BLACK_TRANSPARENT.clone()),
                     ))
                 } else {
                     Right(CloneableLazyTask::new_immediate_ok(
@@ -1175,9 +1175,9 @@ impl ToPixmapTaskSpec {
                                     Arcow::sharing_ref_to(SpecifiedColors(colors.clone()))
                                 }
                             }
-                            Rgb(Opaque) => Arcow::cloning_from(&RGB_OPAQUE),
-                            Rgb(Binary) => Arcow::cloning_from(&RGB_BINARY),
-                            Rgb(AlphaChannel) => Arcow::cloning_from(&RGBA_DESCRIPTION)
+                            Rgb(Opaque) => Arcow::cloning_from(RGB_OPAQUE.clone()),
+                            Rgb(Binary) => Arcow::cloning_from(RGB_BINARY.clone()),
+                            Rgb(AlphaChannel) => Arcow::cloning_from(RGBA_DESCRIPTION.clone())
                         })
                     }),
                 )
@@ -1200,7 +1200,7 @@ impl ToPixmapTaskSpec {
             let task = CloneableLazyTask::new(
                 self.to_string(),
                 Box::new(move || {
-                    Ok(Arcow::cloning_from(&{
+                    Ok(Arcow::cloning_from({
                         let colors = color_task.into_result()?;
                         match colors.transparency() {
                             AlphaChannel => match &*colors {
