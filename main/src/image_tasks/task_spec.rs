@@ -5,7 +5,6 @@ use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 
 use std::ops::{Deref, Mul};
-use std::sync::Arc;
 use BitDepth::Sixteen;
 use ColorType::GrayscaleAlpha;
 
@@ -23,7 +22,8 @@ use oxipng::{BitDepth, RGB16, RGBA8};
 use resvg::tiny_skia::{Color, Mask, Pixmap};
 
 use crate::image_tasks::animate::animate;
-use crate::image_tasks::cloneable::{Arcow, CloneableError, CloneableLazyTask, LazyTaskFunction};
+use crate::image_tasks::cloneable::{Arcow, CloneableError, CloneableLazyTask, LazyTaskFunction, Name};
+use crate::image_tasks::cloneable::Arcow::{Borrowed, Cloned};
 use crate::image_tasks::color::{gray, ComparableColor, BIT_DEPTH_FOR_CHANNEL};
 use crate::image_tasks::from_svg::{from_svg, COLOR_SVGS, SEMITRANSPARENCY_FREE_SVGS};
 use crate::image_tasks::make_semitransparent::{
@@ -43,16 +43,18 @@ use crate::image_tasks::upscale::{upscale_image, upscale_mask};
 use crate::image_tasks::MaybeFromPool;
 use crate::u8set::U8BitSet;
 
-pub trait TaskSpecTraits<T>: Clone + Debug + Display + Ord + Eq + Hash {
-    fn add_to(&self, ctx: &mut TaskGraphBuildingContext, tile_size: u32) -> CloneableLazyTask<T>;
+pub trait TaskSpecTraits<T: Clone>: Clone + Debug + Display + Ord + Eq + Hash {
+    fn add_to(&self, ctx: &mut TaskGraphBuildingContext, tile_size: u32) -> BasicTask<T>;
 }
+
+type BasicTaskFunction<T> = LazyTaskFunction<T, T>;
 
 impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
     fn add_to(
         &self,
         ctx: &mut TaskGraphBuildingContext,
         tile_size: u32,
-    ) -> CloneableLazyTask<MaybeFromPool<Pixmap>> {
+    ) -> BasicTask<MaybeFromPool<Pixmap>> {
         let name = self.to_string();
         if let Some(existing_future) = ctx.get_pixmap_future(tile_size, self) {
             info!("Matched an existing node: {}", name);
@@ -66,27 +68,27 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
             }
             .add_to(ctx, tile_size);
         }
-        let function: LazyTaskFunction<MaybeFromPool<Pixmap>> = match self {
+        let function: BasicTaskFunction<MaybeFromPool<Pixmap>> = match self {
             ToPixmapTaskSpec::None { .. } => {
                 debug_assert_unreachable("Tried to add None task to graph")
             }
             ToPixmapTaskSpec::Animate { background, frames } => {
                 let background_future = background.add_to(ctx, tile_size);
                 let background_color_desc_future = background.get_color_description_task(ctx);
-                let frame_futures: Box<[CloneableLazyTask<MaybeFromPool<Pixmap>>]> = frames
+                let frame_futures: Box<[BasicTask<MaybeFromPool<Pixmap>>]> = frames
                     .iter()
                     .map(|frame| frame.add_to(ctx, tile_size))
                     .collect();
                 Box::new(move || {
                     let background_opaque =
                         background_color_desc_future.into_result()?.transparency() == Opaque;
-                    let background: Arc<MaybeFromPool<Pixmap>> = background_future.into_result()?;
+                    let background = background_future.into_result()?;
                     animate(&background, frame_futures.to_vec(), !background_opaque)
                 })
             }
             ToPixmapTaskSpec::FromSvg { source } => {
                 let source = source.to_string();
-                Box::new(move || Ok(Box::new(from_svg(source, tile_size)?)))
+                Box::new(move || Ok(Arcow::Owned(from_svg(source, tile_size)?.into())))
             }
             ToPixmapTaskSpec::StackLayerOnColor {
                 background,
@@ -95,10 +97,11 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                 let background: Color = (*background).into();
                 let fg_future = foreground.add_to(ctx, tile_size);
                 Box::new(move || {
-                    let fg_image: Arc<MaybeFromPool<Pixmap>> = fg_future.into_result()?;
-                    let mut fg_image = Arc::unwrap_or_clone(fg_image);
-                    stack_layer_on_background(background, &mut fg_image)?;
-                    Ok(fg_image.into())
+                    let fg_image = fg_future.into_result()?;
+                    fg_image.consume(|mut out_image| {
+                        stack_layer_on_background(background, &mut out_image)?;
+                        Ok(Arcow::from_owned(out_image))
+                    })
                 })
             }
             ToPixmapTaskSpec::StackLayerOnLayer {
@@ -108,19 +111,20 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                 let bg_future = background.add_to(ctx, tile_size);
                 let fg_future = foreground.add_to(ctx, tile_size);
                 Box::new(move || {
-                    let bg_image: Arc<MaybeFromPool<Pixmap>> = bg_future.into_result()?;
-                    let mut out_image = Arc::unwrap_or_clone(bg_image);
-                    let fg_image: Arc<MaybeFromPool<Pixmap>> = fg_future.into_result()?;
-                    stack_layer_on_layer(&mut out_image, fg_image.deref());
-                    Ok(out_image.into())
+                    let bg_image = bg_future.into_result()?;
+                    bg_image.consume(|mut out_image| {
+                        let fg_image = fg_future.into_result()?;
+                        stack_layer_on_layer(&mut out_image, fg_image.deref());
+                        Ok(Arcow::from_owned(out_image))
+                    })
                 })
             }
             ToPixmapTaskSpec::PaintAlphaChannel { base, color } => {
                 let base_future = base.add_to(ctx, tile_size);
                 let color = color.to_owned();
                 Box::new(move || {
-                    let base_image: Arc<MaybeFromPool<Mask>> = base_future.into_result()?;
-                    paint(Arc::unwrap_or_clone(base_image).deref(), color)
+                    let mask = base_future.into_result()?;
+                    paint(&mask, color)
                 })
             }
             UpscaleFromGridSize { base } => {
@@ -130,7 +134,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                 }
                 Box::new(move || {
                     let base_image = base_future.into_result()?;
-                    Ok(Box::new(upscale_image(base_image.deref(), tile_size)?))
+                    Ok(Arcow::from_owned(upscale_image(base_image.deref(), tile_size)?))
                 })
             }
         };
@@ -146,7 +150,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
         &self,
         ctx: &mut TaskGraphBuildingContext,
         tile_size: u32,
-    ) -> CloneableLazyTask<MaybeFromPool<Mask>> {
+    ) -> BasicTask<MaybeFromPool<Mask>> {
         let name: String = self.to_string();
         if let Some(existing_future) = ctx.get_alpha_future(tile_size, self) {
             info!("Matched an existing node: {}", name);
@@ -160,22 +164,23 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
             }
             .add_to(ctx, tile_size);
         }
-        let function: LazyTaskFunction<MaybeFromPool<Mask>> = match self {
+        let function: BasicTaskFunction<MaybeFromPool<Mask>> = match self {
             ToAlphaChannelTaskSpec::MakeSemitransparent { base, alpha } => {
                 let base_future = base.add_to(ctx, tile_size);
                 let alpha = *alpha;
                 Box::new(move || {
-                    let base_result: Arc<MaybeFromPool<Mask>> = base_future.into_result()?;
-                    let mut channel = Arc::unwrap_or_clone(base_result);
-                    make_semitransparent(&mut channel, alpha);
-                    Ok(channel.into())
+                    let base_result = base_future.into_result()?;
+                    base_result.consume(|mut channel| {
+                        make_semitransparent(&mut channel, alpha);
+                        Ok(Arcow::from_owned(channel))
+                    })
                 })
             }
             ToAlphaChannelTaskSpec::FromPixmap { base } => {
                 let base_future = base.add_to(ctx, tile_size);
                 Box::new(move || {
-                    let base_image: Arc<MaybeFromPool<Pixmap>> = base_future.into_result()?;
-                    Ok(pixmap_to_mask(&base_image).into())
+                    let base_image = base_future.into_result()?;
+                    base_image.consume(|base_image| Ok(Arcow::from_owned(pixmap_to_mask(&base_image))))
                 })
             }
             StackAlphaOnAlpha {
@@ -185,11 +190,12 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                 let bg_future = background.add_to(ctx, tile_size);
                 let fg_future = foreground.add_to(ctx, tile_size);
                 Box::new(move || {
-                    let bg_mask: Arc<MaybeFromPool<Mask>> = bg_future.into_result()?;
-                    let mut out_mask = Arc::unwrap_or_clone(bg_mask);
-                    let fg_mask: Arc<MaybeFromPool<Mask>> = fg_future.into_result()?;
-                    stack_alpha_on_alpha(&mut out_mask, fg_mask.deref());
-                    Ok(out_mask.into())
+                    let bg_mask = bg_future.into_result()?;
+                    let fg_mask = fg_future.into_result()?;
+                    bg_mask.consume(|mut out_mask| {
+                        stack_alpha_on_alpha(&mut out_mask, fg_mask.deref());
+                        Ok(Arcow::from_owned(out_mask))
+                    })
                 })
             }
             ToAlphaChannelTaskSpec::StackAlphaOnBackground {
@@ -199,10 +205,11 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                 let background = *background;
                 let fg_future = foreground.add_to(ctx, tile_size);
                 Box::new(move || {
-                    let fg_arc: Arc<MaybeFromPool<Mask>> = fg_future.into_result()?;
-                    let mut fg_image = Arc::unwrap_or_clone(fg_arc);
-                    stack_alpha_on_background(background, &mut fg_image);
-                    Ok(fg_image.into())
+                    let fg_arc = fg_future.into_result()?;
+                    fg_arc.consume(|mut fg_image| {
+                        stack_alpha_on_background(background, &mut fg_image);
+                        Ok(Arcow::from_owned(fg_image))
+                    })
                 })
             }
             ToAlphaChannelTaskSpec::UpscaleFromGridSize { base } => {
@@ -212,7 +219,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                 }
                 Box::new(move || {
                     let base_mask = base_future.into_result()?;
-                    Ok(upscale_mask(base_mask.deref(), tile_size)?.into())
+                    Ok(Arcow::from_owned(upscale_mask(base_mask.deref(), tile_size)?))
                 })
             }
         };
@@ -224,13 +231,13 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
 }
 
 impl TaskSpecTraits<()> for FileOutputTaskSpec {
-    fn add_to(&self, ctx: &mut TaskGraphBuildingContext, tile_size: u32) -> CloneableLazyTask<()> {
+    fn add_to(&self, ctx: &mut TaskGraphBuildingContext, tile_size: u32) -> BasicTask<()> {
         let name = format!("{}", self);
         if let Some(existing_future) = ctx.output_task_to_future_map.get(self) {
             info!("Matched an existing node: {}", name);
             return existing_future.to_owned();
         }
-        let function: LazyTaskFunction<()> = match self {
+        let function: BasicTaskFunction<()> = match self {
             FileOutputTaskSpec::PngOutput { base, .. } => {
                 let destination_path = self.get_path();
                 let base_size = if base.is_grid_perfect(ctx) {
@@ -245,12 +252,14 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
                     let (color_type, bit_depth) =
                         color_description_to_mode(&*base_color_desc_future.into_result()?, &name);
                     let base_result = base_future.into_result()?;
-                    Ok(Box::new(png_output(
-                        Arc::unwrap_or_clone(base_result),
-                        color_type,
-                        bit_depth,
-                        destination_path,
-                    )?))
+                    base_result.consume(|image| {
+                        Ok(Arcow::from_owned(png_output(
+                            image,
+                            color_type,
+                            bit_depth,
+                            destination_path,
+                        )?))
+                    })
                 })
             }
             FileOutputTaskSpec::Copy { original, .. } => {
@@ -259,7 +268,7 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
                 let base_future = original.add_to(ctx, tile_size);
                 Box::new(move || {
                     base_future.into_result()?;
-                    Ok(Box::new(copy_out_to_out(original_path, link)?))
+                    Ok(Cloned(copy_out_to_out(original_path, link)?))
                 })
             }
         };
@@ -295,7 +304,7 @@ pub enum ToPixmapTaskSpec {
         frames: Box<[ToPixmapTaskSpec]>,
     },
     FromSvg {
-        source: Arcow<'static, str>,
+        source: Name,
     },
     PaintAlphaChannel {
         base: Box<ToAlphaChannelTaskSpec>,
@@ -343,11 +352,11 @@ pub enum ToAlphaChannelTaskSpec {
 pub enum FileOutputTaskSpec {
     PngOutput {
         base: ToPixmapTaskSpec,
-        destination_name: Arcow<'static, str>,
+        destination_name: Name,
     },
     Copy {
         original: Box<FileOutputTaskSpec>,
-        link_name: Arcow<'static, str>,
+        link_name: Name,
     },
 }
 
@@ -520,7 +529,7 @@ fn multiply_alpha_vec(alphas: U8BitSet, rhs: u8) -> U8BitSet {
 
 #[derive(Clone)]
 pub enum ColorDescription {
-    SpecifiedColors(Arcow<'static, [ComparableColor]>),
+    SpecifiedColors(Arcow<'static, [ComparableColor], Vec<ComparableColor>>),
     Rgb(Transparency),
 }
 
@@ -574,7 +583,7 @@ impl ColorDescription {
                     combined_colors.extend(neighbor_colors.iter());
                     combined_colors.sort();
                     combined_colors.dedup();
-                    SpecifiedColors(combined_colors.into())
+                    SpecifiedColors(Arcow::from_owned(combined_colors))
                 }
             },
         }
@@ -597,7 +606,7 @@ impl ColorDescription {
                                 combined_colors.sort();
                                 combined_colors.dedup();
                                 combined_colors.truncate(max_colors);
-                                SpecifiedColors(combined_colors.into())
+                                SpecifiedColors(Arcow::from_owned(combined_colors))
                             }
                             AlphaChannel => {
                                 // Using dedup() rather than unique() uses too much memory
@@ -611,7 +620,7 @@ impl ColorDescription {
                                     .take(max_colors)
                                     .collect();
                                 combined_colors.sort();
-                                SpecifiedColors(combined_colors.into())
+                                SpecifiedColors(Arcow::from_owned(combined_colors))
                             }
                         }
                     }
@@ -664,19 +673,19 @@ impl ToAlphaChannelTaskSpec {
     fn get_possible_alpha_values(
         &self,
         ctx: &mut TaskGraphBuildingContext,
-    ) -> CloneableLazyTask<U8BitSet> {
+    ) -> BasicTask<U8BitSet> {
         if let Some(alpha_vec) = ctx.alpha_task_to_alpha_map.get(self) {
             return alpha_vec.to_owned();
         }
         let name = format!("Possible alpha values for {}", self);
-        let alpha_vec: CloneableLazyTask<U8BitSet> = match self {
+        let alpha_vec: BasicTask<U8BitSet> = match self {
             ToAlphaChannelTaskSpec::MakeSemitransparent { alpha, base } => {
                 let alpha = *alpha;
                 let base_alphas_task = base.get_possible_alpha_values(ctx);
                 CloneableLazyTask::new(
                     name,
                     Box::new(move || {
-                        Ok(multiply_alpha_vec(*base_alphas_task.into_result()?, alpha).into())
+                        Ok(Arcow::from_owned(multiply_alpha_vec(*base_alphas_task.into_result()?, alpha)))
                     }),
                 )
             }
@@ -690,10 +699,9 @@ impl ToAlphaChannelTaskSpec {
                 CloneableLazyTask::new(
                     name,
                     Box::new(move || {
-                        Ok(
+                        Ok(Arcow::from_owned(
                             stack_alpha_vecs(*bg_task.into_result()?, *fg_task.into_result()?)
-                                .into(),
-                        )
+                        ))
                     }),
                 )
             }
@@ -706,11 +714,10 @@ impl ToAlphaChannelTaskSpec {
                 CloneableLazyTask::new(
                     name,
                     Box::new(move || {
-                        Ok(stack_alpha_vecs(
+                        Ok(Arcow::from_owned(stack_alpha_vecs(
                             U8BitSet::from_iter([background_alpha]),
                             *fg_task.into_result()?,
-                        )
-                        .into())
+                        )))
                     }),
                 )
             }
@@ -976,7 +983,12 @@ pub fn contains_semitransparency(vec: &[ComparableColor]) -> bool {
 
 const BLACK_TRANSPARENT: &[ComparableColor] =
     &[ComparableColor::TRANSPARENT, ComparableColor::BLACK];
+const SPECIFIED_BLACK_TRANSPARENT: ColorDescription = SpecifiedColors(Borrowed(BLACK_TRANSPARENT));
 const BLACK_TO_TRANSPARENT: &[ComparableColor] = &create_black_to_transparent();
+const SPECIFIED_BLACK_TO_TRANSPARENT: ColorDescription = SpecifiedColors(Borrowed(BLACK_TO_TRANSPARENT));
+const RGB_OPAQUE: ColorDescription = ColorDescription::Rgb(Opaque);
+const RGB_BINARY: ColorDescription = ColorDescription::Rgb(Binary);
+const RGBA_DESCRIPTION: ColorDescription = ColorDescription::Rgb(AlphaChannel);
 
 const fn create_black_to_transparent() -> [ComparableColor; u8::MAX as usize + 1] {
     let mut table = [ComparableColor::BLACK; u8::MAX as usize + 1];
@@ -1027,11 +1039,11 @@ impl ToPixmapTaskSpec {
     fn get_color_description_task(
         &self,
         ctx: &mut TaskGraphBuildingContext,
-    ) -> CloneableLazyTask<ColorDescription> {
+    ) -> BasicTask<ColorDescription> {
         if let Some(desc) = ctx.pixmap_task_to_color_map.get(self) {
             return (*desc).to_owned();
         }
-        let name: Arcow<'static, str> = format!("Color description for {}", self).into();
+        let name: Name = format!("Color description for {}", self).into();
         let side_length = if *TILE_SIZE == GRID_SIZE || self.is_grid_perfect(ctx) {
             GRID_SIZE
         } else {
@@ -1041,7 +1053,7 @@ impl ToPixmapTaskSpec {
         #[allow(clippy::type_complexity)]
         let desc: Either<
             Box<dyn FnOnce() -> Result<ColorDescription, CloneableError> + Send>,
-            CloneableLazyTask<ColorDescription>,
+            BasicTask<ColorDescription>,
         > = match self {
             ToPixmapTaskSpec::None => {
                 debug_assert_unreachable("ToPixmapTaskSpec::None::get_color_description_task()")
@@ -1072,19 +1084,19 @@ impl ToPixmapTaskSpec {
                 let name = name.clone();
                 if COLOR_SVGS.contains(&&**source) {
                     if SEMITRANSPARENCY_FREE_SVGS.contains(&&**source) {
-                        Right(CloneableLazyTask::new_immediate_ok(name, Rgb(Binary)))
+                        Right(CloneableLazyTask::new_immediate_ok(name, Arcow::cloning_from(&RGB_BINARY)))
                     } else {
-                        Right(CloneableLazyTask::new_immediate_ok(name, Rgb(AlphaChannel)))
+                        Right(CloneableLazyTask::new_immediate_ok(name, Arcow::cloning_from(&RGBA_DESCRIPTION)))
                     }
                 } else if SEMITRANSPARENCY_FREE_SVGS.contains(&&**source) {
                     Right(CloneableLazyTask::new_immediate_ok(
                         name,
-                        SpecifiedColors(BLACK_TRANSPARENT.into()),
+                        Arcow::cloning_from(&SPECIFIED_BLACK_TRANSPARENT),
                     ))
                 } else {
                     Right(CloneableLazyTask::new_immediate_ok(
                         name,
-                        SpecifiedColors(BLACK_TO_TRANSPARENT.into()),
+                        Arcow::from_borrowed(&SPECIFIED_BLACK_TO_TRANSPARENT),
                     ))
                 }
             }
@@ -1105,7 +1117,7 @@ impl ToPixmapTaskSpec {
                             })
                             .collect();
                         colored_alphas.dedup();
-                        colored_alphas.into()
+                        Arcow::from_owned(colored_alphas)
                     }))
                 }))
             }
@@ -1118,7 +1130,7 @@ impl ToPixmapTaskSpec {
                 Left(Box::new(move || {
                     Ok(fg_task
                         .into_result()?
-                        .stack_on(&SpecifiedColors(vec![background].into()), pixels + 1))
+                        .stack_on(&SpecifiedColors(Arcow::from_owned(vec![background])), pixels + 1))
                 }))
             }
             ToPixmapTaskSpec::StackLayerOnLayer {
@@ -1144,7 +1156,7 @@ impl ToPixmapTaskSpec {
                     name.clone(),
                     Box::new(move || {
                         let uncapped = function()?;
-                        Ok(Box::new(match uncapped {
+                        Ok(match uncapped {
                             SpecifiedColors(colors) => {
                                 if colors.len() > pixels {
                                     info!("For {}, possible colors exceed pixel count {}; rendering to determine \
@@ -1158,13 +1170,15 @@ impl ToPixmapTaskSpec {
                                         .collect();
                                     actual_colors.sort();
                                     actual_colors.dedup();
-                                    SpecifiedColors(actual_colors.into())
+                                    Arcow::from_owned(SpecifiedColors(Arcow::from_owned(actual_colors)))
                                 } else {
-                                    SpecifiedColors(colors)
+                                    Arcow::from_owned(SpecifiedColors(colors.clone()))
                                 }
                             }
-                            Rgb(transparency) => Rgb(transparency),
-                        }))
+                            Rgb(Opaque) => Arcow::cloning_from(&RGB_OPAQUE),
+                            Rgb(Binary) => Arcow::cloning_from(&RGB_BINARY),
+                            Rgb(AlphaChannel) => Arcow::cloning_from(&RGBA_DESCRIPTION)
+                        })
                     }),
                 )
             }
@@ -1178,7 +1192,7 @@ impl ToPixmapTaskSpec {
     fn get_possible_alpha_values(
         &self,
         ctx: &mut TaskGraphBuildingContext,
-    ) -> CloneableLazyTask<U8BitSet> {
+    ) -> BasicTask<U8BitSet> {
         if let Some(alphas) = ctx.pixmap_task_to_alpha_map.get(self) {
             alphas.to_owned()
         } else {
@@ -1186,7 +1200,7 @@ impl ToPixmapTaskSpec {
             let task = CloneableLazyTask::new(
                 self.to_string(),
                 Box::new(move || {
-                    Ok(Box::new({
+                    Ok(Arcow::cloning_from(&{
                         let colors = color_task.into_result()?;
                         match colors.transparency() {
                             AlphaChannel => match &*colors {
@@ -1276,15 +1290,17 @@ impl From<ToPixmapTaskSpec> for ToAlphaChannelTaskSpec {
     }
 }
 
+pub type BasicTask<T> = CloneableLazyTask<T, T>;
+
 pub struct TaskGraphBuildingContext {
     pixmap_task_to_future_map:
-        HashMap<u32, HashMap<ToPixmapTaskSpec, CloneableLazyTask<MaybeFromPool<Pixmap>>>>,
+        HashMap<u32, HashMap<ToPixmapTaskSpec, BasicTask<MaybeFromPool<Pixmap>>>>,
     alpha_task_to_future_map:
-        HashMap<u32, HashMap<ToAlphaChannelTaskSpec, CloneableLazyTask<MaybeFromPool<Mask>>>>,
-    pub output_task_to_future_map: HashMap<FileOutputTaskSpec, CloneableLazyTask<()>>,
-    pixmap_task_to_color_map: HashMap<ToPixmapTaskSpec, CloneableLazyTask<ColorDescription>>,
-    alpha_task_to_alpha_map: HashMap<ToAlphaChannelTaskSpec, CloneableLazyTask<U8BitSet>>,
-    pixmap_task_to_alpha_map: HashMap<ToPixmapTaskSpec, CloneableLazyTask<U8BitSet>>,
+        HashMap<u32, HashMap<ToAlphaChannelTaskSpec, BasicTask<MaybeFromPool<Mask>>>>,
+    pub output_task_to_future_map: HashMap<FileOutputTaskSpec, BasicTask<()>>,
+    pixmap_task_to_color_map: HashMap<ToPixmapTaskSpec, BasicTask<ColorDescription>>,
+    alpha_task_to_alpha_map: HashMap<ToAlphaChannelTaskSpec, BasicTask<U8BitSet>>,
+    pixmap_task_to_alpha_map: HashMap<ToPixmapTaskSpec, BasicTask<U8BitSet>>,
 }
 
 impl TaskGraphBuildingContext {
@@ -1303,7 +1319,7 @@ impl TaskGraphBuildingContext {
         &self,
         tile_size: u32,
         task: &ToPixmapTaskSpec,
-    ) -> Option<&CloneableLazyTask<MaybeFromPool<Pixmap>>> {
+    ) -> Option<&BasicTask<MaybeFromPool<Pixmap>>> {
         self.pixmap_task_to_future_map.get(&tile_size)?.get(task)
     }
 
@@ -1311,7 +1327,7 @@ impl TaskGraphBuildingContext {
         &self,
         tile_size: u32,
         task: &ToAlphaChannelTaskSpec,
-    ) -> Option<&CloneableLazyTask<MaybeFromPool<Mask>>> {
+    ) -> Option<&BasicTask<MaybeFromPool<Mask>>> {
         self.alpha_task_to_future_map.get(&tile_size)?.get(task)
     }
 
@@ -1319,7 +1335,7 @@ impl TaskGraphBuildingContext {
         &mut self,
         tile_size: u32,
         task: ToPixmapTaskSpec,
-        value: CloneableLazyTask<MaybeFromPool<Pixmap>>,
+        value: BasicTask<MaybeFromPool<Pixmap>>,
     ) {
         match self.pixmap_task_to_future_map.get_mut(&tile_size) {
             Some(map_for_tile_size) => {
@@ -1337,7 +1353,7 @@ impl TaskGraphBuildingContext {
         &mut self,
         tile_size: u32,
         task: ToAlphaChannelTaskSpec,
-        value: CloneableLazyTask<MaybeFromPool<Mask>>,
+        value: BasicTask<MaybeFromPool<Mask>>,
     ) {
         match self.alpha_task_to_future_map.get_mut(&tile_size) {
             Some(map_for_tile_size) => {
@@ -1357,13 +1373,13 @@ pub const METADATA_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/metadata");
 
 pub const ASSET_DIR: &str = "assets/minecraft/textures/";
 
-pub fn from_svg_task<T: Into<Arcow<'static, str>>>(name: T) -> ToPixmapTaskSpec {
+pub fn from_svg_task<T: Into<Name>>(name: T) -> ToPixmapTaskSpec {
     ToPixmapTaskSpec::FromSvg {
         source: name.into(),
     }
 }
 
-pub fn svg_alpha_task<T: Into<Arcow<'static, str>>>(name: T) -> ToAlphaChannelTaskSpec {
+pub fn svg_alpha_task<T: Into<Name>>(name: T) -> ToAlphaChannelTaskSpec {
     ToAlphaChannelTaskSpec::FromPixmap {
         base: from_svg_task(name),
     }
@@ -1399,10 +1415,11 @@ pub fn paint_task(base: ToAlphaChannelTaskSpec, color: ComparableColor) -> ToPix
     }
 }
 
-pub fn paint_svg_task<T: Into<Arcow<'static, str>> + AsRef<str> + Display>(
+pub fn paint_svg_task<T: Display>(
     name: T,
     color: ComparableColor,
-) -> ToPixmapTaskSpec {
+) -> ToPixmapTaskSpec where Name: From<T> {
+    let name = Name::from(name);
     if color == ComparableColor::BLACK && COLOR_SVGS.binary_search(&name.as_ref()).is_err() {
         info!("Simplified {}@{} -> {}", name, color, name);
         from_svg_task(name)
@@ -1416,7 +1433,7 @@ pub fn paint_svg_task<T: Into<Arcow<'static, str>> + AsRef<str> + Display>(
     }
 }
 
-pub fn out_task<T: Into<Arcow<'static, str>>>(
+pub fn out_task<T: Into<Name>>(
     name: T,
     base: ToPixmapTaskSpec,
 ) -> FileOutputTaskSpec {

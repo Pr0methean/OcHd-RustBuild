@@ -4,7 +4,7 @@ use log::info;
 use once_cell::sync::Lazy;
 use resvg::tiny_skia::{IntSize, Mask, Paint, Pixmap, Rect, Transform};
 
-use crate::image_tasks::cloneable::CloneableError;
+use crate::image_tasks::cloneable::{Arcow, CloneableError, SimpleArcow};
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::MaybeFromPool::NotFromPool;
 use crate::image_tasks::{allocate_pixmap_empty, MaybeFromPool};
@@ -94,7 +94,7 @@ pub fn pixmap_to_mask(value: &Pixmap) -> MaybeFromPool<Mask> {
 pub fn paint(
     input: &Mask,
     color: ComparableColor,
-) -> Result<Box<MaybeFromPool<Pixmap>>, CloneableError> {
+) -> Result<SimpleArcow<MaybeFromPool<Pixmap>>, CloneableError> {
     let mut output = allocate_pixmap_empty(input.width(), input.height());
     let mut paint = Paint::default();
     paint.set_color_rgba8(color.red(), color.green(), color.blue(), color.alpha());
@@ -105,7 +105,7 @@ pub fn paint(
         Transform::default(),
         Some(input),
     );
-    Ok(Box::new(output))
+    Ok(Arcow::from_owned(output))
 }
 
 #[test]
@@ -151,7 +151,7 @@ fn test_paint() {
     let alpha_channel = pixmap_to_mask(pixmap);
     let repainted_alpha: u8 = 0xcf;
     let repainted_alpha_fraction = 0xcf as f32 / u8::MAX as f32;
-    let repainted_red: Box<MaybeFromPool<Pixmap>> =
+    let repainted_red: SimpleArcow<MaybeFromPool<Pixmap>> =
         paint(&alpha_channel, c(0xff0000) * repainted_alpha_fraction).unwrap();
     let pixmap_pixels = pixmap.pixels();
     let repainted_pixels = repainted_red.pixels();

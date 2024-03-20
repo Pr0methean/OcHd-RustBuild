@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use crate::anyhoo;
 use log::info;
 use replace_with::replace_with_and_return;
@@ -7,11 +8,9 @@ use std::hash::{Hash, Hasher};
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
 
-pub type CloneableResult<T> = Result<Arc<T>, CloneableError>;
-
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct CloneableError {
-    message: Arcow<'static, str>,
+    message: Name,
 }
 
 impl<T> From<T> for CloneableError
@@ -25,111 +24,158 @@ where
     }
 }
 
-#[derive(Debug, Eq, Ord)]
-pub enum Arcow<'a, T: ?Sized> {
-    Owned(Arc<T>),
-    Borrowed(&'a T),
+#[derive(Debug)]
+pub enum Arcow<'a, UnsizedType: ?Sized, SizedType: Clone + 'a>
+where SizedType: Borrow<UnsizedType>{
+    Owned(Arc<UnsizedType>),
+    Cloned(SizedType),
+    Borrowed(&'a UnsizedType),
 }
 
-impl<'a, T: ?Sized> Clone for Arcow<'a, T> {
+pub type CloneableResult<UnsizedType, SizedType> = Result<Arcow<'static, UnsizedType, SizedType>, CloneableError>;
+pub type Name = Arcow<'static, str, String>;
+pub type SimpleArcow<T> = Arcow<'static, T, T>;
+
+impl<'a, UnsizedType: ?Sized, SizedType: Clone> Clone for Arcow<'a, UnsizedType, SizedType>
+where SizedType: Borrow<UnsizedType>{
     fn clone(&self) -> Self {
         match self {
             Arcow::Owned(arc) => Arcow::Owned(arc.clone()),
             Arcow::Borrowed(borrow) => Arcow::Borrowed(borrow),
+            Arcow::Cloned(value) => Arcow::Cloned(value.clone())
         }
     }
 }
 
-impl<'a, T: ?Sized> Deref for Arcow<'a, T> {
-    type Target = T;
+impl<'a, UnsizedType: ?Sized, SizedType: Clone> Deref for Arcow<'a, UnsizedType, SizedType>
+    where SizedType: Borrow<UnsizedType>{
+    type Target = UnsizedType;
 
     fn deref(&self) -> &Self::Target {
         match self {
             Arcow::Owned(arc) => arc,
             Arcow::Borrowed(borrow) => borrow,
+            Arcow::Cloned(value) => (*value).borrow()
         }
     }
 }
 
-impl<'a, T: Display + ?Sized> Display for Arcow<'a, T> {
+impl<UnsizedType: ?Sized, SizedType: Clone> Display for Arcow<'_, UnsizedType, SizedType>
+    where SizedType: Borrow<UnsizedType>, for<'a> &'a UnsizedType: Display {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.deref().to_string())
     }
 }
 
-impl<'a, T: Eq + ?Sized> PartialEq for Arcow<'a, T> {
+impl<UnsizedType: ?Sized, SizedType: Clone> PartialEq for Arcow<'_, UnsizedType, SizedType>
+    where SizedType: Borrow<UnsizedType>, for<'a> &'a UnsizedType: PartialEq {
     fn eq(&self, other: &Self) -> bool {
+        if let Arcow::Owned(arc) = self && let Arcow::Owned(other_arc) = other
+                && Arc::ptr_eq(arc, other_arc) {
+            return true;
+        }
         self.deref() == other.deref()
     }
 }
 
-impl<'a, T: Eq + Ord + ?Sized> PartialOrd for Arcow<'a, T> {
+impl<'a, UnsizedType: ?Sized + Eq, SizedType: Clone> Eq for Arcow<'a, UnsizedType, SizedType>
+    where SizedType: Borrow<UnsizedType>{}
+
+impl<'a, UnsizedType: ?Sized + PartialOrd, SizedType: Clone> PartialOrd for Arcow<'a, UnsizedType, SizedType>
+    where SizedType: Borrow<UnsizedType>{
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.deref().cmp(other.deref()))
+        if let Arcow::Owned(arc) = self && let Arcow::Owned(other_arc) = other
+                && Arc::ptr_eq(arc, other_arc) {
+            return Some(Ordering::Equal);
+        }
+        self.deref().partial_cmp(other.deref())
     }
 }
 
-impl<'a, T: Hash + ?Sized> Hash for Arcow<'a, T> {
+impl<'a, UnsizedType: ?Sized + PartialEq + Ord, SizedType: Clone> Ord for Arcow<'a, UnsizedType, SizedType>
+    where SizedType: Borrow<UnsizedType>{
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+impl<UnsizedType: ?Sized, SizedType: Clone> Hash for Arcow<'_, UnsizedType, SizedType>
+    where SizedType: Borrow<UnsizedType>, for<'a> &'a UnsizedType: Hash {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.deref().hash(state)
     }
 }
 
-impl<'a, T: ?Sized> From<&'a T> for Arcow<'a, T> {
-    fn from(value: &'a T) -> Self {
-        Arcow::Borrowed(value)
-    }
-}
-
-impl<'a, T> From<T> for Arcow<'a, T> {
-    fn from(value: T) -> Self {
+impl From<String> for Name {
+    fn from(value: String) -> Self {
         Arcow::Owned(value.into())
     }
 }
 
-impl<'a> From<String> for Arcow<'a, str> {
-    fn from(value: String) -> Self {
-        Arcow::<'a, str>::Owned(value.into())
+impl From<&'static str> for Name {
+    fn from(value: &'static str) -> Self {
+        Arcow::Borrowed(value)
     }
 }
 
-impl<'a, T> From<Vec<T>> for Arcow<'a, [T]> {
-    fn from(value: Vec<T>) -> Self {
-        Arcow::Owned(value.into_boxed_slice().into())
+impl<'a, UnsizedType: ?Sized, SizedType: Clone> Arcow<'a, UnsizedType, SizedType>
+    where SizedType: Borrow<UnsizedType>, Arc<UnsizedType>: From<SizedType> {
+    pub fn from_borrowed(value: &'a UnsizedType) -> Self {
+        Arcow::Borrowed(value)
+    }
+
+    pub fn from_owned(value: SizedType) -> Self {
+        Arcow::Owned(value.into())
     }
 }
 
-pub type LazyTaskFunction<T> = Box<dyn FnOnce() -> Result<Box<T>, CloneableError> + Send>;
+impl<'a, UnsizedType: ?Sized, SizedType: Clone> Arcow<'a, UnsizedType, SizedType>
+    where SizedType: Borrow<UnsizedType> {
+    pub fn cloning_from(value: &SizedType) -> Self {
+        Arcow::Cloned(value.clone())
+    }
+}
 
-pub enum CloneableLazyTaskState<T>
-where
-    T: ?Sized,
+impl<'a, UnsizedType, SizedType: Clone> Arcow<'a, UnsizedType, SizedType>
+    where SizedType: Borrow<UnsizedType> + From<UnsizedType>, UnsizedType: Clone + From<SizedType> {
+
+    pub fn consume<R, T: FnOnce(UnsizedType) -> R>(self, action: T) -> R {
+        match self {
+            Arcow::Owned(arc) => action(Arc::unwrap_or_clone(arc)),
+            Arcow::Cloned(value) => action(value.into()),
+            Arcow::Borrowed(borrow) => action(borrow.clone())
+        }
+    }
+}
+
+pub type LazyTaskFunction<UnsizedType, SizedType>
+    = Box<dyn FnOnce() -> Result<Arcow<'static, UnsizedType, SizedType>, CloneableError> + Send>;
+
+pub enum CloneableLazyTaskState<UnsizedType: ?Sized + 'static, SizedType: Clone + 'static>
+    where SizedType: Borrow<UnsizedType>
 {
-    Upcoming { function: LazyTaskFunction<T> },
-    Finished { result: CloneableResult<T> },
+    Upcoming { function: LazyTaskFunction<UnsizedType, SizedType> },
+    Finished { result: CloneableResult<UnsizedType, SizedType> },
 }
 
 #[derive(Clone, Debug)]
-pub struct CloneableLazyTask<T>
-where
-    T: ?Sized,
+pub struct CloneableLazyTask<UnsizedType: ?Sized + 'static, SizedType: Clone + 'static>
+    where SizedType: Borrow<UnsizedType>
 {
-    pub name: Arcow<'static, str>,
-    state: Arc<Mutex<CloneableLazyTaskState<T>>>,
+    pub name: Name,
+    state: Arc<Mutex<CloneableLazyTaskState<UnsizedType, SizedType>>>,
 }
 
-impl<T> Display for CloneableLazyTask<T>
-where
-    T: ?Sized,
+impl<UnsizedType: ?Sized, SizedType: Clone + 'static> Display for CloneableLazyTask<UnsizedType, SizedType>
+    where SizedType: Borrow<UnsizedType>
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.name)
     }
 }
 
-impl<T> Debug for CloneableLazyTaskState<T>
-where
-    T: ?Sized,
+impl<UnsizedType: ?Sized, SizedType: Clone + 'static> Debug for CloneableLazyTaskState<UnsizedType, SizedType>
+    where SizedType: Borrow<UnsizedType>
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -142,13 +188,12 @@ where
     }
 }
 
-impl<T> CloneableLazyTask<T>
-where
-    T: ?Sized,
+impl<UnsizedType: ?Sized, SizedType: Clone + 'static> CloneableLazyTask<UnsizedType, SizedType>
+    where SizedType: Borrow<UnsizedType>
 {
-    pub fn new<U>(name: U, base: LazyTaskFunction<T>) -> CloneableLazyTask<T>
+    pub fn new<U>(name: U, base: LazyTaskFunction<UnsizedType, SizedType>) -> Self
     where
-        U: Into<Arcow<'static, str>>,
+        U: Into<Name>,
     {
         CloneableLazyTask {
             name: name.into(),
@@ -157,24 +202,21 @@ where
             })),
         }
     }
-}
 
-impl<T> CloneableLazyTask<T> {
-    pub fn new_immediate_ok<U>(name: U, result: T) -> CloneableLazyTask<T>
-    where
-        U: Into<Arcow<'static, str>>,
+    pub fn new_immediate_ok<IntoName: Into<Name>>
+        (name: IntoName, result: Arcow<'static, UnsizedType, SizedType>) -> Self
     {
         CloneableLazyTask {
             name: name.into(),
             state: Arc::new(Mutex::new(CloneableLazyTaskState::Finished {
-                result: Ok(Arc::new(result)),
+                result: Ok(result),
             })),
         }
     }
 
     /// Consumes this particular copy of the task and returns the result. Trades off readability and
     /// maintainability to maximize the chance of avoiding unnecessary copies.
-    pub fn into_result(self) -> CloneableResult<T> {
+    pub fn into_result(self) -> CloneableResult<UnsizedType, SizedType> {
         match Arc::try_unwrap(self.state) {
             Ok(exclusive_state) => {
                 // We're the last referent to this Lazy, so we don't need to clone anything.
@@ -182,7 +224,7 @@ impl<T> CloneableLazyTask<T> {
                     Ok(state) => match state {
                         CloneableLazyTaskState::Upcoming { function } => {
                             info!("Starting task {}", self.name);
-                            let result: CloneableResult<T> = function().map(Arc::from);
+                            let result = function();
                             info!("Finished task {}", self.name);
                             info!("Unwrapping the only reference to {}", self.name);
                             result
@@ -204,7 +246,7 @@ impl<T> CloneableLazyTask<T> {
                     |exec_state| match exec_state {
                         CloneableLazyTaskState::Upcoming { function } => {
                             info!("Starting task {}", self.name);
-                            let result: CloneableResult<T> = function().map(Arc::from);
+                            let result = function().map(Arcow::from);
                             info!("Finished task {}", self.name);
                             info!(
                                 "Unwrapping one of {} references to {} after computing it",
