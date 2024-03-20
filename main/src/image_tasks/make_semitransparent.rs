@@ -118,8 +118,7 @@ fn test_make_semitransparent() {
     let pixmap_pixels = pixmap.pixels().to_owned();
     let mut semitransparent_circle: MaybeFromPool<Mask> = pixmap_to_mask(pixmap);
     make_semitransparent(&mut semitransparent_circle, alpha);
-    let semitransparent_red_circle: Box<MaybeFromPool<Pixmap>> =
-        paint(&semitransparent_circle, ComparableColor::RED).unwrap();
+    let semitransparent_red_circle = paint(&semitransparent_circle, ComparableColor::RED).unwrap();
     let semitransparent_pixels = semitransparent_red_circle.pixels();
     for index in 0usize..((side_length * side_length) as usize) {
         let expected_alpha: u8 =
