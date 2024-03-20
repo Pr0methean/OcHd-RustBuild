@@ -5,6 +5,7 @@ use replace_with::replace_with_and_return;
 use std::cmp::Ordering;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
+use std::mem::size_of;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
 
@@ -129,9 +130,10 @@ impl<'a, UnsizedType: ?Sized, SizedType: Clone> Arcow<'a, UnsizedType, SizedType
     }
 }
 
-impl<'a, UnsizedType: ?Sized, SizedType: Clone> Arcow<'a, UnsizedType, SizedType>
+impl<'a, UnsizedType: ?Sized, SizedType: Copy + Clone> Arcow<'a, UnsizedType, SizedType>
     where SizedType: Borrow<UnsizedType> {
     pub fn cloning_from(value: &SizedType) -> Self {
+        debug_assert!(size_of::<SizedType>() <= 4 * size_of::<usize>());
         Arcow::Cloning(value.clone())
     }
 }
