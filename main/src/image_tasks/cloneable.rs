@@ -27,9 +27,9 @@ where
 #[derive(Debug)]
 pub enum Arcow<'a, UnsizedType: ?Sized, SizedType: Clone + 'a>
 where SizedType: Borrow<UnsizedType>{
-    Owned(Arc<UnsizedType>),
-    Cloned(SizedType),
-    Borrowed(&'a UnsizedType),
+    Sharing(Arc<UnsizedType>),
+    Cloning(SizedType),
+    Borrowing(&'a UnsizedType),
 }
 
 pub type CloneableResult<UnsizedType, SizedType> = Result<Arcow<'static, UnsizedType, SizedType>, CloneableError>;
@@ -40,9 +40,9 @@ impl<'a, UnsizedType: ?Sized, SizedType: Clone> Clone for Arcow<'a, UnsizedType,
 where SizedType: Borrow<UnsizedType>{
     fn clone(&self) -> Self {
         match self {
-            Arcow::Owned(arc) => Arcow::Owned(arc.clone()),
-            Arcow::Borrowed(borrow) => Arcow::Borrowed(borrow),
-            Arcow::Cloned(value) => Arcow::Cloned(value.clone())
+            Arcow::Sharing(arc) => Arcow::Sharing(arc.clone()),
+            Arcow::Borrowing(borrow) => Arcow::Borrowing(borrow),
+            Arcow::Cloning(value) => Arcow::Cloning(value.clone())
         }
     }
 }
@@ -53,9 +53,9 @@ impl<'a, UnsizedType: ?Sized, SizedType: Clone> Deref for Arcow<'a, UnsizedType,
 
     fn deref(&self) -> &Self::Target {
         match self {
-            Arcow::Owned(arc) => arc,
-            Arcow::Borrowed(borrow) => borrow,
-            Arcow::Cloned(value) => (*value).borrow()
+            Arcow::Sharing(arc) => arc,
+            Arcow::Borrowing(borrow) => borrow,
+            Arcow::Cloning(value) => (*value).borrow()
         }
     }
 }
@@ -70,7 +70,7 @@ impl<UnsizedType: ?Sized, SizedType: Clone> Display for Arcow<'_, UnsizedType, S
 impl<UnsizedType: ?Sized, SizedType: Clone> PartialEq for Arcow<'_, UnsizedType, SizedType>
     where SizedType: Borrow<UnsizedType>, for<'a> &'a UnsizedType: PartialEq {
     fn eq(&self, other: &Self) -> bool {
-        if let Arcow::Owned(arc) = self && let Arcow::Owned(other_arc) = other
+        if let Arcow::Sharing(arc) = self && let Arcow::Sharing(other_arc) = other
                 && Arc::ptr_eq(arc, other_arc) {
             return true;
         }
@@ -84,7 +84,7 @@ impl<'a, UnsizedType: ?Sized + Eq, SizedType: Clone> Eq for Arcow<'a, UnsizedTyp
 impl<'a, UnsizedType: ?Sized + PartialOrd, SizedType: Clone> PartialOrd for Arcow<'a, UnsizedType, SizedType>
     where SizedType: Borrow<UnsizedType>{
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        if let Arcow::Owned(arc) = self && let Arcow::Owned(other_arc) = other
+        if let Arcow::Sharing(arc) = self && let Arcow::Sharing(other_arc) = other
                 && Arc::ptr_eq(arc, other_arc) {
             return Some(Ordering::Equal);
         }
@@ -108,31 +108,31 @@ impl<UnsizedType: ?Sized, SizedType: Clone> Hash for Arcow<'_, UnsizedType, Size
 
 impl From<String> for Name {
     fn from(value: String) -> Self {
-        Arcow::Owned(value.into())
+        Arcow::Sharing(value.into())
     }
 }
 
 impl From<&'static str> for Name {
     fn from(value: &'static str) -> Self {
-        Arcow::Borrowed(value)
+        Arcow::Borrowing(value)
     }
 }
 
 impl<'a, UnsizedType: ?Sized, SizedType: Clone> Arcow<'a, UnsizedType, SizedType>
     where SizedType: Borrow<UnsizedType>, Arc<UnsizedType>: From<SizedType> {
-    pub fn from_borrowed(value: &'a UnsizedType) -> Self {
-        Arcow::Borrowed(value)
+    pub fn borrowing_from(value: &'a UnsizedType) -> Self {
+        Arcow::Borrowing(value)
     }
 
-    pub fn from_owned(value: SizedType) -> Self {
-        Arcow::Owned(value.into())
+    pub fn sharing_from(value: SizedType) -> Self {
+        Arcow::Sharing(value.into())
     }
 }
 
 impl<'a, UnsizedType: ?Sized, SizedType: Clone> Arcow<'a, UnsizedType, SizedType>
     where SizedType: Borrow<UnsizedType> {
     pub fn cloning_from(value: &SizedType) -> Self {
-        Arcow::Cloned(value.clone())
+        Arcow::Cloning(value.clone())
     }
 }
 
@@ -141,9 +141,9 @@ impl<'a, UnsizedType, SizedType: Clone> Arcow<'a, UnsizedType, SizedType>
 
     pub fn consume<R, T: FnOnce(UnsizedType) -> R>(self, action: T) -> R {
         match self {
-            Arcow::Owned(arc) => action(Arc::unwrap_or_clone(arc)),
-            Arcow::Cloned(value) => action(value.into()),
-            Arcow::Borrowed(borrow) => action(borrow.clone())
+            Arcow::Sharing(arc) => action(Arc::unwrap_or_clone(arc)),
+            Arcow::Cloning(value) => action(value.into()),
+            Arcow::Borrowing(borrow) => action(borrow.clone())
         }
     }
 }
