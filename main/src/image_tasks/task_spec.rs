@@ -1170,7 +1170,7 @@ impl ToPixmapTaskSpec {
                                         .collect();
                                     actual_colors.sort();
                                     actual_colors.dedup();
-                                    Arcow::from_owned(SpecifiedColors(Arcow::sharing_ref_to(actual_colors)))
+                                    Arcow::from_owned(SpecifiedColors(Arcow::from_owned(actual_colors)))
                                 } else {
                                     Arcow::from_owned(SpecifiedColors(colors.clone()))
                                 }
