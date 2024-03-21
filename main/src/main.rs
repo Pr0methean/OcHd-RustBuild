@@ -5,13 +5,14 @@
 #![feature(const_trait_impl)]
 #![feature(lazy_cell)]
 #![feature(async_closure)]
+#![feature(future_join)]
 
 use std::path::{absolute, PathBuf};
 use std::time::Instant;
 
 use log::{info, warn, LevelFilter};
-use rayon::iter::ParallelIterator;
 use texture_base::material::Material;
+use tokio::runtime::Builder;
 
 use crate::image_tasks::task_spec::{
     FileOutputTaskSpec, TaskGraphBuildingContext, TaskSpecTraits, METADATA_DIR,
@@ -29,7 +30,6 @@ use image_tasks::cloneable::CloneableError;
 use include_dir::{Dir, DirEntry};
 #[cfg(not(any(test, clippy)))]
 use once_cell::sync::Lazy;
-use rayon::{in_place_scope_fifo, ThreadPoolBuilder};
 #[cfg(not(any(test, clippy)))]
 use std::env;
 use std::fs;
@@ -37,8 +37,8 @@ use std::fs::create_dir_all;
 use std::hint::unreachable_unchecked;
 use std::ops::DerefMut;
 use std::thread::available_parallelism;
-use rayon::iter::IntoParallelIterator;
 use tikv_jemallocator::Jemalloc;
+use tokio::task::JoinSet;
 
 const GRID_SIZE: u32 = 32;
 
@@ -81,7 +81,8 @@ fn copy_metadata(source_dir: &Dir) {
     });
 }
 
-fn main() -> Result<(), CloneableError> {
+#[tokio::main]
+async fn main() -> Result<(), CloneableError> {
     simple_logging::log_to_file("./log.txt", LevelFilter::Info)
         .expect("Failed to configure file logging");
     let out_dir = PathBuf::from("./out");
@@ -92,62 +93,57 @@ fn main() -> Result<(), CloneableError> {
     );
     let tile_size: u32 = *TILE_SIZE;
     info!("Using {} pixels per tile", tile_size);
-    let mut global_builder = ThreadPoolBuilder::new().use_current_thread();
+    let mut global_builder = Builder::new_multi_thread();
     match available_parallelism() {
         Ok(parallelism) => {
             let adjusted_parallelism = parallelism.get() + 1;
             if adjusted_parallelism.count_ones() <= 1 {
                 warn!("Adjusting CPU count from {} to {}", parallelism, adjusted_parallelism);
                 // Compensate for missed CPU core on m7g.16xlarge
-                global_builder = global_builder.num_threads(adjusted_parallelism);
+                global_builder.worker_threads(adjusted_parallelism);
             } else {
                 info!("Rayon thread pool has {} threads", parallelism);
             }
         }
         Err(e) => warn!("Unable to get available parallelism: {}", e)
     }
-    global_builder.build_global()?;
+    let runtime = global_builder.build()?;
     let start_time = Instant::now();
-    rayon::join(
-        || {
-            rayon::join(
-                || {
-                    prewarm_pixmap_pool();
-                    prewarm_mask_pool();
-                    info!("Caches prewarmed");
-                    create_dir_all(out_dir).expect("Failed to create output directory");
-                    info!("Output directory built");
-                },
-                || {
-                    copy_metadata(&METADATA_DIR);
-                    info!("Metadata copied");
-                },
-            )
-        },
-        || {
-            let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
-            let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
-            let mut large_tasks = Vec::with_capacity(out_tasks.len());
-            let mut small_tasks = Vec::with_capacity(out_tasks.len());
-            for task in out_tasks.iter() {
-                let new_task = task.add_to(&mut ctx, tile_size);
-                if tile_size > GRID_SIZE
-                    && let FileOutputTaskSpec::PngOutput { base, .. } = task
-                    && !base.is_grid_perfect(&mut ctx)
-                {
-                    large_tasks.push(new_task);
-                } else {
-                    small_tasks.push(new_task);
-                }
-            }
-            drop(ctx);
-            let mut planned_tasks = large_tasks;
-            planned_tasks.extend_from_slice(&small_tasks);
-            in_place_scope_fifo(move |_| {
-                planned_tasks.into_par_iter().map(async move |task| task.await).collect::<Vec<_>>();
-            });
-        },
-    );
+    let mut task_futures = JoinSet::new();
+    task_futures.spawn_on(
+        async {
+            prewarm_pixmap_pool();
+            prewarm_mask_pool();
+            info!("Caches prewarmed");
+            create_dir_all(out_dir).expect("Failed to create output directory");
+            info!("Output directory built");
+            copy_metadata(&METADATA_DIR);
+            info!("Metadata copied");
+        }, runtime.handle());
+    let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
+    let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
+    let mut large_tasks = Vec::with_capacity(out_tasks.len());
+    let mut small_tasks = Vec::with_capacity(out_tasks.len());
+    for task in out_tasks.iter() {
+        let new_task = task.add_to(&mut ctx, tile_size);
+        if tile_size > GRID_SIZE
+            && let FileOutputTaskSpec::PngOutput { base, .. } = task
+            && !base.is_grid_perfect(&mut ctx)
+        {
+            large_tasks.push(new_task);
+        } else {
+            small_tasks.push(new_task);
+        }
+    }
+    drop(ctx);
+    let mut planned_tasks = large_tasks;
+    planned_tasks.extend_from_slice(&small_tasks);
+    planned_tasks.into_iter().for_each(|future| {
+        task_futures.spawn_on(async {future.await;}, runtime.handle());
+    });
+    while !task_futures.is_empty() {
+        task_futures.join_next().await;
+    }
     let zip_contents = ZIP
         .lock()?
         .deref_mut()

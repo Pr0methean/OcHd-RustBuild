@@ -135,7 +135,7 @@ impl From<&'static str> for Name {
 impl<'a, UnsizedType: ?Sized, SizedType: Clone> Arcow<'a, UnsizedType, SizedType>
     where SizedType: Borrow<UnsizedType> {
     fn cloning_from(value: SizedType) -> Self {
-        Arcow::Cloning(value.into())
+        Arcow::Cloning(value)
     }
 }
 
@@ -171,7 +171,7 @@ impl<'a, UnsizedType, SizedType: Clone> Arcow<'a, UnsizedType, SizedType>
     }
 
     pub fn from_borrowed(value: &'a UnsizedType) -> Self {
-        if size_of_val(&value) > Self::ARC_THRESHOLD {
+        if size_of_val(value) > Self::ARC_THRESHOLD {
             Self::Borrowing(value)
         } else {
             Self::cloning_from(value.clone().into())

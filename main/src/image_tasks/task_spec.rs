@@ -256,12 +256,13 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
                         color_description_to_mode(&*base_color_desc_future.await, &name);
                     let base_result = base_future.await;
                     base_result.consume(|image| {
-                        Arcow::from_owned(png_output(
+                        png_output(
                             image,
                             color_type,
                             bit_depth,
                             destination_path,
-                        ).unwrap())
+                        ).unwrap();
+                        Arcow::from_owned(())
                     })
                 }.boxed()
             }
@@ -271,7 +272,8 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
                 let base_future = original.add_to(ctx, tile_size);
                 async move {
                     base_future.await;
-                    Arcow::from_owned(copy_out_to_out(original_path, link).unwrap())
+                    copy_out_to_out(original_path, link).unwrap();
+                    Arcow::from_owned(())
                 }.boxed()
             }
         };
