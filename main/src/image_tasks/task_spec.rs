@@ -1086,17 +1086,17 @@ impl ToPixmapTaskSpec {
                 }.boxed()
             }
             ToPixmapTaskSpec::FromSvg { source } => {
-                ready(if COLOR_SVGS.contains(&&**source) {
+                ready(Arcow::from_borrowed(if COLOR_SVGS.contains(&&**source) {
                     if SEMITRANSPARENCY_FREE_SVGS.contains(&&**source) {
-                        Arcow::from_owned(RGB_BINARY.clone())
+                        &RGB_BINARY
                     } else {
-                        Arcow::from_owned(RGBA_DESCRIPTION.clone())
+                        &RGBA_DESCRIPTION
                     }
                 } else if SEMITRANSPARENCY_FREE_SVGS.contains(&&**source) {
-                    Arcow::from_owned(SPECIFIED_BLACK_TRANSPARENT.clone())
+                    &SPECIFIED_BLACK_TRANSPARENT
                 } else {
-                    Arcow::borrowing_from(&SPECIFIED_BLACK_TO_TRANSPARENT)
-                }).boxed()
+                    &SPECIFIED_BLACK_TO_TRANSPARENT
+                })).boxed()
             }
             ToPixmapTaskSpec::PaintAlphaChannel { color, base } => {
                 let base_task = base.get_possible_alpha_values(ctx);

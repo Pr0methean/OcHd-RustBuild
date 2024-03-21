@@ -38,5 +38,5 @@ pub async fn animate(
             None,
         );
     }
-    Arcow::sharing_ref(out)
+    Arcow::from_owned(out)
 }

@@ -134,29 +134,25 @@ impl From<&'static str> for Name {
 
 impl<'a, UnsizedType: ?Sized, SizedType: Clone> Arcow<'a, UnsizedType, SizedType>
     where SizedType: Borrow<UnsizedType> {
-    pub fn cloning_from(value: SizedType) -> Self {
-        Arcow::Cloning(value)
+    fn cloning_from(value: SizedType) -> Self {
+        Arcow::Cloning(value.into())
     }
 }
 
 impl<'a, UnsizedType: ?Sized, SizedType: Clone> Arcow<'a, UnsizedType, SizedType>
-    where SizedType: Borrow<UnsizedType>, Arc<UnsizedType>: From<SizedType> {
-    pub fn borrowing_from(value: &'a UnsizedType) -> Self {
-        Arcow::Borrowing(value)
-    }
-
+    where SizedType: Borrow<UnsizedType> {
     // The multiplier of 8 is based on the size of CPU cache lines, but Clippy thinks we're
     // converting a size from bytes to bits.
     #[allow(clippy::manual_bits)]
     const ARC_THRESHOLD: usize = 8 * size_of::<usize>();
+}
 
-    pub fn sharing_ref(value: SizedType) -> Self {
-        Arcow::SharingRef(value.into())
-    }
-
+impl<'a, UnsizedType: ?Sized, SizedType: Clone> Arcow<'a, UnsizedType, SizedType>
+    where SizedType: Borrow<UnsizedType>, Box<UnsizedType>: From<SizedType> {
     pub fn from_owned(value: SizedType) -> Self {
         if size_of_val(&value) > Self::ARC_THRESHOLD {
-            Self::sharing_ref(value)
+            let boxed: Box<UnsizedType> = value.into();
+            Arcow::SharingRef(Arc::from(boxed))
         } else {
             Self::cloning_from(value)
         }
@@ -171,6 +167,14 @@ impl<'a, UnsizedType, SizedType: Clone> Arcow<'a, UnsizedType, SizedType>
             Arcow::SharingRef(arc) => action(Arc::unwrap_or_clone(arc)),
             Arcow::Cloning(value) => action(value.into()),
             Arcow::Borrowing(borrow) => action(borrow.clone())
+        }
+    }
+
+    pub fn from_borrowed(value: &'a UnsizedType) -> Self {
+        if size_of_val(&value) > Self::ARC_THRESHOLD {
+            Self::Borrowing(value)
+        } else {
+            Self::cloning_from(value.clone().into())
         }
     }
 }
