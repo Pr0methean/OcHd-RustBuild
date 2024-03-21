@@ -28,3 +28,4 @@ oxipng = {version = "9.0.0", default-features = false, features = ["zopfli"]}
 bitstream-io = "2.2.0"
 palette = "0.7.2"
 bytemuck = {version = "1.13.1", features = ["derive"]}
+futures-util = "0.3.30"

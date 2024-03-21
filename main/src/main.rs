@@ -4,11 +4,13 @@
 #![feature(macro_metavar_expr)]
 #![feature(const_trait_impl)]
 #![feature(lazy_cell)]
+#![feature(async_closure)]
 
 use std::path::{absolute, PathBuf};
 use std::time::Instant;
 
 use log::{info, warn, LevelFilter};
+use rayon::iter::ParallelIterator;
 use texture_base::material::Material;
 
 use crate::image_tasks::task_spec::{
@@ -35,6 +37,7 @@ use std::fs::create_dir_all;
 use std::hint::unreachable_unchecked;
 use std::ops::DerefMut;
 use std::thread::available_parallelism;
+use rayon::iter::IntoParallelIterator;
 use tikv_jemallocator::Jemalloc;
 
 const GRID_SIZE: u32 = 32;
@@ -140,15 +143,8 @@ fn main() -> Result<(), CloneableError> {
             drop(ctx);
             let mut planned_tasks = large_tasks;
             planned_tasks.extend_from_slice(&small_tasks);
-            in_place_scope_fifo(move |scope| {
-                for task in planned_tasks {
-                    let name = task.to_string();
-                    scope.spawn_fifo(move |_| {
-                        *task
-                            .into_result()
-                            .unwrap_or_else(|err| panic!("Error running task {}: {:?}", name, err))
-                    });
-                }
+            in_place_scope_fifo(move |_| {
+                planned_tasks.into_par_iter().map(async move |task| task.await).collect::<Vec<_>>();
             });
         },
     );

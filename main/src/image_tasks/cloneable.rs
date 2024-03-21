@@ -1,13 +1,10 @@
-use std::borrow::Borrow;
-use crate::anyhoo;
-use log::info;
-use replace_with::replace_with_and_return;
+use std::borrow::{Borrow, BorrowMut};
 use std::cmp::Ordering;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
-use std::mem::{size_of, size_of_val};
+use std::mem::{replace, size_of, size_of_val};
 use std::ops::{Deref, DerefMut};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc};
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct CloneableError {
@@ -33,7 +30,6 @@ where SizedType: Borrow<UnsizedType>{
     Borrowing(&'a UnsizedType),
 }
 
-pub type CloneableResult<UnsizedType, SizedType> = Result<Arcow<'static, UnsizedType, SizedType>, CloneableError>;
 pub type Name = Arcow<'static, str, String>;
 pub type SimpleArcow<T> = Arcow<'static, T, T>;
 
@@ -57,6 +53,23 @@ impl<'a, UnsizedType: ?Sized, SizedType: Clone> Deref for Arcow<'a, UnsizedType,
             Arcow::SharingRef(arc) => arc,
             Arcow::Borrowing(borrow) => borrow,
             Arcow::Cloning(value) => (*value).borrow()
+        }
+    }
+}
+
+impl<'a, UnsizedType: ?Sized + Clone, SizedType: Clone> DerefMut for Arcow<'a, UnsizedType, SizedType>
+    where SizedType: BorrowMut<UnsizedType>{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            Arcow::Cloning(value) => {
+                return (*value).borrow_mut();
+            }
+            Arcow::Borrowing(borrow) => {
+                let arc = Arc::new((*borrow).clone());
+                let _ = replace(self, Arcow::SharingRef(arc));
+                return self.deref_mut();
+            }
+            Arcow::SharingRef(arc) => Arc::make_mut(arc)
         }
     }
 }
@@ -137,11 +150,15 @@ impl<'a, UnsizedType: ?Sized, SizedType: Clone> Arcow<'a, UnsizedType, SizedType
     #[allow(clippy::manual_bits)]
     const ARC_THRESHOLD: usize = 8 * size_of::<usize>();
 
+    pub fn sharing_ref(value: SizedType) -> Self {
+        Arcow::SharingRef(value.into())
+    }
+
     pub fn from_owned(value: SizedType) -> Self {
         if size_of_val(&value) > Self::ARC_THRESHOLD {
-            Arcow::SharingRef(value.into())
+            Self::sharing_ref(value)
         } else {
-            Arcow::Cloning(value)
+            Self::cloning_from(value)
         }
     }
 }
@@ -154,135 +171,6 @@ impl<'a, UnsizedType, SizedType: Clone> Arcow<'a, UnsizedType, SizedType>
             Arcow::SharingRef(arc) => action(Arc::unwrap_or_clone(arc)),
             Arcow::Cloning(value) => action(value.into()),
             Arcow::Borrowing(borrow) => action(borrow.clone())
-        }
-    }
-}
-
-pub type LazyTaskFunction<UnsizedType, SizedType>
-    = Box<dyn FnOnce() -> Result<Arcow<'static, UnsizedType, SizedType>, CloneableError> + Send>;
-
-pub enum CloneableLazyTaskState<UnsizedType: ?Sized + 'static, SizedType: Clone + 'static>
-    where SizedType: Borrow<UnsizedType>
-{
-    Upcoming { function: LazyTaskFunction<UnsizedType, SizedType> },
-    Finished { result: CloneableResult<UnsizedType, SizedType> },
-}
-
-#[derive(Clone, Debug)]
-pub struct CloneableLazyTask<UnsizedType: ?Sized + 'static, SizedType: Clone + 'static>
-    where SizedType: Borrow<UnsizedType>
-{
-    pub name: Name,
-    state: Arc<Mutex<CloneableLazyTaskState<UnsizedType, SizedType>>>,
-}
-
-impl<UnsizedType: ?Sized, SizedType: Clone + 'static> Display for CloneableLazyTask<UnsizedType, SizedType>
-    where SizedType: Borrow<UnsizedType>
-{
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.name)
-    }
-}
-
-impl<UnsizedType: ?Sized, SizedType: Clone + 'static> Debug for CloneableLazyTaskState<UnsizedType, SizedType>
-    where SizedType: Borrow<UnsizedType>
-{
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CloneableLazyTaskState::Upcoming { .. } => f.write_str("Upcoming"),
-            CloneableLazyTaskState::Finished { result } => match result {
-                Ok(..) => f.write_str("Ok"),
-                Err(error) => f.write_fmt(format_args!("Error({})", error.message)),
-            },
-        }
-    }
-}
-
-impl<UnsizedType: ?Sized, SizedType: Clone + 'static> CloneableLazyTask<UnsizedType, SizedType>
-    where SizedType: Borrow<UnsizedType>
-{
-    pub fn new<U>(name: U, base: LazyTaskFunction<UnsizedType, SizedType>) -> Self
-    where
-        U: Into<Name>,
-    {
-        CloneableLazyTask {
-            name: name.into(),
-            state: Arc::new(Mutex::new(CloneableLazyTaskState::Upcoming {
-                function: base,
-            })),
-        }
-    }
-
-    pub fn new_immediate_ok<IntoName: Into<Name>>
-        (name: IntoName, result: Arcow<'static, UnsizedType, SizedType>) -> Self
-    {
-        CloneableLazyTask {
-            name: name.into(),
-            state: Arc::new(Mutex::new(CloneableLazyTaskState::Finished {
-                result: Ok(result),
-            })),
-        }
-    }
-
-    /// Consumes this particular copy of the task and returns the result. Trades off readability and
-    /// maintainability to maximize the chance of avoiding unnecessary copies.
-    pub fn into_result(self) -> CloneableResult<UnsizedType, SizedType> {
-        match Arc::try_unwrap(self.state) {
-            Ok(exclusive_state) => {
-                // We're the last referent to this Lazy, so we don't need to clone anything.
-                match exclusive_state.into_inner() {
-                    Ok(state) => match state {
-                        CloneableLazyTaskState::Upcoming { function } => {
-                            info!("Starting task {}", self.name);
-                            let result = function();
-                            info!("Finished task {}", self.name);
-                            info!("Unwrapping the only reference to {}", self.name);
-                            result
-                        }
-                        CloneableLazyTaskState::Finished { result } => {
-                            info!("Unwrapping the last reference to {}", self.name);
-                            result
-                        }
-                    },
-                    Err(e) => Err(e.into()),
-                }
-            }
-            Err(shared_state) => match shared_state.lock() {
-                Ok(mut locked_state) => replace_with_and_return(
-                    locked_state.deref_mut(),
-                    || CloneableLazyTaskState::Finished {
-                        result: Err(anyhoo!("replace_with_and_return_failed")),
-                    },
-                    |exec_state| match exec_state {
-                        CloneableLazyTaskState::Upcoming { function } => {
-                            info!("Starting task {}", self.name);
-                            let result = function().map(Arcow::from);
-                            info!("Finished task {}", self.name);
-                            info!(
-                                "Unwrapping one of {} references to {} after computing it",
-                                Arc::strong_count(&shared_state),
-                                self.name
-                            );
-                            (
-                                result.to_owned(),
-                                CloneableLazyTaskState::Finished { result },
-                            )
-                        }
-                        CloneableLazyTaskState::Finished { result } => {
-                            info!(
-                                "Unwrapping one of {} references to {}",
-                                Arc::strong_count(&shared_state),
-                                self.name
-                            );
-                            (
-                                result.to_owned(),
-                                CloneableLazyTaskState::Finished { result },
-                            )
-                        }
-                    },
-                ),
-                Err(e) => Err(e.into()),
-            },
         }
     }
 }
