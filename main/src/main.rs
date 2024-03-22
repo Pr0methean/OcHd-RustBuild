@@ -175,7 +175,7 @@ fn main() -> Result<(), CloneableError> {
             }
         }
         drop(ctx);
-        large_tasks.into_iter().chain(small_tasks.into_iter())
+        large_tasks.into_iter().chain(small_tasks)
             .for_each(|(name, future)| {
                 task_futures.build_task().name(&name).spawn(future.map(drop)).unwrap();
         });
@@ -189,7 +189,7 @@ fn main() -> Result<(), CloneableError> {
     }
     drop(runtime); // Aborts any background tasks
     let zip_contents = ZIP
-        .lock()?
+        .lock()
         .deref_mut()
         .finish()
         .expect("Failed to finalize ZIP file")

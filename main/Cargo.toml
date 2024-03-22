@@ -29,3 +29,4 @@ bitstream-io = "2.2.0"
 palette = "0.7.5"
 bytemuck = {version = "1.15.0", features = ["derive"]}
 futures-util = "0.3.30"
+parking_lot = "0.12.1"
