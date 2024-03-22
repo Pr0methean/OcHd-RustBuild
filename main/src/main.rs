@@ -163,7 +163,7 @@ fn main() -> Result<(), CloneableError> {
     let mut large_tasks = Vec::with_capacity(out_tasks.len());
     let mut small_tasks = Vec::with_capacity(out_tasks.len());
     for task in out_tasks.iter() {
-        let new_task = task.add_to(&mut ctx, tile_size);
+        let new_task = (task.to_string(), task.add_to(&mut ctx, tile_size));
         if tile_size > GRID_SIZE
             && let FileOutputTaskSpec::PngOutput { base, .. } = task
             && !base.is_grid_perfect(&mut ctx)
@@ -176,8 +176,8 @@ fn main() -> Result<(), CloneableError> {
     drop(ctx);
     let mut planned_tasks = large_tasks;
     planned_tasks.extend_from_slice(&small_tasks);
-    planned_tasks.into_iter().for_each(|future| {
-        task_futures.spawn_on(future.map(drop), handle);
+    planned_tasks.into_iter().for_each(|(name, future)| {
+        task_futures.build_task().name(&name).spawn_on(future.map(drop), handle).unwrap();
     });
     while !task_futures.is_empty() {
         handle.block_on(task_futures.join_next().map(drop));
