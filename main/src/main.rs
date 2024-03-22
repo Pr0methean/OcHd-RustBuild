@@ -175,10 +175,9 @@ fn main() -> Result<(), CloneableError> {
             }
         }
         drop(ctx);
-        let mut planned_tasks = large_tasks;
-        planned_tasks.extend_from_slice(&small_tasks);
-        planned_tasks.into_iter().for_each(|(name, future)| {
-            task_futures.build_task().name(&name).spawn(future.map(drop)).unwrap();
+        large_tasks.into_iter().chain(small_tasks.into_iter())
+            .for_each(|(name, future)| {
+                task_futures.build_task().name(&name).spawn(future.map(drop)).unwrap();
         });
         task_futures
     });
