@@ -8,7 +8,7 @@
 #![feature(future_join)]
 
 use std::path::{absolute, PathBuf};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use log::{info, warn, LevelFilter};
 use texture_base::material::Material;
@@ -36,7 +36,8 @@ use std::fs;
 use std::fs::create_dir_all;
 use std::hint::unreachable_unchecked;
 use std::ops::DerefMut;
-use std::thread::available_parallelism;
+use std::sync::{Arc};
+use std::thread::{available_parallelism, sleep, spawn};
 use tikv_jemallocator::Jemalloc;
 
 const GRID_SIZE: u32 = 32;
@@ -105,7 +106,14 @@ fn main() -> Result<(), CloneableError> {
         }
         Err(e) => warn!("Unable to get available parallelism: {}", e)
     }
-    let runtime = runtime.build()?;
+    let runtime = Arc::new(runtime.build()?);
+    let rt_weak = Arc::downgrade(&runtime);
+    spawn(move || {
+        while let Some(runtime) = rt_weak.upgrade() {
+            println!("{:?}", runtime.metrics());
+            sleep(Duration::from_millis(500));
+        }
+    });
     let start_time = Instant::now();
     runtime.spawn(async {
             prewarm_pixmap_pool();
