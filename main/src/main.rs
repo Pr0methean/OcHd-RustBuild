@@ -158,26 +158,30 @@ fn main() -> Result<(), CloneableError> {
             copy_metadata(&METADATA_DIR);
             info!("Metadata copied");
         }, handle);
-    let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
-    let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
-    let mut large_tasks = Vec::with_capacity(out_tasks.len());
-    let mut small_tasks = Vec::with_capacity(out_tasks.len());
-    for task in out_tasks.iter() {
-        let new_task = (task.to_string(), task.add_to(&mut ctx, tile_size));
-        if tile_size > GRID_SIZE
-            && let FileOutputTaskSpec::PngOutput { base, .. } = task
-            && !base.is_grid_perfect(&mut ctx)
-        {
-            large_tasks.push(new_task);
-        } else {
-            small_tasks.push(new_task);
+    let mut task_futures = handle.block_on(async {
+        let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
+        let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
+        let mut large_tasks = Vec::with_capacity(out_tasks.len());
+        let mut small_tasks = Vec::with_capacity(out_tasks.len());
+        for task in out_tasks.iter() {
+            let new_task = (task.to_string(), task.add_to(&mut ctx, tile_size));
+            if tile_size > GRID_SIZE
+                && let FileOutputTaskSpec::PngOutput { base, .. } = task
+                && !base.is_grid_perfect(&mut ctx)
+            {
+                large_tasks.push(new_task);
+            } else {
+                small_tasks.push(new_task);
+            }
         }
-    }
-    drop(ctx);
-    let mut planned_tasks = large_tasks;
-    planned_tasks.extend_from_slice(&small_tasks);
-    planned_tasks.into_iter().for_each(|(name, future)| {
-        task_futures.build_task().name(&name).spawn_on(future.map(drop), handle).unwrap();
+        drop(ctx);
+        let mut planned_tasks = large_tasks;
+        planned_tasks.extend_from_slice(&small_tasks);
+        let mut task_futures = JoinSet::new();
+        planned_tasks.into_iter().for_each(|(name, future)| {
+            task_futures.build_task().name(&name).spawn(future.map(drop)).unwrap();
+        });
+        task_futures
     });
     while !task_futures.is_empty() {
         handle.block_on(task_futures.join_next().map(drop));
