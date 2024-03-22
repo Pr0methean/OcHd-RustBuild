@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 
 use log::{info, warn, LevelFilter};
 use texture_base::material::Material;
-use tokio::runtime::Builder;
+use tokio::runtime::{Builder, Handle};
 
 use crate::image_tasks::task_spec::{
     FileOutputTaskSpec, TaskGraphBuildingContext, TaskSpecTraits, METADATA_DIR,
@@ -36,7 +36,6 @@ use std::fs;
 use std::fs::create_dir_all;
 use std::hint::unreachable_unchecked;
 use std::ops::DerefMut;
-use std::sync::{Arc};
 use std::thread::{available_parallelism};
 use tikv_jemallocator::Jemalloc;
 use tokio::task::JoinSet;
@@ -108,12 +107,41 @@ fn main() -> Result<(), CloneableError> {
         }
         Err(e) => warn!("Unable to get available parallelism: {}", e)
     }
-    let runtime = Arc::new(runtime.build()?);
-    let rt_weak = Arc::downgrade(&runtime);
+    let runtime = runtime.build()?;
     runtime.spawn(async move {
-        while let Some(runtime) = rt_weak.upgrade() {
-            println!("{:?}", runtime.metrics());
+        loop {
             sleep(Duration::from_millis(500)).await;
+            let m = Handle::current().metrics();
+            macro_rules! log_metric {
+                ($metrics:expr, $metric:ident) => {
+                    info!("{:30}: {:5}", stringify!($metric), $metrics.$metric());
+                }
+            }
+            macro_rules! log_metric_per_worker {
+                ($metrics:expr, $metric:ident) => {
+                    info!("{:30}: {:?}", stringify!($metric),
+                        (0..$metrics.num_workers())
+                        .map(|i| $metrics.$metric(i))
+                        .collect::<Vec<_>>());
+                }
+            }
+            log_metric!(m, active_tasks_count);
+            log_metric!(m, blocking_queue_depth);
+            log_metric!(m, budget_forced_yield_count);
+            log_metric!(m, injection_queue_depth);
+            log_metric!(m, num_blocking_threads);
+            log_metric!(m, num_idle_blocking_threads);
+            log_metric!(m, remote_schedule_count);
+            log_metric_per_worker!(m, worker_local_queue_depth);
+            log_metric_per_worker!(m, worker_local_schedule_count);
+            log_metric_per_worker!(m, worker_mean_poll_time);
+            log_metric_per_worker!(m, worker_noop_count);
+            log_metric_per_worker!(m, worker_overflow_count);
+            log_metric_per_worker!(m, worker_park_count);
+            log_metric_per_worker!(m, worker_poll_count);
+            log_metric_per_worker!(m, worker_steal_count);
+            log_metric_per_worker!(m, worker_steal_operations);
+            log_metric_per_worker!(m, worker_total_busy_duration);
         }
     });
     let start_time = Instant::now();
