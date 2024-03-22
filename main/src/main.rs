@@ -40,7 +40,7 @@ use std::thread::{available_parallelism};
 use futures_util::FutureExt;
 use tikv_jemallocator::Jemalloc;
 use tokio::task::JoinSet;
-use tokio::time::sleep;
+use tokio::time::{sleep, timeout};
 
 const GRID_SIZE: u32 = 32;
 
@@ -113,7 +113,8 @@ fn main() -> Result<(), CloneableError> {
     runtime.spawn(async move {
         loop {
             sleep(Duration::from_millis(500)).await;
-            let m = Handle::current().metrics();
+            let handle = Handle::current();
+            let m = handle.metrics();
             macro_rules! log_metric {
                 ($metrics:expr, $metric:ident) => {
                     info!("{:30}: {:5}", stringify!($metric), $metrics.$metric());
@@ -144,6 +145,14 @@ fn main() -> Result<(), CloneableError> {
             log_metric_per_worker!(m, worker_steal_count);
             log_metric_per_worker!(m, worker_steal_operations);
             log_metric_per_worker!(m, worker_total_busy_duration);
+            if let Ok(dump) = timeout(Duration::from_secs(2), handle.dump()).await {
+                for task in dump.tasks().into_iter() {
+                    let trace = task.trace();
+                    info!("{task}:\n{trace}");
+                }
+            } else {
+                warn!("Timed out obtaining dump");
+            }
         }
     });
     let start_time = Instant::now();
