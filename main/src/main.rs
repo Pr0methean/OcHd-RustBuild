@@ -181,7 +181,7 @@ fn main() -> Result<(), CloneableError> {
         });
         remove_finished(&mut task_futures);
         while !task_futures.is_empty() {
-            task_futures.join_next().map(drop).await;
+            task_futures.join_next().await;
             remove_finished(&mut task_futures);
         }
     });
@@ -198,7 +198,7 @@ fn main() -> Result<(), CloneableError> {
     Ok(())
 }
 
-fn remove_finished(task_futures: &mut JoinSet<()>) {
+fn remove_finished<T: 'static>(task_futures: &mut JoinSet<T>) {
     while task_futures.try_join_next().is_some() {
         info!("try_join_next received a finished task");
     }
