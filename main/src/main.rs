@@ -148,7 +148,7 @@ fn main() -> Result<(), CloneableError> {
             if let Ok(dump) = timeout(Duration::from_secs(2), handle.dump()).await {
                 for task in dump.tasks().iter() {
                     let trace = task.trace();
-                    info!("{task}:\n{trace}");
+                    info!("{task:?}:\n{trace}");
                 }
             } else {
                 warn!("Timed out obtaining dump");
