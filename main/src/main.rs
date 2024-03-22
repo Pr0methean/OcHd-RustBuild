@@ -179,15 +179,15 @@ fn main() -> Result<(), CloneableError> {
             .for_each(|(name, future)| {
                 task_futures.build_task().name(&name).spawn(future.map(drop)).unwrap();
         });
-        while task_futures.try_join_next().is_some() {}
+        remove_finished(&mut task_futures);
         task_futures
     });
-    while task_futures.try_join_next().is_some() {}
+    remove_finished(&mut task_futures);
     while !task_futures.is_empty() {
         handle.block_on(async {
             task_futures.join_next().await;
         });
-        while task_futures.try_join_next().is_some() {}
+        remove_finished(&mut task_futures);
     }
     drop(runtime); // Aborts any background tasks
     let zip_contents = ZIP
@@ -200,4 +200,8 @@ fn main() -> Result<(), CloneableError> {
     fs::write(out_file.as_path(), zip_contents)?;
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     Ok(())
+}
+
+fn remove_finished(task_futures: &mut JoinSet<()>) {
+    while task_futures.try_join_next().is_some() {}
 }
