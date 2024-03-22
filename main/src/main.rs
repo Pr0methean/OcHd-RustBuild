@@ -179,8 +179,10 @@ fn main() -> Result<(), CloneableError> {
             .for_each(|(name, future)| {
                 task_futures.build_task().name(&name).spawn(future.map(drop)).unwrap();
         });
+        while task_futures.try_join_next().is_some() {}
         task_futures
     });
+    while task_futures.try_join_next().is_some() {}
     while !task_futures.is_empty() {
         handle.block_on(async {
             task_futures.join_next().await;
