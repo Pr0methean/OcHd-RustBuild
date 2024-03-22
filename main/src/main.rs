@@ -146,7 +146,7 @@ fn main() -> Result<(), CloneableError> {
             log_metric_per_worker!(m, worker_steal_operations);
             log_metric_per_worker!(m, worker_total_busy_duration);
             if let Ok(dump) = timeout(Duration::from_secs(2), handle.dump()).await {
-                for task in dump.tasks().into_iter() {
+                for task in dump.tasks().iter() {
                     let trace = task.trace();
                     info!("{task}:\n{trace}");
                 }
