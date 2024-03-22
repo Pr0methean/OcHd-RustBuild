@@ -182,7 +182,10 @@ fn main() -> Result<(), CloneableError> {
         task_futures
     });
     while !task_futures.is_empty() {
-        handle.block_on(task_futures.join_next().map(drop));
+        handle.block_on(async {
+            task_futures.join_next().await;
+            while task_futures.try_join_next().is_some() {}
+        });
     }
     drop(runtime); // Aborts any background tasks
     let zip_contents = ZIP
