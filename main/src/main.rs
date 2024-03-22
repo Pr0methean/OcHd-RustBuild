@@ -37,6 +37,7 @@ use std::fs::create_dir_all;
 use std::hint::unreachable_unchecked;
 use std::ops::DerefMut;
 use std::thread::{available_parallelism};
+use futures_util::FutureExt;
 use tikv_jemallocator::Jemalloc;
 use tokio::task::JoinSet;
 use tokio::time::sleep;
@@ -176,13 +177,12 @@ fn main() -> Result<(), CloneableError> {
     let mut planned_tasks = large_tasks;
     planned_tasks.extend_from_slice(&small_tasks);
     planned_tasks.into_iter().for_each(|future| {
-        task_futures.spawn_on(async {future.await;}, handle);
+        task_futures.spawn_on(future.map(drop), handle);
     });
     while !task_futures.is_empty() {
-        #[allow(unused_must_use)]
-        handle.block_on(async {task_futures.join_next(); });
+        handle.block_on(task_futures.join_next().map(drop));
     }
-    drop(runtime); // Joins all spawned tasks
+    drop(runtime); // Aborts any background tasks
     let zip_contents = ZIP
         .lock()?
         .deref_mut()
