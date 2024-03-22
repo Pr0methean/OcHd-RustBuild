@@ -37,9 +37,10 @@ use std::fs::create_dir_all;
 use std::hint::unreachable_unchecked;
 use std::ops::DerefMut;
 use std::sync::{Arc};
-use std::thread::{available_parallelism, sleep, spawn};
+use std::thread::{available_parallelism};
 use tikv_jemallocator::Jemalloc;
 use tokio::task::JoinSet;
+use tokio::time::sleep;
 
 const GRID_SIZE: u32 = 32;
 
@@ -109,10 +110,10 @@ fn main() -> Result<(), CloneableError> {
     }
     let runtime = Arc::new(runtime.build()?);
     let rt_weak = Arc::downgrade(&runtime);
-    spawn(move || {
+    runtime.spawn(async move {
         while let Some(runtime) = rt_weak.upgrade() {
             println!("{:?}", runtime.metrics());
-            sleep(Duration::from_millis(500));
+            sleep(Duration::from_millis(500)).await;
         }
     });
     let start_time = Instant::now();
