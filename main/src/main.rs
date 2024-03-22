@@ -39,6 +39,7 @@ use std::ops::DerefMut;
 use std::sync::{Arc};
 use std::thread::{available_parallelism, sleep, spawn};
 use tikv_jemallocator::Jemalloc;
+use tokio::task::JoinSet;
 
 const GRID_SIZE: u32 = 32;
 
@@ -115,7 +116,9 @@ fn main() -> Result<(), CloneableError> {
         }
     });
     let start_time = Instant::now();
-    runtime.spawn(async {
+    let handle = runtime.handle();
+    let mut task_futures = JoinSet::new();
+    task_futures.spawn_on(async {
             prewarm_pixmap_pool();
             prewarm_mask_pool();
             info!("Caches prewarmed");
@@ -123,7 +126,7 @@ fn main() -> Result<(), CloneableError> {
             info!("Output directory built");
             copy_metadata(&METADATA_DIR);
             info!("Metadata copied");
-        });
+        }, handle);
     let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
     let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
     let mut large_tasks = Vec::with_capacity(out_tasks.len());
@@ -143,8 +146,11 @@ fn main() -> Result<(), CloneableError> {
     let mut planned_tasks = large_tasks;
     planned_tasks.extend_from_slice(&small_tasks);
     planned_tasks.into_iter().for_each(|future| {
-        runtime.spawn(future);
+        task_futures.spawn_on(future, handle);
     });
+    while !task_futures.is_empty() {
+        handle.block_on(async || task_futures.join_next());
+    }
     drop(runtime); // Joins all spawned tasks
     let zip_contents = ZIP
         .lock()?
