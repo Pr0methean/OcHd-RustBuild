@@ -199,5 +199,7 @@ fn main() -> Result<(), CloneableError> {
 }
 
 fn remove_finished(task_futures: &mut JoinSet<()>) {
-    while task_futures.try_join_next().is_some() {}
+    while task_futures.try_join_next().is_some() {
+        info!("try_join_next received a finished task");
+    }
 }
