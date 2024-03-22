@@ -146,10 +146,11 @@ fn main() -> Result<(), CloneableError> {
     let mut planned_tasks = large_tasks;
     planned_tasks.extend_from_slice(&small_tasks);
     planned_tasks.into_iter().for_each(|future| {
-        task_futures.spawn_on(future, handle);
+        task_futures.spawn_on(async {future.await;}, handle);
     });
     while !task_futures.is_empty() {
-        handle.block_on(async || task_futures.join_next());
+        #[allow(unused_must_use)]
+        handle.block_on(async {task_futures.join_next(); });
     }
     drop(runtime); // Joins all spawned tasks
     let zip_contents = ZIP
