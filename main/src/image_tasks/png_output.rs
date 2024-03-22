@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use std::io::{Cursor, Write};
 use std::mem::transmute;
 use std::ops::DerefMut;
-use std::sync::Mutex;
+use parking_lot::Mutex;
 
 use resvg::tiny_skia::{ColorU8, Pixmap, PremultipliedColorU8};
 use zip_next::write::FileOptions;
@@ -258,7 +258,7 @@ pub fn png_output(
         .create_optimized_png(png_options)?;
     info!("Finished PNG optimization for {}", file_path);
     let zip = &*ZIP;
-    let mut writer = zip.lock()?;
+    let mut writer = zip.lock();
     writer
         .deref_mut()
         .start_file(file_path, PNG_ZIP_OPTIONS.to_owned())?;
@@ -267,7 +267,7 @@ pub fn png_output(
 }
 
 pub fn copy_out_to_out(source_path: String, dest_path: String) -> Result<(), CloneableError> {
-    ZIP.lock()?
+    ZIP.lock()
         .deref_mut()
         .deep_copy_file(&source_path, &dest_path)?;
     Ok(())
@@ -275,7 +275,7 @@ pub fn copy_out_to_out(source_path: String, dest_path: String) -> Result<(), Clo
 
 pub fn copy_in_to_out(source: &File, dest_path: String) -> Result<(), CloneableError> {
     let zip = &*ZIP;
-    let mut writer = zip.lock()?;
+    let mut writer = zip.lock();
     writer
         .deref_mut()
         .start_file(dest_path, METADATA_ZIP_OPTIONS.to_owned())?;

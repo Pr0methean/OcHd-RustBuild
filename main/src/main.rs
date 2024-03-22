@@ -38,6 +38,7 @@ use std::hint::unreachable_unchecked;
 use std::ops::DerefMut;
 use std::thread::available_parallelism;
 use futures_util::FutureExt;
+use futures_util::FutureExt;
 use tikv_jemallocator::Jemalloc;
 use tokio::task::JoinSet;
 
@@ -110,8 +111,9 @@ fn main() -> Result<(), CloneableError> {
     let runtime = runtime.build()?;
     let start_time = Instant::now();
     let handle = runtime.handle();
-    let mut task_futures = JoinSet::new();
-    task_futures.spawn_on(async {
+    let mut task_futures = handle.block_on(async {
+        let mut task_futures = JoinSet::new();
+        task_futures.spawn_on(async {
             prewarm_pixmap_pool();
             prewarm_mask_pool();
             info!("Caches prewarmed");
@@ -120,33 +122,39 @@ fn main() -> Result<(), CloneableError> {
             copy_metadata(&METADATA_DIR);
             info!("Metadata copied");
         }, handle);
-    let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
-    let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
-    let mut large_tasks = Vec::with_capacity(out_tasks.len());
-    let mut small_tasks = Vec::with_capacity(out_tasks.len());
-    for task in out_tasks.iter() {
-        let new_task = task.add_to(&mut ctx, tile_size);
-        if tile_size > GRID_SIZE
-            && let FileOutputTaskSpec::PngOutput { base, .. } = task
-            && !base.is_grid_perfect(&mut ctx)
-        {
-            large_tasks.push(new_task);
-        } else {
-            small_tasks.push(new_task);
+        let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
+        let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
+        let mut large_tasks = Vec::with_capacity(out_tasks.len());
+        let mut small_tasks = Vec::with_capacity(out_tasks.len());
+        for task in out_tasks.iter() {
+            let new_task = (task.to_string(), task.add_to(&mut ctx, tile_size));
+            if tile_size > GRID_SIZE
+                && let FileOutputTaskSpec::PngOutput { base, .. } = task
+                && !base.is_grid_perfect(&mut ctx)
+            {
+                large_tasks.push(new_task);
+            } else {
+                small_tasks.push(new_task);
+            }
         }
-    }
-    drop(ctx);
-    let mut planned_tasks = large_tasks;
-    planned_tasks.extend_from_slice(&small_tasks);
-    planned_tasks.into_iter().for_each(|future| {
-        task_futures.spawn_on(future.map(drop), handle);
+        drop(ctx);
+        large_tasks.into_iter().chain(small_tasks)
+            .for_each(|(name, future)| {
+                task_futures.build_task().name(&name).spawn(future.map(drop)).unwrap();
+        });
+        remove_finished(&mut task_futures);
+        task_futures
     });
+    remove_finished(&mut task_futures);
     while !task_futures.is_empty() {
-        handle.block_on(task_futures.join_next().map(drop));
+        handle.block_on(async {
+            task_futures.join_next().await;
+            remove_finished(&mut task_futures);
+        });
     }
     drop(runtime); // Aborts any background tasks
     let zip_contents = ZIP
-        .lock()?
+        .lock()
         .deref_mut()
         .finish()
         .expect("Failed to finalize ZIP file")
@@ -155,4 +163,8 @@ fn main() -> Result<(), CloneableError> {
     fs::write(out_file.as_path(), zip_contents)?;
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     Ok(())
+}
+
+fn remove_finished(task_futures: &mut JoinSet<()>) {
+    while task_futures.try_join_next().is_some() {}
 }
