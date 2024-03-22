@@ -94,7 +94,6 @@ fn main() -> Result<(), CloneableError> {
     let tile_size: u32 = *TILE_SIZE;
     info!("Using {} pixels per tile", tile_size);
     let mut runtime = Builder::new_multi_thread();
-    runtime.enable_time();
     match available_parallelism() {
         Ok(parallelism) => {
             let adjusted_parallelism = parallelism.get() + 1;
