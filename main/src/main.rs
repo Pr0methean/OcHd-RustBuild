@@ -148,7 +148,7 @@ fn main() -> Result<(), CloneableError> {
     });
     let start_time = Instant::now();
     let handle = runtime.handle();
-    let mut task_futures = handle.block_on(async {
+    handle.block_on(async {
         let mut task_futures = JoinSet::new();
         task_futures.spawn_on(async {
             prewarm_pixmap_pool();
@@ -180,13 +180,11 @@ fn main() -> Result<(), CloneableError> {
                 task_futures.build_task().name(&name).spawn(future.map(drop)).unwrap();
         });
         remove_finished(&mut task_futures);
-        task_futures
+        while !task_futures.is_empty() {
+            task_futures.join_next().map(drop).await;
+            remove_finished(&mut task_futures);
+        }
     });
-    remove_finished(&mut task_futures);
-    while !task_futures.is_empty() {
-        handle.block_on(task_futures.join_next().map(drop));
-        remove_finished(&mut task_futures);
-    }
     drop(runtime); // Aborts any background tasks
     let zip_contents = ZIP
         .lock()
