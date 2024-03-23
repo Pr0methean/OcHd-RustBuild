@@ -165,19 +165,20 @@ fn main() -> Result<(), CloneableError> {
         let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
         let mut small_tasks = Vec::with_capacity(out_tasks.len());
         for task in out_tasks.iter() {
-            let new_task = task.add_to(&mut ctx, tile_size).map(drop);
             let small = match task {
                 FileOutputTaskSpec::PngOutput { base, .. } =>
                     tile_size > GRID_SIZE && base.is_grid_perfect(&mut ctx),
                 FileOutputTaskSpec::Copy { .. } => true
             };
             if small {
-                small_tasks.push(new_task);
+                small_tasks.push(task);
             } else {
-                task_futures.spawn(new_task);
+                task_futures.spawn(task.add_to(&mut ctx, tile_size).map(drop));
             }
         }
-        small_tasks.into_iter().for_each(|task| {task_futures.spawn(task); });
+        small_tasks.into_iter().for_each(|task| {
+            task_futures.spawn(task.add_to(&mut ctx, tile_size).map(drop));
+        });
         drop(ctx);
         remove_finished(&mut task_futures);
         while !task_futures.is_empty() {
