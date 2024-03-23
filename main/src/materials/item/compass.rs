@@ -2,7 +2,6 @@ use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::task_spec::{from_svg_task, out_task, paint_svg_task, FileOutputTaskSpec};
 use crate::texture_base::material::Material;
 use crate::{group, stack};
-use std::sync::Arc;
 
 const COMPASS_ANGLES: usize = 32;
 
@@ -14,7 +13,7 @@ pub struct Compass {
 }
 
 impl Material for Compass {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
+    fn get_output_tasks(&self) -> impl Iterator<Item=FileOutputTaskSpec> {
         let base = stack!(
             paint_svg_task("circle32", self.rim_color),
             from_svg_task("compassRim"),
@@ -30,7 +29,7 @@ impl Material for Compass {
                 ),
             ));
         }
-        output_tasks.into()
+        output_tasks.into_iter()
     }
 }
 

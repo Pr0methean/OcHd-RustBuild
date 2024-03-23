@@ -59,7 +59,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
         let name = self.to_string();
         if let Some(existing_future) = ctx.get_pixmap_future(tile_size, self) {
             info!("Matched an existing node: {}", name);
-            return existing_future.to_owned();
+            return existing_future.to_owned().boxed();
         }
         if let UpscaleFromGridSize { .. } = self {
             // Fall through; let expressions can't be inverted
@@ -76,15 +76,16 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
             ToPixmapTaskSpec::Animate { background, frames } => {
                 let background_future = background.add_to(ctx, tile_size);
                 let background_color_desc_future = background.get_color_description_task(ctx);
-                let frame_futures: Box<[BasicTask<MaybeFromPool<Pixmap>>]> = frames
+                let frame_futures: Vec<Shared<BasicTask<MaybeFromPool<Pixmap>>>> = frames
                     .iter()
                     .map(|frame| frame.add_to(ctx, tile_size))
+                    .map(FutureExt::shared)
                     .collect();
                 async move {
                     let background_opaque =
                         background_color_desc_future.await.transparency() == Opaque;
                     let background = background_future.await;
-                    animate(&background, frame_futures.to_vec(), !background_opaque).await
+                    animate(&background, Box::new(frame_futures.into_iter()), !background_opaque).await
                 }.boxed()
             }
             ToPixmapTaskSpec::FromSvg { source } => {
@@ -143,8 +144,8 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
         };
         info!("Adding node: {}", name);
         let task = task.shared();
-        ctx.insert_pixmap_future(tile_size, self.to_owned(), task.to_owned());
-        task
+        ctx.insert_pixmap_future(tile_size, self.to_owned(), task.to_owned().boxed());
+        Box::pin(task)
     }
 }
 
@@ -157,7 +158,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
         let name: String = self.to_string();
         if let Some(existing_future) = ctx.get_alpha_future(tile_size, self) {
             info!("Matched an existing node: {}", name);
-            return existing_future.to_owned();
+            return Box::pin(existing_future.to_owned());
         }
         if let ToAlphaChannelTaskSpec::UpscaleFromGridSize { .. } = self {
             // Fall through; let expressions can't be inverted
@@ -229,7 +230,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
         info!("Adding node: {}", name);
         let task = task.shared();
         ctx.insert_alpha_future(tile_size, self.to_owned(), task.to_owned());
-        task
+        Box::pin(task)
     }
 }
 
@@ -238,7 +239,9 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
         let name = format!("{}", self);
         if let Some(existing_future) = ctx.output_task_to_future_map.get(self) {
             info!("Matched an existing node: {}", name);
-            return existing_future.to_owned();
+            let shared = existing_future.shared().boxed();
+            ctx.output_task_to_future_map[self] = shared;
+            return shared.clone();
         }
         let task = match self {
             FileOutputTaskSpec::PngOutput { base, .. } => {
@@ -280,8 +283,8 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
         info!("Adding node: {}", name);
         let task = task.shared();
         ctx.output_task_to_future_map
-            .insert(self.to_owned(), task.to_owned());
-        task
+            .insert(self.to_owned(), Box::pin(task.to_owned()));
+        Box::pin(task)
     }
 }
 
@@ -697,15 +700,15 @@ impl ToAlphaChannelTaskSpec {
         ctx: &mut TaskGraphBuildingContext,
     ) -> BasicTask<U8BitSet> {
         if let Some(alpha_vec) = ctx.alpha_task_to_alpha_map.get(self) {
-            return alpha_vec.to_owned();
+            return Box::pin(alpha_vec.to_owned());
         }
         let alpha_vec: BasicTask<U8BitSet> = match self {
             ToAlphaChannelTaskSpec::MakeSemitransparent { alpha, base } => {
                 let alpha = *alpha;
                 let base_alphas_task = base.get_possible_alpha_values(ctx);
-                async move {
+                Box::pin(async move {
                     Arcow::from_owned(multiply_alpha_vec(*base_alphas_task.await, alpha))
-                }.boxed().shared()
+                })
             }
             ToAlphaChannelTaskSpec::FromPixmap { base } => base.get_possible_alpha_values(ctx),
             StackAlphaOnAlpha {
@@ -714,11 +717,11 @@ impl ToAlphaChannelTaskSpec {
             } => {
                 let bg_task = background.get_possible_alpha_values(ctx);
                 let fg_task = foreground.get_possible_alpha_values(ctx);
-                async move {
+                Box::pin(async move {
                     Arcow::from_owned(
                         stack_alpha_vecs(*bg_task.await, *fg_task.await)
                     )
-                }.boxed().shared()
+                })
             }
             ToAlphaChannelTaskSpec::StackAlphaOnBackground {
                 background: background_alpha,
@@ -726,20 +729,21 @@ impl ToAlphaChannelTaskSpec {
             } => {
                 let background_alpha = *background_alpha;
                 let fg_task = foreground.get_possible_alpha_values(ctx);
-                async move {
+                Box::pin(async move {
                     Arcow::from_owned(stack_alpha_vecs(
                         U8BitSet::from_iter([background_alpha]),
                         *fg_task.await,
                     ))
-                }.boxed().shared()
+                })
             }
             ToAlphaChannelTaskSpec::UpscaleFromGridSize { base } => {
                 base.get_possible_alpha_values(ctx)
             }
         };
+        let alpha_vec = alpha_vec.shared();
         ctx.alpha_task_to_alpha_map
-            .insert(self.to_owned(), alpha_vec.to_owned());
-        alpha_vec
+            .insert(self.to_owned(), alpha_vec.clone());
+        Box::pin(alpha_vec)
     }
 
     fn is_grid_perfect(&self, ctx: &mut TaskGraphBuildingContext) -> bool {
@@ -1052,7 +1056,7 @@ impl ToPixmapTaskSpec {
         ctx: &mut TaskGraphBuildingContext,
     ) -> BasicTask<ColorDescription> {
         if let Some(desc) = ctx.pixmap_task_to_color_map.get(self) {
-            return (*desc).to_owned();
+            return Box::pin((*desc).to_owned());
         }
         let side_length = if *TILE_SIZE == GRID_SIZE || self.is_grid_perfect(ctx) {
             GRID_SIZE
@@ -1152,10 +1156,10 @@ impl ToPixmapTaskSpec {
             let mut uncapped = task.await;
             uncapped.cap_indexed(pixels, image_task).await;
             uncapped
-        }.boxed().shared();
+        };
         ctx.pixmap_task_to_color_map
-            .insert(self.to_owned(), wrapped_task.to_owned());
-        wrapped_task
+            .insert(self.to_owned(), wrapped_task.clone());
+        Box::pin(wrapped_task)
     }
 
     fn get_possible_alpha_values(
@@ -1163,7 +1167,7 @@ impl ToPixmapTaskSpec {
         ctx: &mut TaskGraphBuildingContext,
     ) -> BasicTask<U8BitSet> {
         if let Some(alphas) = ctx.pixmap_task_to_alpha_map.get(self) {
-            alphas.to_owned()
+            Box::pin(alphas.to_owned())
         } else {
             let color_task = self.get_color_description_task(ctx);
             let task = async move {
@@ -1188,10 +1192,10 @@ impl ToPixmapTaskSpec {
                             Opaque => U8BitSet::from_iter([u8::MAX]),
                         }
                     })
-                }.boxed().shared();
+                };
             ctx.pixmap_task_to_alpha_map
-                .insert(self.to_owned(), task.to_owned());
-            task
+                .insert(self.to_owned(), task.clone());
+            Box::pin(task)
         }
     }
 
@@ -1256,17 +1260,17 @@ impl From<ToPixmapTaskSpec> for ToAlphaChannelTaskSpec {
     }
 }
 
-pub type BasicTask<T> = Shared<BoxFuture<'static, SimpleArcow<T>>>;
+pub type BasicTask<T> = BoxFuture<'static, SimpleArcow<T>>;
 
 pub struct TaskGraphBuildingContext {
     pixmap_task_to_future_map:
-        HashMap<u32, HashMap<ToPixmapTaskSpec, BasicTask<MaybeFromPool<Pixmap>>>>,
+        HashMap<u32, HashMap<ToPixmapTaskSpec, Shared<BasicTask<MaybeFromPool<Pixmap>>>>>,
     alpha_task_to_future_map:
-        HashMap<u32, HashMap<ToAlphaChannelTaskSpec, BasicTask<MaybeFromPool<Mask>>>>,
+        HashMap<u32, HashMap<ToAlphaChannelTaskSpec, Shared<BasicTask<MaybeFromPool<Mask>>>>>,
     pub output_task_to_future_map: HashMap<FileOutputTaskSpec, BasicTask<()>>,
-    pixmap_task_to_color_map: HashMap<ToPixmapTaskSpec, BasicTask<ColorDescription>>,
-    alpha_task_to_alpha_map: HashMap<ToAlphaChannelTaskSpec, BasicTask<U8BitSet>>,
-    pixmap_task_to_alpha_map: HashMap<ToPixmapTaskSpec, BasicTask<U8BitSet>>,
+    pixmap_task_to_color_map: HashMap<ToPixmapTaskSpec, Shared<BasicTask<ColorDescription>>>,
+    alpha_task_to_alpha_map: HashMap<ToAlphaChannelTaskSpec, Shared<BasicTask<U8BitSet>>>,
+    pixmap_task_to_alpha_map: HashMap<ToPixmapTaskSpec, Shared<BasicTask<U8BitSet>>>,
 }
 
 impl TaskGraphBuildingContext {
@@ -1285,7 +1289,7 @@ impl TaskGraphBuildingContext {
         &self,
         tile_size: u32,
         task: &ToPixmapTaskSpec,
-    ) -> Option<&BasicTask<MaybeFromPool<Pixmap>>> {
+    ) -> Option<&Shared<BasicTask<MaybeFromPool<Pixmap>>>> {
         self.pixmap_task_to_future_map.get(&tile_size)?.get(task)
     }
 
@@ -1293,7 +1297,7 @@ impl TaskGraphBuildingContext {
         &self,
         tile_size: u32,
         task: &ToAlphaChannelTaskSpec,
-    ) -> Option<&BasicTask<MaybeFromPool<Mask>>> {
+    ) -> Option<&Shared<BasicTask<MaybeFromPool<Mask>>>> {
         self.alpha_task_to_future_map.get(&tile_size)?.get(task)
     }
 
@@ -1305,11 +1309,11 @@ impl TaskGraphBuildingContext {
     ) {
         match self.pixmap_task_to_future_map.get_mut(&tile_size) {
             Some(map_for_tile_size) => {
-                map_for_tile_size.insert(task, value);
+                map_for_tile_size.insert(task, value.shared());
             }
             None => {
                 let mut new_map = HashMap::new();
-                new_map.insert(task, value);
+                new_map.insert(task, value.shared());
                 self.pixmap_task_to_future_map.insert(tile_size, new_map);
             }
         }
@@ -1319,7 +1323,7 @@ impl TaskGraphBuildingContext {
         &mut self,
         tile_size: u32,
         task: ToAlphaChannelTaskSpec,
-        value: BasicTask<MaybeFromPool<Mask>>,
+        value: Shared<BasicTask<MaybeFromPool<Mask>>>
     ) {
         match self.alpha_task_to_future_map.get_mut(&tile_size) {
             Some(map_for_tile_size) => {

@@ -15,7 +15,7 @@ use texture_base::material::Material;
 use tokio::runtime::{Builder, Handle};
 
 use crate::image_tasks::task_spec::{
-    FileOutputTaskSpec, TaskGraphBuildingContext, TaskSpecTraits, METADATA_DIR,
+    TaskGraphBuildingContext, TaskSpecTraits, METADATA_DIR,
 };
 
 mod image_tasks;
@@ -163,7 +163,7 @@ fn main() -> Result<(), CloneableError> {
         });
         let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
         let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
-        for task in out_tasks.iter() {
+        for task in out_tasks {
             task_futures.spawn(task.add_to(&mut ctx, tile_size).map(drop));
         }
         info!("All output tasks added to graph");

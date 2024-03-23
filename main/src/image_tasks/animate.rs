@@ -1,3 +1,6 @@
+use futures_util::future::Shared;
+use std::ops::Deref;
+use futures_util::FutureExt;
 use resvg::tiny_skia::{Pixmap, PixmapPaint, Transform};
 
 use crate::image_tasks::cloneable::{Arcow, SimpleArcow};
@@ -6,7 +9,7 @@ use crate::image_tasks::task_spec::BasicTask;
 
 pub async fn animate(
     background: &Pixmap,
-    frames: Vec<BasicTask<MaybeFromPool<Pixmap>>>,
+    frames: Box<dyn ExactSizeIterator<Item=Shared<BasicTask<MaybeFromPool<Pixmap>>>>>,
     clear_output: bool,
 ) -> SimpleArcow<MaybeFromPool<Pixmap>> {
     let frame_height = background.height();
@@ -28,7 +31,7 @@ pub async fn animate(
         );
     }
     for (index, frame) in frames.into_iter().enumerate() {
-        let frame_pixmap = frame.await;
+        let frame_pixmap = frame.to_owned().await;
         out.draw_pixmap(
             0,
             (index as i32) * (frame_height as i32),

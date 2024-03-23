@@ -45,15 +45,15 @@ pub const MUSIC_DISC_5: MusicDisc = MusicDisc {
 };
 
 impl Material for MusicDisc {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
-        Arc::new([out_task(
+    fn get_output_tasks(&self) -> impl Iterator<Item=FileOutputTaskSpec> {
+        [out_task(
             format!("item/music_disc_{}", self.name),
             stack!(
                 paint_svg_task("musicDisc", ComparableColor::STONE_EXTREME_SHADOW),
                 paint_svg_task("musicDiscGroove", ComparableColor::DARKEST_GRAY),
                 paint_svg_task("musicDiscLabel", *self.color)
             ),
-        )])
+        )].into_iter()
     }
 }
 

@@ -28,14 +28,14 @@ impl PolishableBlock {
 }
 
 impl Material for PolishableBlock {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
-        Arc::new([
+    fn get_output_tasks(&self) -> impl Iterator<Item=FileOutputTaskSpec> {
+        [
             out_task(format!("block/{}", self.name), self.texture()),
             out_task(
                 format!("block/polished_{}", self.name),
                 self.polished_texture(),
             ),
-        ])
+        ].into_iter()
     }
 }
 

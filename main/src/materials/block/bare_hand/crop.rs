@@ -5,7 +5,6 @@ use crate::image_tasks::task_spec::{
 use crate::materials::block::axe::wood::{CRIMSON_LEAVES_HIGHLIGHT, CRIMSON_LEAVES_SHADOW};
 use crate::texture_base::material::Material;
 use crate::{group, stack};
-use std::sync::Arc;
 
 const VEG_LEAVES_SHADOW: ComparableColor = c(0x256325);
 const VEG_LEAVES_HIGHLIGHT: ComparableColor = c(0x55ff2d);
@@ -23,7 +22,7 @@ where
 }
 
 impl Material for Crop {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
+    fn get_output_tasks(&self) -> impl Iterator<Item=FileOutputTaskSpec> {
         let mut output = Vec::with_capacity(self.stages as usize);
         for stage in 0..(self.stages - 1) {
             output.push(out_task(
@@ -35,7 +34,7 @@ impl Material for Crop {
             format!("block/{}_stage{}", self.name, self.stages - 1),
             (self.create_texture_for_final_stage)(),
         ));
-        output.into()
+        output.into_iter()
     }
 }
 

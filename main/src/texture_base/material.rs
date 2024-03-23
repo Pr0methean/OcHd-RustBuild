@@ -14,10 +14,10 @@ use crate::image_tasks::task_spec::{
 pub trait Material {
     /// Converts this specification to a number of [PngOutput] instances, each of which references
     /// another [TaskSpec] to generate the image it will output.
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]>;
+    fn get_output_tasks(&self) -> impl Iterator<Item=FileOutputTaskSpec>;
 
     fn get_output_task_by_name(&self, name: &str) -> Result<FileOutputTaskSpec, CloneableError> {
-        for output_task in self.get_output_tasks().iter() {
+        for output_task in self.get_output_tasks() {
             if output_task.get_path().contains(name) {
                 return Ok(output_task.to_owned());
             }
@@ -26,13 +26,14 @@ pub trait Material {
     }
 }
 
+#[derive(Clone)]
 pub struct MaterialGroup {
-    pub(crate) tasks: Arc<[FileOutputTaskSpec]>,
+    pub(crate) tasks: Box<dyn Iterator<Item=FileOutputTaskSpec> + Sync + Send>,
 }
 
 impl Material for MaterialGroup {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
-        self.tasks.to_owned()
+    fn get_output_tasks(&self) -> impl Iterator<Item=FileOutputTaskSpec> {
+        self.clone().tasks.collect::<Vec<_>>().into_iter()
     }
 }
 
@@ -56,9 +57,9 @@ macro_rules! group {
             $({
                 #![allow(unused)]
                 use $crate::texture_base::material::Material;
-                tasks.extend($members.get_output_tasks().iter().cloned());
+                tasks.extend($members.get_output_tasks());
             })*
-            $crate::texture_base::material::MaterialGroup { tasks: tasks.into() }
+            $crate::texture_base::material::MaterialGroup { tasks: Box::new(tasks.into_iter()) }
         });
     }
 }
@@ -85,7 +86,7 @@ pub struct SingleTextureTricolorMaterial {
 }
 
 impl Material for SingleTextureTricolorMaterial {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
+    fn get_output_tasks(&self) -> impl Iterator<Item=FileOutputTaskSpec> {
         self.material.get_output_tasks()
     }
 }
@@ -111,8 +112,8 @@ impl From<SingleTextureMaterial> for ToPixmapTaskSpec {
 }
 
 impl Material for SingleTextureMaterial {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
-        Arc::new([out_task(self.name, self.texture())])
+    fn get_output_tasks(&self) -> impl Iterator<Item=FileOutputTaskSpec> {
+        [out_task(self.name, self.texture())].into_iter()
     }
 }
 
@@ -223,11 +224,11 @@ pub struct CopiedMaterial {
 }
 
 impl Material for CopiedMaterial {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
-        Arc::new([FileOutputTaskSpec::Copy {
+    fn get_output_tasks(&self) -> impl Iterator<Item=FileOutputTaskSpec> {
+        [FileOutputTaskSpec::Copy {
             original: Box::new(self.source.to_owned()),
             link_name: self.name.into(),
-        }])
+        }].into_iter()
     }
 }
 
@@ -306,14 +307,14 @@ pub struct DoubleTallBlock {
 }
 
 impl Material for DoubleTallBlock {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
-        Arc::new([
+    fn get_output_tasks(&self) -> impl Iterator<Item=FileOutputTaskSpec> {
+        [
             out_task(
                 format!("block/{}_bottom", self.name),
                 self.bottom.to_owned(),
             ),
             out_task(format!("block/{}_top", self.name), self.top.to_owned()),
-        ])
+        ].into_iter()
     }
 }
 
@@ -328,8 +329,8 @@ pub struct GroundCoverBlock {
 }
 
 impl Material for GroundCoverBlock {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
-        Arc::new([
+    fn get_output_tasks(&self) -> impl Iterator<Item=FileOutputTaskSpec> {
+        [
             out_task(
                 format!("block/{}{}", self.name, self.top_name_suffix),
                 self.top.to_owned(),
@@ -341,7 +342,7 @@ impl Material for GroundCoverBlock {
                     foreground: Box::new(self.cover_side.to_owned()),
                 },
             ),
-        ])
+        ].into_iter()
     }
 }
 
@@ -392,15 +393,15 @@ pub struct SingleLayerMaterial {
 }
 
 impl Material for SingleLayerMaterial {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
-        Arc::new([out_task(
+    fn get_output_tasks(&self) -> impl Iterator<Item=FileOutputTaskSpec> {
+        [out_task(
             self.name,
             if let Some(color) = self.color {
                 paint_svg_task(self.layer_name, color)
             } else {
                 from_svg_task(self.layer_name)
             },
-        )])
+        )].into_iter()
     }
 }
 
@@ -412,8 +413,8 @@ pub struct RedstoneOffOnBlockPair {
 }
 
 impl Material for RedstoneOffOnBlockPair {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
-        Arc::new([
+    fn get_output_tasks(&self) -> impl Iterator<Item=FileOutputTaskSpec> {
+        [
             out_task(
                 format!("block/{}", self.name),
                 (self.create_texture)(ComparableColor::BLACK),
@@ -422,7 +423,7 @@ impl Material for RedstoneOffOnBlockPair {
                 format!("block/{}_on", self.name),
                 (self.create_texture)(REDSTONE_ON),
             ),
-        ])
+        ].into_iter()
     }
 }
 
