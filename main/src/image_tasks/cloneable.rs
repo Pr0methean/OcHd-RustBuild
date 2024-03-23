@@ -32,7 +32,7 @@ where
     Borrowing(&'a UnsizedType),
 }
 
-pub type Name = Arcow<'static, str, String>;
+pub type Name = Arcow<'static, str, Box<str>>;
 pub type SimpleArcow<T> = Arcow<'static, T, T>;
 
 impl<'a, UnsizedType: ?Sized, SizedType: Clone> Clone for Arcow<'a, UnsizedType, SizedType>
