@@ -176,10 +176,12 @@ fn main() -> Result<(), CloneableError> {
                 task_futures.spawn(task.add_to(&mut ctx, tile_size).map(drop));
             }
         }
+        info!("All large output tasks added to graph");
         small_tasks.into_iter().for_each(|task| {
             task_futures.spawn(task.add_to(&mut ctx, tile_size).map(drop));
         });
         drop(ctx);
+        info!("All small output tasks added to graph");
         remove_finished(&mut task_futures);
         while !task_futures.is_empty() {
             task_futures.join_next().await;
