@@ -2,7 +2,6 @@ use crate::image_tasks::color::c;
 use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::task_spec::{out_task, FileOutputTaskSpec, ToPixmapTaskSpec};
 use crate::texture_base::material::Material;
-use std::sync::Arc;
 
 macro_rules! dyes {
     ($($name:tt = $color:expr),+) => {
@@ -47,7 +46,7 @@ impl<T> Material for DyedBlock<T>
 where
     T: Fn(ComparableColor) -> ToPixmapTaskSpec,
 {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
+    fn get_output_tasks(&self) -> Box<[FileOutputTaskSpec]> {
         let mut out = Vec::with_capacity(DYES.len());
         for (dye_name, dye_color) in DYES {
             out.push(out_task(

@@ -10,7 +10,6 @@ use crate::texture_base::material::{
 };
 use crate::{group, paint_stack, stack, stack_on};
 use once_cell::sync::Lazy;
-use std::sync::Arc;
 
 pub static OVERWORLD_SUBSTRATES: Lazy<Vec<OreBase>> =
     Lazy::new(|| vec![STONE_BASE.to_owned(), DEEPSLATE_BASE.to_owned()]);
@@ -119,7 +118,7 @@ impl Ore {
 }
 
 impl Material for Ore {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
+    fn get_output_tasks(&self) -> Box<[FileOutputTaskSpec]> {
         let mut output = Vec::with_capacity(7);
         for substrate in &self.substrates {
             output.push(out_task(

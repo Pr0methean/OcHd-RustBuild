@@ -4,7 +4,6 @@ use crate::image_tasks::task_spec::{
 };
 use crate::texture_base::material::{ColorTriad, Material};
 use crate::{stack, stack_on};
-use std::sync::Arc;
 
 struct CommandBlockSideType {
     name: &'static str,
@@ -91,7 +90,7 @@ pub enum CommandBlocks {
 }
 
 impl Material for CommandBlocks {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
+    fn get_output_tasks(&self) -> Box<[FileOutputTaskSpec]> {
         COLOR_TYPES
             .iter()
             .flat_map(|color_type| {

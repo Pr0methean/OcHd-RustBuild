@@ -5,7 +5,6 @@ use crate::image_tasks::task_spec::{
 use crate::materials::block::pickaxe::ore::GOLD;
 use crate::texture_base::material::{ColorTriad, Material, TricolorMaterial};
 use crate::{block_with_colors, group, paint_stack, single_texture_block, stack};
-use std::sync::Arc;
 
 pub struct PolishableBlock {
     pub name: &'static str,
@@ -28,8 +27,8 @@ impl PolishableBlock {
 }
 
 impl Material for PolishableBlock {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
-        Arc::new([
+    fn get_output_tasks(&self) -> Box<[FileOutputTaskSpec]> {
+        Box::new([
             out_task(format!("block/{}", self.name), self.texture()),
             out_task(
                 format!("block/polished_{}", self.name),

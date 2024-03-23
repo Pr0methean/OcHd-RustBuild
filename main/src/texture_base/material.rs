@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 use std::hash::Hash;
-use std::sync::Arc;
 
 use crate::anyhoo;
 use crate::image_tasks::cloneable::CloneableError;
@@ -14,7 +13,7 @@ use crate::image_tasks::task_spec::{
 pub trait Material {
     /// Converts this specification to a number of [PngOutput] instances, each of which references
     /// another [TaskSpec] to generate the image it will output.
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]>;
+    fn get_output_tasks(&self) -> Box<[FileOutputTaskSpec]>;
 
     fn get_output_task_by_name(&self, name: &str) -> Result<FileOutputTaskSpec, CloneableError> {
         for output_task in self.get_output_tasks().iter() {
@@ -27,11 +26,11 @@ pub trait Material {
 }
 
 pub struct MaterialGroup {
-    pub(crate) tasks: Arc<[FileOutputTaskSpec]>,
+    pub(crate) tasks: Box<[FileOutputTaskSpec]>,
 }
 
 impl Material for MaterialGroup {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
+    fn get_output_tasks(&self) -> Box<[FileOutputTaskSpec]> {
         self.tasks.to_owned()
     }
 }
@@ -85,7 +84,7 @@ pub struct SingleTextureTricolorMaterial {
 }
 
 impl Material for SingleTextureTricolorMaterial {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
+    fn get_output_tasks(&self) -> Box<[FileOutputTaskSpec]> {
         self.material.get_output_tasks()
     }
 }
@@ -111,8 +110,8 @@ impl From<SingleTextureMaterial> for ToPixmapTaskSpec {
 }
 
 impl Material for SingleTextureMaterial {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
-        Arc::new([out_task(self.name, self.texture())])
+    fn get_output_tasks(&self) -> Box<[FileOutputTaskSpec]> {
+        Box::new([out_task(self.name, self.texture())])
     }
 }
 
@@ -223,8 +222,8 @@ pub struct CopiedMaterial {
 }
 
 impl Material for CopiedMaterial {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
-        Arc::new([FileOutputTaskSpec::Copy {
+    fn get_output_tasks(&self) -> Box<[FileOutputTaskSpec]> {
+        Box::new([FileOutputTaskSpec::Copy {
             original: Box::new(self.source.to_owned()),
             link_name: self.name.into(),
         }])
@@ -306,8 +305,8 @@ pub struct DoubleTallBlock {
 }
 
 impl Material for DoubleTallBlock {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
-        Arc::new([
+    fn get_output_tasks(&self) -> Box<[FileOutputTaskSpec]> {
+        Box::new([
             out_task(
                 format!("block/{}_bottom", self.name),
                 self.bottom.to_owned(),
@@ -328,8 +327,8 @@ pub struct GroundCoverBlock {
 }
 
 impl Material for GroundCoverBlock {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
-        Arc::new([
+    fn get_output_tasks(&self) -> Box<[FileOutputTaskSpec]> {
+        Box::new([
             out_task(
                 format!("block/{}{}", self.name, self.top_name_suffix),
                 self.top.to_owned(),
@@ -392,8 +391,8 @@ pub struct SingleLayerMaterial {
 }
 
 impl Material for SingleLayerMaterial {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
-        Arc::new([out_task(
+    fn get_output_tasks(&self) -> Box<[FileOutputTaskSpec]> {
+        Box::new([out_task(
             self.name,
             if let Some(color) = self.color {
                 paint_svg_task(self.layer_name, color)
@@ -412,8 +411,8 @@ pub struct RedstoneOffOnBlockPair {
 }
 
 impl Material for RedstoneOffOnBlockPair {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
-        Arc::new([
+    fn get_output_tasks(&self) -> Box<[FileOutputTaskSpec]> {
+        Box::new([
             out_task(
                 format!("block/{}", self.name),
                 (self.create_texture)(ComparableColor::BLACK),

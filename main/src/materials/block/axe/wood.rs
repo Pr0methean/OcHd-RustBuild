@@ -4,7 +4,6 @@ use crate::image_tasks::task_spec::{
 };
 use crate::{group, paint_stack, stack, stack_on};
 use once_cell::sync::Lazy;
-use std::sync::Arc;
 
 use crate::texture_base::material::{
     Material, TextureBinaryFunc, TextureSupplier, TextureUnaryFunc, TricolorMaterial,
@@ -734,12 +733,12 @@ pub static WARPED: Lazy<Wood> = Lazy::new(|| {
 });
 
 impl Material for Wood {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
+    fn get_output_tasks(&self) -> Box<[FileOutputTaskSpec]> {
         let door_common_layers: ToPixmapTaskSpec = (self.door_common_layers)(self);
         let door_bottom: ToPixmapTaskSpec = (self.door_bottom)(self, door_common_layers.to_owned());
         let stripped_log_side: ToPixmapTaskSpec = (self.stripped_log_side)(self);
         let stripped_log_top: ToPixmapTaskSpec = (self.stripped_log_top)(self);
-        Arc::new([
+        Box::new([
             out_task(
                 format!("block/{}_{}", self.name, self.log_synonym),
                 (self.bark)(self),

@@ -3,7 +3,6 @@ use crate::image_tasks::task_spec::{out_task, paint_svg_task, FileOutputTaskSpec
 use crate::texture_base::dyes::*;
 use crate::texture_base::material::Material;
 use crate::{group, single_texture_item, stack};
-use std::sync::Arc;
 
 macro_rules! discs {
     ($($name:ident = $dye:expr),+) => {
@@ -45,8 +44,8 @@ pub const MUSIC_DISC_5: MusicDisc = MusicDisc {
 };
 
 impl Material for MusicDisc {
-    fn get_output_tasks(&self) -> Arc<[FileOutputTaskSpec]> {
-        Arc::new([out_task(
+    fn get_output_tasks(&self) -> Box<[FileOutputTaskSpec]> {
+        Box::new([out_task(
             format!("item/music_disc_{}", self.name),
             stack!(
                 paint_svg_task("musicDisc", ComparableColor::STONE_EXTREME_SHADOW),
