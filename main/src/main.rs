@@ -163,7 +163,6 @@ fn main() -> Result<(), CloneableError> {
         });
         let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
         let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
-        let mut large_tasks = Vec::with_capacity(out_tasks.len());
         let mut small_tasks = Vec::with_capacity(out_tasks.len());
         for task in out_tasks.iter() {
             let new_task = task.add_to(&mut ctx, tile_size);
@@ -171,16 +170,13 @@ fn main() -> Result<(), CloneableError> {
                 && let FileOutputTaskSpec::PngOutput { base, .. } = task
                 && !base.is_grid_perfect(&mut ctx)
             {
-                large_tasks.push(new_task);
+                task_futures.spawn(new_task);
             } else {
                 small_tasks.push(new_task);
-            }
+            };
         }
         drop(ctx);
-        large_tasks.into_iter().chain(small_tasks)
-            .for_each(|future| {
-                task_futures.spawn(future.map(drop));
-        });
+        small_tasks.into_iter().for_each(|task| {task_futures.spawn(task); });
         remove_finished(&mut task_futures);
         while !task_futures.is_empty() {
             task_futures.join_next().await;
