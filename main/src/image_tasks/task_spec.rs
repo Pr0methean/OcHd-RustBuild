@@ -250,9 +250,10 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
                 };
                 let base_future = base.add_to(ctx, base_size);
                 let destination_path = self.get_path();
+                let base_name = base.to_string();
                 async move {
                     let (color_type, bit_depth) =
-                        color_description_to_mode(&*base_color_desc_future.await, &name);
+                        color_description_to_mode(&*base_color_desc_future.await, &base_name);
                     let base_result = base_future.await;
                     base_result.consume(|image| {
                         png_output(
