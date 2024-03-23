@@ -83,6 +83,8 @@ fn copy_metadata(source_dir: &Dir) {
     });
 }
 
+const MIN_METRICS_INTERVAL: Duration = Duration::from_secs(5);
+
 fn main() -> Result<(), CloneableError> {
     simple_logging::log_to_file("./log.txt", LevelFilter::Info)
         .expect("Failed to configure file logging");
@@ -112,7 +114,7 @@ fn main() -> Result<(), CloneableError> {
     let runtime = runtime.build()?;
     runtime.spawn(async move {
         loop {
-            sleep(Duration::from_millis(500)).await;
+            sleep(MIN_METRICS_INTERVAL).await;
             let m = Handle::current().metrics();
             macro_rules! log_metric {
                 ($metrics:expr, $metric:ident) => {
