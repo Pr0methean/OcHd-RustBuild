@@ -175,11 +175,9 @@ impl<'a, UnsizedType: ?Sized, SizedType: Clone> Arcow<'a, UnsizedType, SizedType
 where
     SizedType: Borrow<UnsizedType>,
 {
-    // The multiplier of 8 is based on the size of CPU cache lines, but Clippy thinks we're
-    // converting a size from bytes to bits.
-    #[allow(clippy::manual_bits)]
-    const ARC_THRESHOLD_OWNED: usize = 8 * size_of::<usize>();
-    const ARC_THRESHOLD_BORROWED: usize = 2 * size_of::<usize>();
+    // The multiplier of 8 is based on the size of CPU cache lines.
+    const ARC_THRESHOLD_OWNED: usize = size_of::<[usize; 8]>();
+    const ARC_THRESHOLD_BORROWED: usize = size_of::<[usize; 8]>();
 }
 
 impl<'a, UnsizedType: ?Sized, SizedType: Clone> Arcow<'a, UnsizedType, SizedType>
