@@ -1,8 +1,8 @@
 use resvg::tiny_skia::{Pixmap, PixmapPaint, Transform};
 
 use crate::image_tasks::cloneable::{Arcow, SimpleArcow};
-use crate::image_tasks::{allocate_pixmap_empty, allocate_pixmap_for_overwrite, MaybeFromPool};
 use crate::image_tasks::task_spec::BasicTask;
+use crate::image_tasks::{allocate_pixmap_empty, allocate_pixmap_for_overwrite, MaybeFromPool};
 
 pub async fn animate(
     background: &Pixmap,

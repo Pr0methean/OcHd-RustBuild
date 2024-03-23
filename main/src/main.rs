@@ -14,9 +14,7 @@ use log::{info, warn, LevelFilter};
 use texture_base::material::Material;
 use tokio::runtime::{Builder, Handle};
 
-use crate::image_tasks::task_spec::{
-    FileOutputTaskSpec, TaskGraphBuildingContext, TaskSpecTraits, METADATA_DIR,
-};
+use crate::image_tasks::task_spec::{TaskGraphBuildingContext, TaskSpecTraits, METADATA_DIR};
 
 mod image_tasks;
 mod materials;
@@ -26,6 +24,7 @@ mod u8set;
 use crate::image_tasks::png_output::{copy_in_to_out, ZIP};
 use crate::image_tasks::prewarm_pixmap_pool;
 use crate::image_tasks::repaint::prewarm_mask_pool;
+use futures_util::FutureExt;
 use image_tasks::cloneable::CloneableError;
 use include_dir::{Dir, DirEntry};
 #[cfg(not(any(test, clippy)))]
@@ -36,8 +35,7 @@ use std::fs;
 use std::fs::create_dir_all;
 use std::hint::unreachable_unchecked;
 use std::ops::DerefMut;
-use std::thread::{available_parallelism};
-use futures_util::FutureExt;
+use std::thread::available_parallelism;
 use tikv_jemallocator::Jemalloc;
 use tokio::task::JoinSet;
 use tokio::time::sleep;
@@ -102,14 +100,17 @@ fn main() -> Result<(), CloneableError> {
         Ok(parallelism) => {
             let adjusted_parallelism = parallelism.get() + 1;
             if adjusted_parallelism.count_ones() <= 1 {
-                warn!("Adjusting CPU count from {} to {}", parallelism, adjusted_parallelism);
+                warn!(
+                    "Adjusting CPU count from {} to {}",
+                    parallelism, adjusted_parallelism
+                );
                 // Compensate for missed CPU core on m7g.16xlarge
                 runtime.worker_threads(adjusted_parallelism);
             } else {
                 info!("Rayon thread pool has {} threads", parallelism);
             }
         }
-        Err(e) => warn!("Unable to get available parallelism: {}", e)
+        Err(e) => warn!("Unable to get available parallelism: {}", e),
     }
     let runtime = runtime.build()?;
     runtime.spawn(async move {
@@ -119,15 +120,18 @@ fn main() -> Result<(), CloneableError> {
             macro_rules! log_metric {
                 ($metrics:expr, $metric:ident) => {
                     info!("{:30}: {:5}", stringify!($metric), $metrics.$metric());
-                }
+                };
             }
             macro_rules! log_metric_per_worker {
                 ($metrics:expr, $metric:ident) => {
-                    info!("{:30}: {:?}", stringify!($metric),
+                    info!(
+                        "{:30}: {:?}",
+                        stringify!($metric),
                         (0..$metrics.num_workers())
-                        .map(|i| $metrics.$metric(i))
-                        .collect::<Vec<_>>());
-                }
+                            .map(|i| $metrics.$metric(i))
+                            .collect::<Vec<_>>()
+                    );
+                };
             }
             log_metric!(m, active_tasks_count);
             log_metric!(m, blocking_queue_depth);

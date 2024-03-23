@@ -2,19 +2,19 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use std::fmt::{Debug, Display, Formatter};
-use std::future::{ready};
+use std::future::ready;
 use std::hash::Hash;
 use std::mem::replace;
 
+use futures_util::future::{BoxFuture, Shared};
+use futures_util::FutureExt;
 use std::ops::{Deref, Mul};
 use BitDepth::Sixteen;
 use ColorType::GrayscaleAlpha;
-use futures_util::future::{BoxFuture, Shared};
-use futures_util::FutureExt;
 
 use crate::{debug_assert_unreachable, GRID_SIZE, TILE_SIZE};
 use include_dir::{include_dir, Dir};
-use itertools::{Itertools};
+use itertools::Itertools;
 
 use log::info;
 use oxipng::BitDepth::{Eight, Four, One, Two};
@@ -25,8 +25,8 @@ use oxipng::{BitDepth, RGB16, RGBA8};
 use resvg::tiny_skia::{Color, Mask, Pixmap};
 
 use crate::image_tasks::animate::animate;
+use crate::image_tasks::cloneable::Arcow::Borrowing;
 use crate::image_tasks::cloneable::{Arcow, Name, SimpleArcow};
-use crate::image_tasks::cloneable::Arcow::{Borrowing};
 use crate::image_tasks::color::{gray, ComparableColor, BIT_DEPTH_FOR_CHANNEL};
 use crate::image_tasks::from_svg::{from_svg, COLOR_SVGS, SEMITRANSPARENCY_FREE_SVGS};
 use crate::image_tasks::make_semitransparent::{
@@ -85,13 +85,13 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                         background_color_desc_future.await.transparency() == Opaque;
                     let background = background_future.await;
                     animate(&background, frame_futures.to_vec(), !background_opaque).await
-                }.boxed()
+                }
+                .boxed()
             }
             ToPixmapTaskSpec::FromSvg { source } => {
                 let source = source.to_string();
-                async move {
-                    Arcow::SharingRef(from_svg(source, tile_size).unwrap().into())
-                }.boxed()
+                async move { Arcow::SharingRef(from_svg(source, tile_size).unwrap().into()) }
+                    .boxed()
             }
             ToPixmapTaskSpec::StackLayerOnColor {
                 background,
@@ -105,7 +105,8 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                         stack_layer_on_background(background, &mut out_image).unwrap();
                         Arcow::from_owned(out_image)
                     })
-                }.boxed()
+                }
+                .boxed()
             }
             ToPixmapTaskSpec::StackLayerOnLayer {
                 background,
@@ -128,7 +129,8 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                 async move {
                     let mask = base_future.await;
                     paint(&mask, color).unwrap()
-                }.boxed()
+                }
+                .boxed()
             }
             UpscaleFromGridSize { base } => {
                 let base_future = base.add_to(ctx, GRID_SIZE);
@@ -138,7 +140,8 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                 async move {
                     let base_image = base_future.await;
                     Arcow::from_owned(upscale_image(base_image.deref(), tile_size).unwrap())
-                }.boxed()
+                }
+                .boxed()
             }
         };
         info!("Adding node: {}", name);
@@ -177,14 +180,16 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                         make_semitransparent(&mut channel, alpha);
                         Arcow::from_owned(channel)
                     })
-                }.boxed()
+                }
+                .boxed()
             }
             ToAlphaChannelTaskSpec::FromPixmap { base } => {
                 let base_future = base.add_to(ctx, tile_size);
                 async move {
                     let base_image = base_future.await;
                     base_image.consume(|base_image| Arcow::from_owned(pixmap_to_mask(&base_image)))
-                }.boxed()
+                }
+                .boxed()
             }
             StackAlphaOnAlpha {
                 background,
@@ -199,7 +204,8 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                         stack_alpha_on_alpha(&mut out_mask, fg_mask.deref());
                         Arcow::from_owned(out_mask)
                     })
-                }.boxed()
+                }
+                .boxed()
             }
             ToAlphaChannelTaskSpec::StackAlphaOnBackground {
                 background,
@@ -213,7 +219,8 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                         stack_alpha_on_background(background, &mut fg_image);
                         Arcow::from_owned(fg_image)
                     })
-                }.boxed()
+                }
+                .boxed()
             }
             ToAlphaChannelTaskSpec::UpscaleFromGridSize { base } => {
                 let base_future = base.add_to(ctx, GRID_SIZE);
@@ -223,7 +230,8 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                 async move {
                     let base_mask = base_future.await;
                     Arcow::from_owned(upscale_mask(base_mask.deref(), tile_size).unwrap())
-                }.boxed()
+                }
+                .boxed()
             }
         };
         info!("Adding node: {}", name);
@@ -256,15 +264,11 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
                         color_description_to_mode(&*base_color_desc_future.await, &base_name);
                     let base_result = base_future.await;
                     base_result.consume(|image| {
-                        png_output(
-                            image,
-                            color_type,
-                            bit_depth,
-                            destination_path,
-                        ).unwrap();
+                        png_output(image, color_type, bit_depth, destination_path).unwrap();
                         Arcow::from_owned(())
                     })
-                }.boxed()
+                }
+                .boxed()
             }
             FileOutputTaskSpec::Copy { original, .. } => {
                 let base_future = original.add_to(ctx, tile_size);
@@ -274,7 +278,8 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
                     base_future.await;
                     copy_out_to_out(original_path, link).unwrap();
                     Arcow::from_owned(())
-                }.boxed()
+                }
+                .boxed()
             }
         };
         info!("Adding node: {}", name);
@@ -578,7 +583,11 @@ impl ColorDescription {
         }
     }
 
-    pub async fn cap_indexed(&mut self, max_colors: usize, image_task: BasicTask<MaybeFromPool<Pixmap>>) {
+    pub async fn cap_indexed(
+        &mut self,
+        max_colors: usize,
+        image_task: BasicTask<MaybeFromPool<Pixmap>>,
+    ) {
         if let SpecifiedColors(colors) = self {
             if colors.len() > max_colors {
                 let actual_image = image_task.await;
@@ -692,10 +701,7 @@ pub const fn channel_to_bit_depth(input: u8, depth: BitDepth) -> u16 {
 const ALL_U8S: &[u8; u8::MAX as usize + 1] = &ALPHA_MULTIPLICATION_TABLE[u8::MAX as usize];
 
 impl ToAlphaChannelTaskSpec {
-    fn get_possible_alpha_values(
-        &self,
-        ctx: &mut TaskGraphBuildingContext,
-    ) -> BasicTask<U8BitSet> {
+    fn get_possible_alpha_values(&self, ctx: &mut TaskGraphBuildingContext) -> BasicTask<U8BitSet> {
         if let Some(alpha_vec) = ctx.alpha_task_to_alpha_map.get(self) {
             return alpha_vec.to_owned();
         }
@@ -703,9 +709,9 @@ impl ToAlphaChannelTaskSpec {
             ToAlphaChannelTaskSpec::MakeSemitransparent { alpha, base } => {
                 let alpha = *alpha;
                 let base_alphas_task = base.get_possible_alpha_values(ctx);
-                async move {
-                    Arcow::from_owned(multiply_alpha_vec(*base_alphas_task.await, alpha))
-                }.boxed().shared()
+                async move { Arcow::from_owned(multiply_alpha_vec(*base_alphas_task.await, alpha)) }
+                    .boxed()
+                    .shared()
             }
             ToAlphaChannelTaskSpec::FromPixmap { base } => base.get_possible_alpha_values(ctx),
             StackAlphaOnAlpha {
@@ -714,11 +720,9 @@ impl ToAlphaChannelTaskSpec {
             } => {
                 let bg_task = background.get_possible_alpha_values(ctx);
                 let fg_task = foreground.get_possible_alpha_values(ctx);
-                async move {
-                    Arcow::from_owned(
-                        stack_alpha_vecs(*bg_task.await, *fg_task.await)
-                    )
-                }.boxed().shared()
+                async move { Arcow::from_owned(stack_alpha_vecs(*bg_task.await, *fg_task.await)) }
+                    .boxed()
+                    .shared()
             }
             ToAlphaChannelTaskSpec::StackAlphaOnBackground {
                 background: background_alpha,
@@ -731,7 +735,9 @@ impl ToAlphaChannelTaskSpec {
                         U8BitSet::from_iter([background_alpha]),
                         *fg_task.await,
                     ))
-                }.boxed().shared()
+                }
+                .boxed()
+                .shared()
             }
             ToAlphaChannelTaskSpec::UpscaleFromGridSize { base } => {
                 base.get_possible_alpha_values(ctx)
@@ -997,7 +1003,8 @@ const BLACK_TRANSPARENT: &[ComparableColor] =
     &[ComparableColor::TRANSPARENT, ComparableColor::BLACK];
 const SPECIFIED_BLACK_TRANSPARENT: ColorDescription = SpecifiedColors(Borrowing(BLACK_TRANSPARENT));
 const BLACK_TO_TRANSPARENT: &[ComparableColor] = &create_black_to_transparent();
-const SPECIFIED_BLACK_TO_TRANSPARENT: ColorDescription = SpecifiedColors(Borrowing(BLACK_TO_TRANSPARENT));
+const SPECIFIED_BLACK_TO_TRANSPARENT: ColorDescription =
+    SpecifiedColors(Borrowing(BLACK_TO_TRANSPARENT));
 const RGB_BINARY: ColorDescription = ColorDescription::Rgb(Binary);
 const RGBA_DESCRIPTION: ColorDescription = ColorDescription::Rgb(AlphaChannel);
 
@@ -1076,16 +1083,16 @@ impl ToPixmapTaskSpec {
                     let mut current_desc: Option<ColorDescription> = None;
                     let background_desc = background_desc_task.await;
                     for frame_desc_task in frame_desc_tasks.into_vec() {
-                        let frame_desc = frame_desc_task
-                            .await
-                            .stack_on(&background_desc, pixels + 1);
+                        let frame_desc =
+                            frame_desc_task.await.stack_on(&background_desc, pixels + 1);
                         current_desc = Some(match current_desc {
                             None => frame_desc,
                             Some(other_frames_desc) => frame_desc.put_adjacent(&other_frames_desc),
                         });
                     }
                     Arcow::from_owned(current_desc.unwrap())
-                }.boxed()
+                }
+                .boxed()
             }
             ToPixmapTaskSpec::FromSvg { source } => {
                 ready(Arcow::from_borrowed(if COLOR_SVGS.contains(&&**source) {
@@ -1098,7 +1105,8 @@ impl ToPixmapTaskSpec {
                     &SPECIFIED_BLACK_TRANSPARENT
                 } else {
                     &SPECIFIED_BLACK_TO_TRANSPARENT
-                })).boxed()
+                }))
+                .boxed()
             }
             ToPixmapTaskSpec::PaintAlphaChannel { color, base } => {
                 let base_task = base.get_possible_alpha_values(ctx);
@@ -1119,7 +1127,8 @@ impl ToPixmapTaskSpec {
                         colored_alphas.dedup();
                         Arcow::from_owned(colored_alphas)
                     }))
-                }.boxed()
+                }
+                .boxed()
             }
             ToPixmapTaskSpec::StackLayerOnColor {
                 background,
@@ -1128,10 +1137,12 @@ impl ToPixmapTaskSpec {
                 let background = *background;
                 let fg_task = foreground.get_color_description_task(ctx);
                 async move {
-                    Arcow::from_owned(fg_task
-                        .await
-                        .stack_on(&SpecifiedColors(Arcow::from_owned(vec![background])), pixels + 1))
-                }.boxed()
+                    Arcow::from_owned(fg_task.await.stack_on(
+                        &SpecifiedColors(Arcow::from_owned(vec![background])),
+                        pixels + 1,
+                    ))
+                }
+                .boxed()
             }
             ToPixmapTaskSpec::StackLayerOnLayer {
                 background,
@@ -1145,50 +1156,51 @@ impl ToPixmapTaskSpec {
                         .stack_on(&*bg_task.await, pixels + 1))
                 }.boxed()
             }
-            UpscaleFromGridSize { base } => Box::pin(base.get_color_description_task(ctx))
+            UpscaleFromGridSize { base } => Box::pin(base.get_color_description_task(ctx)),
         };
         let image_task = self.add_to(ctx, side_length);
         let wrapped_task = async move {
             let mut uncapped = task.await;
             uncapped.cap_indexed(pixels, image_task).await;
             uncapped
-        }.boxed().shared();
+        }
+        .boxed()
+        .shared();
         ctx.pixmap_task_to_color_map
             .insert(self.to_owned(), wrapped_task.to_owned());
         wrapped_task
     }
 
-    fn get_possible_alpha_values(
-        &self,
-        ctx: &mut TaskGraphBuildingContext,
-    ) -> BasicTask<U8BitSet> {
+    fn get_possible_alpha_values(&self, ctx: &mut TaskGraphBuildingContext) -> BasicTask<U8BitSet> {
         if let Some(alphas) = ctx.pixmap_task_to_alpha_map.get(self) {
             alphas.to_owned()
         } else {
             let color_task = self.get_color_description_task(ctx);
             let task = async move {
-                    Arcow::from_owned({
-                        let colors = color_task.await;
-                        match colors.transparency() {
-                            AlphaChannel => match &*colors {
-                                Rgb(_) => U8BitSet::all_u8s(),
-                                SpecifiedColors(colors) => {
-                                    if colors.len() <= BINARY_SEARCH_THRESHOLD {
-                                        colors.iter().map(|color| color.alpha()).collect()
-                                    } else {
-                                        ALL_U8S
-                                            .iter()
-                                            .copied()
-                                            .filter(|alpha| contains_alpha(colors, *alpha))
-                                            .collect()
-                                    }
+                Arcow::from_owned({
+                    let colors = color_task.await;
+                    match colors.transparency() {
+                        AlphaChannel => match &*colors {
+                            Rgb(_) => U8BitSet::all_u8s(),
+                            SpecifiedColors(colors) => {
+                                if colors.len() <= BINARY_SEARCH_THRESHOLD {
+                                    colors.iter().map(|color| color.alpha()).collect()
+                                } else {
+                                    ALL_U8S
+                                        .iter()
+                                        .copied()
+                                        .filter(|alpha| contains_alpha(colors, *alpha))
+                                        .collect()
                                 }
-                            },
-                            Binary => U8BitSet::from_iter([0, u8::MAX]),
-                            Opaque => U8BitSet::from_iter([u8::MAX]),
-                        }
-                    })
-                }.boxed().shared();
+                            }
+                        },
+                        Binary => U8BitSet::from_iter([0, u8::MAX]),
+                        Opaque => U8BitSet::from_iter([u8::MAX]),
+                    }
+                })
+            }
+            .boxed()
+            .shared();
             ctx.pixmap_task_to_alpha_map
                 .insert(self.to_owned(), task.to_owned());
             task
@@ -1381,10 +1393,10 @@ pub fn paint_task(base: ToAlphaChannelTaskSpec, color: ComparableColor) -> ToPix
     }
 }
 
-pub fn paint_svg_task<T: Display>(
-    name: T,
-    color: ComparableColor,
-) -> ToPixmapTaskSpec where Name: From<T> {
+pub fn paint_svg_task<T: Display>(name: T, color: ComparableColor) -> ToPixmapTaskSpec
+where
+    Name: From<T>,
+{
     let name = Name::from(name);
     if color == ComparableColor::BLACK && COLOR_SVGS.binary_search(&name.as_ref()).is_err() {
         info!("Simplified {}@{} -> {}", name, color, name);
@@ -1399,10 +1411,7 @@ pub fn paint_svg_task<T: Display>(
     }
 }
 
-pub fn out_task<T: Into<Name>>(
-    name: T,
-    base: ToPixmapTaskSpec,
-) -> FileOutputTaskSpec {
+pub fn out_task<T: Into<Name>>(name: T, base: ToPixmapTaskSpec) -> FileOutputTaskSpec {
     FileOutputTaskSpec::PngOutput {
         base,
         destination_name: name.into(),

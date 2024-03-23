@@ -7,11 +7,11 @@ use once_cell::sync::Lazy;
 #[cfg(not(debug_assertions))]
 use oxipng::Deflaters;
 use oxipng::{BitDepth, ColorType, IndexSet, Options, RawImage, RowFilter};
+use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::io::{Cursor, Write};
 use std::mem::transmute;
 use std::ops::DerefMut;
-use parking_lot::Mutex;
 
 use resvg::tiny_skia::{ColorU8, Pixmap, PremultipliedColorU8};
 use zip_next::write::FileOptions;
