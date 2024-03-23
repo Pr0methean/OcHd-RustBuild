@@ -165,7 +165,7 @@ fn main() -> Result<(), CloneableError> {
         let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
         let mut small_tasks = Vec::with_capacity(out_tasks.len());
         for task in out_tasks.iter() {
-            let new_task = task.add_to(&mut ctx, tile_size);
+            let new_task = task.add_to(&mut ctx, tile_size).map(drop);
             if tile_size > GRID_SIZE
                 && let FileOutputTaskSpec::PngOutput { base, .. } = task
                 && !base.is_grid_perfect(&mut ctx)
