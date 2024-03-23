@@ -175,8 +175,8 @@ fn main() -> Result<(), CloneableError> {
                 small_tasks.push(new_task);
             };
         }
-        drop(ctx);
         small_tasks.into_iter().for_each(|task| {task_futures.spawn(task); });
+        drop(ctx);
         remove_finished(&mut task_futures);
         while !task_futures.is_empty() {
             task_futures.join_next().await;
