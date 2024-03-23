@@ -1005,8 +1005,8 @@ const SPECIFIED_BLACK_TRANSPARENT: ColorDescription = SpecifiedColors(Borrowing(
 const BLACK_TO_TRANSPARENT: &[ComparableColor] = &create_black_to_transparent();
 const SPECIFIED_BLACK_TO_TRANSPARENT: ColorDescription =
     SpecifiedColors(Borrowing(BLACK_TO_TRANSPARENT));
-const RGB_BINARY: ColorDescription = ColorDescription::Rgb(Binary);
-const RGBA_DESCRIPTION: ColorDescription = ColorDescription::Rgb(AlphaChannel);
+const RGB_BINARY: ColorDescription = Rgb(Binary);
+const RGBA_DESCRIPTION: ColorDescription = Rgb(AlphaChannel);
 
 const fn create_black_to_transparent() -> [ComparableColor; u8::MAX as usize + 1] {
     let mut table = [ComparableColor::BLACK; u8::MAX as usize + 1];
