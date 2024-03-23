@@ -178,7 +178,8 @@ where
     // The multiplier of 8 is based on the size of CPU cache lines, but Clippy thinks we're
     // converting a size from bytes to bits.
     #[allow(clippy::manual_bits)]
-    const ARC_THRESHOLD: usize = 8 * size_of::<usize>();
+    const ARC_THRESHOLD_OWNED: usize = 8 * size_of::<usize>();
+    const ARC_THRESHOLD_BORROWED: usize = 2 * size_of::<usize>();
 }
 
 impl<'a, UnsizedType: ?Sized, SizedType: Clone> Arcow<'a, UnsizedType, SizedType>
@@ -187,7 +188,7 @@ where
     Box<UnsizedType>: From<SizedType>,
 {
     pub fn from_owned(value: SizedType) -> Self {
-        if size_of_val(&value) > Self::ARC_THRESHOLD {
+        if size_of_val(&value) > Self::ARC_THRESHOLD_OWNED {
             let boxed: Box<UnsizedType> = value.into();
             Arcow::SharingRef(Arc::from(boxed))
         } else {
@@ -210,7 +211,7 @@ where
     }
 
     pub fn from_borrowed(value: &'a UnsizedType) -> Self {
-        if size_of_val(value) > Self::ARC_THRESHOLD {
+        if size_of_val(value) > Self::ARC_THRESHOLD_BORROWED {
             Self::Borrowing(value)
         } else {
             Self::cloning_from(value.clone().into())
