@@ -97,8 +97,8 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                 background,
                 foreground,
             } => {
-                let background: Color = (*background).into();
                 let fg_future = foreground.add_to(ctx, tile_size);
+                let background: Color = (*background).into();
                 async move {
                     let fg_image = fg_future.await;
                     fg_image.consume(|mut out_image| {
@@ -242,15 +242,14 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
         }
         let task = match self {
             FileOutputTaskSpec::PngOutput { base, .. } => {
-                let destination_path = self.get_path();
+                let base_color_desc_future = base.get_color_description_task(ctx);
                 let base_size = if base.is_grid_perfect(ctx) {
                     GRID_SIZE
                 } else {
                     tile_size
                 };
                 let base_future = base.add_to(ctx, base_size);
-                let base_color_desc_future = base.get_color_description_task(ctx);
-                let name = name.to_owned();
+                let destination_path = self.get_path();
                 async move {
                     let (color_type, bit_depth) =
                         color_description_to_mode(&*base_color_desc_future.await, &name);
@@ -267,9 +266,9 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
                 }.boxed()
             }
             FileOutputTaskSpec::Copy { original, .. } => {
+                let base_future = original.add_to(ctx, tile_size);
                 let link = self.get_path();
                 let original_path = original.get_path();
-                let base_future = original.add_to(ctx, tile_size);
                 async move {
                     base_future.await;
                     copy_out_to_out(original_path, link).unwrap();
