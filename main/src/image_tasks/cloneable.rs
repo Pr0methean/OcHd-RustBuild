@@ -177,7 +177,7 @@ where
 {
     // The multiplier of 8 is based on the size of CPU cache lines.
     const ARC_THRESHOLD_OWNED: usize = size_of::<[usize; 8]>();
-    const ARC_THRESHOLD_BORROWED: usize = size_of::<[usize; 4]>();
+    const ARC_THRESHOLD_BORROWED: usize = size_of::<[usize; 16]>();
 }
 
 impl<'a, UnsizedType: ?Sized, SizedType: Clone> Arcow<'a, UnsizedType, SizedType>
