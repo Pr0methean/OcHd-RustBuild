@@ -2,7 +2,7 @@ use oxipng::{BitDepth, RGBA8};
 use palette::blend::Compose;
 use palette::Srgba;
 use std::cmp::Ordering;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::ops::Mul;
 
@@ -14,7 +14,7 @@ use resvg::tiny_skia::PremultipliedColorU8;
 
 /// Wrapper around [ColorU8] that implements important missing traits such as [Eq], [Hash], [Copy],
 /// [Clone] and [Ord]. Represents a 24-bit sRGB color + 8-bit alpha value (not premultiplied).
-#[derive(Eq, Debug, Copy, Clone, Pod)]
+#[derive(Eq, Copy, Clone, Pod)]
 #[repr(C)]
 pub struct ComparableColor {
     pub(crate) alpha: u8,
@@ -197,6 +197,12 @@ impl Display for ComparableColor {
                 self.red, self.green, self.blue, self.alpha
             )
         }
+    }
+}
+
+impl Debug for ComparableColor {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(self, f)
     }
 }
 
