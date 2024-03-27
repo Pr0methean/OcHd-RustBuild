@@ -114,15 +114,14 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
             } => {
                 let bg_future = background.add_to(ctx, tile_size);
                 let fg_future = foreground.add_to(ctx, tile_size);
-                async move {
-                    let mut bg_and_fg = join_all([bg_future, fg_future]).await;
+                join_all([bg_future, fg_future]).then(async move |mut bg_and_fg| {
                     let fg_image = bg_and_fg.pop().unwrap();
                     let bg_image = bg_and_fg.pop().unwrap();
                     bg_image.consume(async move |mut out_image: MaybeFromPool<Pixmap>| -> SimpleArcow<MaybeFromPool<Pixmap>> {
                         stack_layer_on_layer(&mut out_image, fg_image.deref());
                         Arcow::from_owned(out_image)
                     }).await
-                }.boxed()
+                }).boxed()
             }
             ToPixmapTaskSpec::PaintAlphaChannel { base, color } => {
                 let base_future = base.add_to(ctx, tile_size);
@@ -175,21 +174,19 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
             ToAlphaChannelTaskSpec::MakeSemitransparent { base, alpha } => {
                 let base_future = base.add_to(ctx, tile_size);
                 let alpha = *alpha;
-                async move {
-                    let base_result = base_future.await;
+                base_future.then(async move |base_result| {
                     base_result.consume(|mut channel| {
                         make_semitransparent(&mut channel, alpha);
                         Arcow::from_owned(channel)
                     })
-                }
+                })
                 .boxed()
             }
             ToAlphaChannelTaskSpec::FromPixmap { base } => {
                 let base_future = base.add_to(ctx, tile_size);
-                async move {
-                    let base_image = base_future.await;
+                base_future.then(async move |base_image| {
                     base_image.consume(|base_image| Arcow::from_owned(pixmap_to_mask(&base_image)))
-                }
+                })
                 .boxed()
             }
             StackAlphaOnAlpha {
@@ -198,15 +195,14 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
             } => {
                 let bg_future = background.add_to(ctx, tile_size);
                 let fg_future = foreground.add_to(ctx, tile_size);
-                async move {
-                    let mut bg_and_fg = join_all([bg_future, fg_future]).await;
+                join_all([bg_future, fg_future]).then(async move |mut bg_and_fg| {
                     let fg_mask = bg_and_fg.pop().unwrap();
                     let bg_mask = bg_and_fg.pop().unwrap();
                     bg_mask.consume(|mut out_mask| {
                         stack_alpha_on_alpha(&mut out_mask, fg_mask.deref());
                         Arcow::from_owned(out_mask)
                     })
-                }
+                })
                 .boxed()
             }
             ToAlphaChannelTaskSpec::StackAlphaOnBackground {
@@ -215,13 +211,12 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
             } => {
                 let background = *background;
                 let fg_future = foreground.add_to(ctx, tile_size);
-                async move {
-                    let fg_arc = fg_future.await;
+                fg_future.then(async move |fg_arc| {
                     fg_arc.consume(|mut fg_image| {
                         stack_alpha_on_background(background, &mut fg_image);
                         Arcow::from_owned(fg_image)
                     })
-                }
+                })
                 .boxed()
             }
             ToAlphaChannelTaskSpec::UpscaleFromGridSize { base } => {
@@ -229,10 +224,9 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                 if tile_size == GRID_SIZE {
                     return base_future;
                 }
-                async move {
-                    let base_mask = base_future.await;
+                base_future.then(async move |base_mask| {
                     Arcow::from_owned(upscale_mask(base_mask.deref(), tile_size).unwrap())
-                }
+                })
                 .boxed()
             }
         };
