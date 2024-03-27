@@ -1,4 +1,7 @@
+use futures_util::{TryFutureExt};
 use resvg::tiny_skia::{Pixmap, PixmapPaint, Transform};
+use tokio::task::JoinSet;
+use tracing::instrument;
 
 use crate::image_tasks::cloneable::{Arcow, SimpleArcow};
 use crate::image_tasks::task_spec::BasicTask;
@@ -27,16 +30,19 @@ pub async fn animate(
             None,
         );
     }
+    let mut join_set = JoinSet::new();
     for (index, frame) in frames.into_iter().enumerate() {
-        let frame_pixmap = frame.await;
-        out.draw_pixmap(
-            0,
-            (index as i32) * (frame_height as i32),
-            frame_pixmap.as_ref(),
-            &PixmapPaint::default(),
-            Transform::default(),
-            None,
-        );
+        join_set.spawn(frame.and_then(async move |frame_pixmap| {
+            out.draw_pixmap(
+                0,
+                (index as i32) * (frame_height as i32),
+                frame_pixmap.as_ref(),
+                &PixmapPaint::default(),
+                Transform::default(),
+                None,
+            );
+        }));
     }
+    while join_set.join_next().await.is_some() {}
     Arcow::from_owned(out)
 }
