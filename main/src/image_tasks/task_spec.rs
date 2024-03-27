@@ -114,7 +114,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
             } => {
                 let bg_future = background.add_to(ctx, tile_size);
                 let fg_future = foreground.add_to(ctx, tile_size);
-                join_all([bg_future, fg_future]).then(async move |mut bg_and_fg| {
+                join_all([bg_future, fg_future]).then(async move |mut bg_and_fg: Vec<SimpleArcow<MaybeFromPool<Pixmap>>>| {
                     let fg_image = bg_and_fg.pop().unwrap();
                     let bg_image = bg_and_fg.pop().unwrap();
                     bg_image.consume(async move |mut out_image: MaybeFromPool<Pixmap>| -> SimpleArcow<MaybeFromPool<Pixmap>> {
@@ -174,7 +174,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
             ToAlphaChannelTaskSpec::MakeSemitransparent { base, alpha } => {
                 let base_future = base.add_to(ctx, tile_size);
                 let alpha = *alpha;
-                base_future.then(async move |base_result| {
+                base_future.then(async move |base_result: SimpleArcow<MaybeFromPool<Mask>>| {
                     base_result.consume(|mut channel| {
                         make_semitransparent(&mut channel, alpha);
                         Arcow::from_owned(channel)
@@ -184,7 +184,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
             }
             ToAlphaChannelTaskSpec::FromPixmap { base } => {
                 let base_future = base.add_to(ctx, tile_size);
-                base_future.then(async move |base_image| {
+                base_future.then(async move |base_image: SimpleArcow<MaybeFromPool<Pixmap>>| {
                     base_image.consume(|base_image| Arcow::from_owned(pixmap_to_mask(&base_image)))
                 })
                 .boxed()
@@ -195,7 +195,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
             } => {
                 let bg_future = background.add_to(ctx, tile_size);
                 let fg_future = foreground.add_to(ctx, tile_size);
-                join_all([bg_future, fg_future]).then(async move |mut bg_and_fg| {
+                join_all([bg_future, fg_future]).then(async move |mut bg_and_fg: Vec<SimpleArcow<MaybeFromPool<Mask>>>| {
                     let fg_mask = bg_and_fg.pop().unwrap();
                     let bg_mask = bg_and_fg.pop().unwrap();
                     bg_mask.consume(|mut out_mask| {
@@ -211,7 +211,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
             } => {
                 let background = *background;
                 let fg_future = foreground.add_to(ctx, tile_size);
-                fg_future.then(async move |fg_arc| {
+                fg_future.then(async move |fg_arc: SimpleArcow<MaybeFromPool<Mask>>| {
                     fg_arc.consume(|mut fg_image| {
                         stack_alpha_on_background(background, &mut fg_image);
                         Arcow::from_owned(fg_image)
@@ -224,7 +224,7 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                 if tile_size == GRID_SIZE {
                     return base_future;
                 }
-                base_future.then(async move |base_mask| {
+                base_future.then(async move |base_mask: SimpleArcow<MaybeFromPool<Mask>>| {
                     Arcow::from_owned(upscale_mask(base_mask.deref(), tile_size).unwrap())
                 })
                 .boxed()
@@ -255,15 +255,15 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
                 let base_future = base.add_to(ctx, base_size);
                 let destination_path = self.get_path();
                 let base_name = base.to_string();
-                async move {
-                    let (color_type, bit_depth) =
-                        color_description_to_mode(&*base_color_desc_future.await, &base_name);
+                base_color_desc_future.then(async move |base_color_desc: SimpleArcow<ColorDescription>| {
+                    color_description_to_mode(&base_color_desc, &base_name)
+                }).then(async move |(color_type, bit_depth)| {
                     let base_result = base_future.await;
                     base_result.consume(|image| {
                         png_output(image, color_type, bit_depth, destination_path).unwrap();
                         Arcow::from_owned(())
                     })
-                }
+                })
                 .boxed()
             }
             FileOutputTaskSpec::Copy { original, .. } => {
