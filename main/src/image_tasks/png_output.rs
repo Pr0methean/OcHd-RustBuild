@@ -16,7 +16,7 @@ use std::ops::DerefMut;
 use resvg::tiny_skia::{ColorU8, Pixmap, PremultipliedColorU8};
 use tracing::{info_span, instrument};
 use zip_next::write::FileOptions;
-use zip_next::CompressionMethod;
+use zip_next::{CompressionMethod, ZipArchive};
 use zip_next::ZipWriter;
 
 use crate::image_tasks::cloneable::CloneableError;
@@ -260,6 +260,14 @@ pub fn png_output(
     let png = RawImage::new(width, height, color_type, bit_depth, raw_bytes)?
         .create_optimized_png(png_options)?;
     drop(png_span);
+    let deflate_span = info_span!("Deflating file");
+    let mut single_file_out = ZipWriter::new(Cursor::new(Vec::with_capacity(
+        *ZIP_BUFFER_SIZE,
+    )));
+    single_file_out.start_file(file_path, PNG_ZIP_OPTIONS.to_owned())?;
+    single_file_out.write_all(&png)?;
+    let mut single_compressed_file = ZipArchive::new(single_file_out.finish()?)?;
+    drop(deflate_span);
     let get_lock_span = info_span!("Waiting for lock on ZIP file");
     let get_lock_span = get_lock_span.enter();
     let zip = &*ZIP;
@@ -268,9 +276,7 @@ pub fn png_output(
     let write_file_span = info_span!("Adding file to ZIP file");
     let write_file_span = write_file_span.enter();
     writer
-        .deref_mut()
-        .start_file(file_path, PNG_ZIP_OPTIONS.to_owned())?;
-    writer.deref_mut().write_all(&png)?;
+        .raw_copy_file(single_compressed_file.by_index_raw(0).unwrap())?;
     drop(write_file_span);
     Ok(())
 }
