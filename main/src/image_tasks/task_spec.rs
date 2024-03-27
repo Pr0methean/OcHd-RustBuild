@@ -6,7 +6,7 @@ use std::future::ready;
 use std::hash::Hash;
 use std::mem::replace;
 
-use futures_util::future::{BoxFuture, Shared};
+use futures_util::future::{BoxFuture, join_all, Shared};
 use futures_util::FutureExt;
 use std::ops::{Deref, Mul};
 use BitDepth::Sixteen;
@@ -115,9 +115,10 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                 let bg_future = background.add_to(ctx, tile_size);
                 let fg_future = foreground.add_to(ctx, tile_size);
                 async move {
-                    let bg_image = bg_future.await;
+                    let mut bg_and_fg = join_all([bg_future, fg_future]).await;
+                    let fg_image = bg_and_fg.pop().unwrap();
+                    let bg_image = bg_and_fg.pop().unwrap();
                     bg_image.consume(async move |mut out_image: MaybeFromPool<Pixmap>| -> SimpleArcow<MaybeFromPool<Pixmap>> {
-                        let fg_image = fg_future.await;
                         stack_layer_on_layer(&mut out_image, fg_image.deref());
                         Arcow::from_owned(out_image)
                     }).await
@@ -198,8 +199,9 @@ impl TaskSpecTraits<MaybeFromPool<Mask>> for ToAlphaChannelTaskSpec {
                 let bg_future = background.add_to(ctx, tile_size);
                 let fg_future = foreground.add_to(ctx, tile_size);
                 async move {
-                    let bg_mask = bg_future.await;
-                    let fg_mask = fg_future.await;
+                    let mut bg_and_fg = join_all([bg_future, fg_future]).await;
+                    let fg_mask = bg_and_fg.pop().unwrap();
+                    let bg_mask = bg_and_fg.pop().unwrap();
                     bg_mask.consume(|mut out_mask| {
                         stack_alpha_on_alpha(&mut out_mask, fg_mask.deref());
                         Arcow::from_owned(out_mask)
