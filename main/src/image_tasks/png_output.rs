@@ -7,11 +7,12 @@ use once_cell::sync::Lazy;
 #[cfg(not(debug_assertions))]
 use oxipng::Deflaters;
 use oxipng::{BitDepth, ColorType, IndexSet, Options, RawImage, RowFilter};
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RawMutex};
 use std::collections::HashMap;
 use std::io::{Cursor, Write};
 use std::mem::transmute;
 use std::ops::DerefMut;
+use parking_lot::lock_api::MutexGuard;
 
 use resvg::tiny_skia::{ColorU8, Pixmap, PremultipliedColorU8};
 use tracing::{info_span, instrument};
@@ -268,11 +269,17 @@ pub fn png_output(
     single_file_out.write_all(&png)?;
     let mut single_compressed_file = ZipArchive::new(single_file_out.finish()?)?;
     drop(deflate_span);
-    let get_lock_span = info_span!("Waiting for lock on ZIP file");
-    let get_lock_span = get_lock_span.enter();
     let zip = &*ZIP;
-    let mut writer = zip.lock();
-    drop(get_lock_span);
+    let mut writer = match zip.try_lock() {
+        None => {
+            let get_lock_span = info_span!("Waiting for lock on ZIP file");
+            let get_lock_span = get_lock_span.enter();
+            let mut writer = zip.lock();
+            drop(get_lock_span);
+            writer
+        }
+        Some(locked_writer) => locked_writer
+    };
     let write_file_span = info_span!("Adding file to ZIP file");
     let write_file_span = write_file_span.enter();
     writer
