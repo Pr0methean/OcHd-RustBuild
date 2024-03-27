@@ -371,7 +371,7 @@ pub enum FileOutputTaskSpec {
 }
 
 impl FileOutputTaskSpec {
-    pub(crate) fn get_path(&self) -> String {
+    pub(crate) fn get_path(&self) -> Box<str> {
         match self {
             FileOutputTaskSpec::PngOutput {
                 destination_name, ..
@@ -387,7 +387,7 @@ impl FileOutputTaskSpec {
                 out_path.push_str(".png");
                 out_path
             }
-        }
+        }.into_boxed_str()
     }
 }
 
@@ -477,7 +477,7 @@ impl Display for FileOutputTaskSpec {
         f.write_str(&match self {
             FileOutputTaskSpec::PngOutput { .. } => self.get_path(),
             FileOutputTaskSpec::Copy { original, .. } => {
-                format!("symlink({} -> {})", self.get_path(), original.get_path())
+                format!("symlink({} -> {})", self.get_path(), original.get_path()).into_boxed_str()
             }
         })
     }

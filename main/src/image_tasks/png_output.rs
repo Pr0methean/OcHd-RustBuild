@@ -104,7 +104,7 @@ pub fn png_output(
     image: MaybeFromPool<Pixmap>,
     color_type: ColorType,
     bit_depth: BitDepth,
-    file_path: String,
+    file_path: Box<str>,
 ) -> Result<(), CloneableError> {
     let width = image.width();
     let height = image.height();
@@ -275,14 +275,14 @@ pub fn png_output(
     Ok(())
 }
 
-pub fn copy_out_to_out(source_path: String, dest_path: String) -> Result<(), CloneableError> {
+pub fn copy_out_to_out(source_path: Box<str>, dest_path: Box<str>) -> Result<(), CloneableError> {
     ZIP.lock()
         .deref_mut()
         .deep_copy_file(&source_path, &dest_path)?;
     Ok(())
 }
 
-pub fn copy_in_to_out(source: &File, dest_path: String) -> Result<(), CloneableError> {
+pub fn copy_in_to_out(source: &File, dest_path: Box<str>) -> Result<(), CloneableError> {
     let zip = &*ZIP;
     let mut writer = zip.lock();
     writer
