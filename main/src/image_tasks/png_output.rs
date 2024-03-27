@@ -14,7 +14,7 @@ use std::mem::transmute;
 use std::ops::DerefMut;
 
 use resvg::tiny_skia::{ColorU8, Pixmap, PremultipliedColorU8};
-use tracing::instrument;
+use tracing::{info_span, instrument};
 use zip_next::write::FileOptions;
 use zip_next::CompressionMethod;
 use zip_next::ZipWriter;
@@ -255,16 +255,23 @@ pub fn png_output(
     } else {
         &*OXIPNG_OPTIONS
     };
-    info!("Starting PNG optimization for {}", file_path);
+    let png_span = info_span!("PNG optimization");
+    let png_span = png_span.enter();
     let png = RawImage::new(width, height, color_type, bit_depth, raw_bytes)?
         .create_optimized_png(png_options)?;
-    info!("Finished PNG optimization for {}", file_path);
+    drop(png_span);
+    let get_lock_span = info_span!("Waiting for lock on ZIP file");
+    let get_lock_span = get_lock_span.enter();
     let zip = &*ZIP;
     let mut writer = zip.lock();
+    drop(get_lock_span);
+    let write_file_span = info_span!("Adding file to ZIP file");
+    let write_file_span = write_file_span.enter();
     writer
         .deref_mut()
         .start_file(file_path, PNG_ZIP_OPTIONS.to_owned())?;
     writer.deref_mut().write_all(&png)?;
+    drop(write_file_span);
     Ok(())
 }
 
