@@ -14,6 +14,7 @@ use std::mem::transmute;
 use std::ops::DerefMut;
 
 use resvg::tiny_skia::{ColorU8, Pixmap, PremultipliedColorU8};
+use tracing::instrument;
 use zip_next::write::FileOptions;
 use zip_next::CompressionMethod;
 use zip_next::ZipWriter;
@@ -98,6 +99,7 @@ fn png_filters_to_try(file_path: &str) -> Option<IndexSet<RowFilter>> {
     }
 }
 
+#[instrument(skip(image))]
 pub fn png_output(
     image: MaybeFromPool<Pixmap>,
     color_type: ColorType,

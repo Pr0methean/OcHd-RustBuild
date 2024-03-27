@@ -1,4 +1,5 @@
 use resvg::tiny_skia::Mask;
+use tracing::instrument;
 
 const fn create_alpha_multiplication_table() -> [[u8; u8::MAX as usize + 1]; u8::MAX as usize + 1] {
     let mut table = [[0u8; u8::MAX as usize + 1]; u8::MAX as usize + 1];
@@ -84,6 +85,7 @@ fn test_alpha_stacking_table() {
 }
 
 /// Multiplies the opacity of all pixels in the [input](given pixmap) by a given [alpha].
+#[instrument(skip(input))]
 pub fn make_semitransparent(input: &mut Mask, alpha: u8) {
     let alpha_array = &ALPHA_MULTIPLICATION_TABLE[alpha as usize];
     let pixels = input.data_mut();

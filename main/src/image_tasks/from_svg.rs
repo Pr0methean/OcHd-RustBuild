@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use resvg::tiny_skia::{Pixmap, Transform};
 use resvg::usvg::fontdb::Database;
 use resvg::usvg::{Options, Tree};
+use tracing::instrument;
 
 use crate::anyhoo;
 use crate::image_tasks::cloneable::CloneableError;
@@ -179,6 +180,7 @@ pub const SEMITRANSPARENCY_FREE_SVGS: &[&str] = &[
     "trapdoor1",
 ];
 
+#[instrument]
 pub fn from_svg(mut path: String, width: u32) -> Result<MaybeFromPool<Pixmap>, CloneableError> {
     path.push_str(".svg");
     let svg = SVG_DIR

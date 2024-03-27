@@ -3,6 +3,7 @@ use lockfree_object_pool::LinearObjectPool;
 use log::info;
 use once_cell::sync::Lazy;
 use resvg::tiny_skia::{IntSize, Mask, Paint, Pixmap, Rect, Transform};
+use tracing::instrument;
 
 use crate::image_tasks::cloneable::{Arcow, CloneableError, SimpleArcow};
 use crate::image_tasks::color::ComparableColor;
@@ -91,6 +92,7 @@ pub fn pixmap_to_mask(value: &Pixmap) -> MaybeFromPool<Mask> {
 }
 
 /// Applies the given [color] to the given [input](alpha channel).
+#[instrument(skip(input))]
 pub fn paint(
     input: &Mask,
     color: ComparableColor,

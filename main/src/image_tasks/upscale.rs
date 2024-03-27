@@ -3,7 +3,9 @@ use crate::image_tasks::repaint::allocate_mask_for_overwrite;
 use crate::image_tasks::{allocate_pixmap_for_overwrite, MaybeFromPool};
 use resvg::tiny_skia::{Mask, Pixmap};
 use std::iter::repeat;
+use tracing::instrument;
 
+#[instrument(skip(source))]
 pub fn upscale_image(
     source: &Pixmap,
     new_width: u32,

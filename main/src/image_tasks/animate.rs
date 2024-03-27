@@ -1,4 +1,6 @@
-use futures_util::{TryFutureExt};
+use std::sync::Arc;
+use futures_util::FutureExt;
+use parking_lot::Mutex;
 use resvg::tiny_skia::{Pixmap, PixmapPaint, Transform};
 use tokio::task::JoinSet;
 use tracing::instrument;
@@ -7,6 +9,7 @@ use crate::image_tasks::cloneable::{Arcow, SimpleArcow};
 use crate::image_tasks::task_spec::BasicTask;
 use crate::image_tasks::{allocate_pixmap_empty, allocate_pixmap_for_overwrite, MaybeFromPool};
 
+#[instrument(skip(background))]
 pub async fn animate(
     background: &Pixmap,
     frames: Vec<BasicTask<MaybeFromPool<Pixmap>>>,
@@ -30,10 +33,12 @@ pub async fn animate(
             None,
         );
     }
+    let out = Arc::new(Mutex::new(out));
     let mut join_set = JoinSet::new();
     for (index, frame) in frames.into_iter().enumerate() {
-        join_set.spawn(frame.and_then(async move |frame_pixmap| {
-            out.draw_pixmap(
+        let out = out.clone();
+        join_set.spawn(frame.map(async move |frame_pixmap: SimpleArcow<MaybeFromPool<Pixmap>>| {
+            out.lock().draw_pixmap(
                 0,
                 (index as i32) * (frame_height as i32),
                 frame_pixmap.as_ref(),
@@ -44,5 +49,5 @@ pub async fn animate(
         }));
     }
     while join_set.join_next().await.is_some() {}
-    Arcow::from_owned(out)
+    Arcow::from_owned(Arc::try_unwrap(out).unwrap().into_inner())
 }

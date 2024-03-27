@@ -14,7 +14,7 @@ use log::{info, warn, LevelFilter};
 use texture_base::material::Material;
 use tokio::runtime::{Builder, Handle};
 
-use crate::image_tasks::task_spec::{TaskGraphBuildingContext, TaskSpecTraits, METADATA_DIR};
+use crate::image_tasks::task_spec::{TaskGraphBuildingContext, METADATA_DIR, TaskSpecTraits};
 
 mod image_tasks;
 mod materials;
@@ -86,6 +86,7 @@ const MIN_METRICS_INTERVAL: Duration = Duration::from_secs(5);
 fn main() -> Result<(), CloneableError> {
     simple_logging::log_to_file("./log.txt", LevelFilter::Info)
         .expect("Failed to configure file logging");
+    tracing_subscriber::fmt::init();
     let out_dir = PathBuf::from("./out");
     let out_file = out_dir.join(format!("OcHD-{}x{}.zip", *TILE_SIZE, *TILE_SIZE));
     info!(
@@ -168,8 +169,9 @@ fn main() -> Result<(), CloneableError> {
         let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
         let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
         for task in out_tasks.iter() {
-            task_futures.spawn(task.add_to(&mut ctx, tile_size).map(drop));
+            task_futures.build_task().name(&task.to_string()).spawn(task.add_to(&mut ctx, tile_size).map(drop)).unwrap();
         }
+        drop(out_tasks);
         info!("All output tasks added to graph");
         drop(ctx);
         remove_finished(&mut task_futures);
