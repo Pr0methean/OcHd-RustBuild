@@ -22,7 +22,7 @@ use oxipng::ColorType;
 use oxipng::ColorType::{Grayscale, Indexed, RGB, RGBA};
 use oxipng::{BitDepth, RGB16, RGBA8};
 
-use resvg::tiny_skia::{Color, Mask, Pixmap};
+use resvg::tiny_skia::{Mask, Pixmap};
 
 use crate::image_tasks::animate::animate;
 use crate::image_tasks::cloneable::Arcow::Borrowing;
@@ -98,7 +98,7 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
                 foreground,
             } => {
                 let fg_future = foreground.add_to(ctx, tile_size);
-                let background: Color = (*background).into();
+                let background = background.to_owned();
                 async move {
                     let fg_image = fg_future.await;
                     fg_image.consume(|mut out_image| {

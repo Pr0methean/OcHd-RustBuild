@@ -1,8 +1,9 @@
 use crate::anyhoo;
 use crate::image_tasks::cloneable::CloneableError;
 use crate::image_tasks::make_semitransparent::ALPHA_STACKING_TABLE;
-use resvg::tiny_skia::{BlendMode, Color, Mask, Paint, Pixmap, PixmapPaint, Rect, Transform};
+use resvg::tiny_skia::{BlendMode, Mask, Paint, Pixmap, PixmapPaint, Rect, Transform};
 use tracing::instrument;
+use crate::image_tasks::color::ComparableColor;
 
 #[instrument(skip(background, foreground))]
 pub fn stack_layer_on_layer(background: &mut Pixmap, foreground: &Pixmap) {
@@ -18,11 +19,11 @@ pub fn stack_layer_on_layer(background: &mut Pixmap, foreground: &Pixmap) {
 
 #[instrument(skip(foreground))]
 pub fn stack_layer_on_background(
-    background: Color,
+    background: ComparableColor,
     foreground: &mut Pixmap,
 ) -> Result<(), CloneableError> {
     let mut paint = Paint::default();
-    paint.set_color(background);
+    paint.set_color(background.into());
     paint.blend_mode = BlendMode::DestinationOver;
     foreground.fill_rect(
         Rect::from_xywh(
