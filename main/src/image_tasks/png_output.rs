@@ -99,7 +99,7 @@ fn png_filters_to_try(file_path: &str) -> Option<IndexSet<RowFilter>> {
     }
 }
 
-#[instrument(skip(image))]
+#[instrument(skip(image,color_type))]
 pub fn png_output(
     image: MaybeFromPool<Pixmap>,
     color_type: ColorType,

@@ -10,7 +10,7 @@
 use std::path::{absolute, PathBuf};
 use std::time::{Duration, Instant};
 
-use log::{info, warn, LevelFilter};
+use log::{info, warn};
 use texture_base::material::Material;
 use tokio::runtime::{Builder, Handle};
 
@@ -32,14 +32,16 @@ use once_cell::sync::Lazy;
 #[cfg(not(any(test, clippy)))]
 use std::env;
 use std::fs;
-use std::fs::create_dir_all;
+use std::fs::{create_dir_all, File};
 use std::hint::unreachable_unchecked;
 use std::ops::DerefMut;
 use std::thread::available_parallelism;
+
 use tikv_jemallocator::Jemalloc;
 use tokio::task::JoinSet;
 use tokio::time::sleep;
-use tracing_log::LogTracer;
+
+use tracing_subscriber::fmt::format::FmtSpan;
 
 const GRID_SIZE: u32 = 32;
 
@@ -85,9 +87,10 @@ fn copy_metadata(source_dir: &Dir) {
 const MIN_METRICS_INTERVAL: Duration = Duration::from_secs(5);
 
 fn main() -> Result<(), CloneableError> {
-    simple_logging::log_to_file("./log.txt", LevelFilter::Info)
-        .expect("Failed to configure file logging");
-    LogTracer::init()?;
+    tracing_subscriber::fmt()
+        .with_writer(File::create("./log.txt")?)
+        .with_span_events(FmtSpan::ACTIVE)
+        .init();
     let out_dir = PathBuf::from("./out");
     let out_file = out_dir.join(format!("OcHD-{}x{}.zip", *TILE_SIZE, *TILE_SIZE));
     info!(
