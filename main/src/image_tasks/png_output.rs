@@ -7,12 +7,11 @@ use once_cell::sync::Lazy;
 #[cfg(not(debug_assertions))]
 use oxipng::Deflaters;
 use oxipng::{BitDepth, ColorType, IndexSet, Options, RawImage, RowFilter};
-use parking_lot::{Mutex, RawMutex};
+use parking_lot::{Mutex};
 use std::collections::HashMap;
 use std::io::{Cursor, Write};
 use std::mem::transmute;
 use std::ops::DerefMut;
-use parking_lot::lock_api::MutexGuard;
 
 use resvg::tiny_skia::{ColorU8, Pixmap, PremultipliedColorU8};
 use tracing::{info_span, instrument};
@@ -274,7 +273,7 @@ pub fn png_output(
         None => {
             let get_lock_span = info_span!("Waiting for lock on ZIP file");
             let get_lock_span = get_lock_span.enter();
-            let mut writer = zip.lock();
+            let writer = zip.lock();
             drop(get_lock_span);
             writer
         }

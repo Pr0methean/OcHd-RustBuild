@@ -12,7 +12,7 @@ use crate::image_tasks::{allocate_pixmap_empty, allocate_pixmap_for_overwrite, M
 #[instrument(skip(background))]
 pub async fn animate(
     background: &Pixmap,
-    frames: Vec<BasicTask<MaybeFromPool<Pixmap>>>,
+    frames: Box<[BasicTask<MaybeFromPool<Pixmap>>]>,
     clear_output: bool,
 ) -> SimpleArcow<MaybeFromPool<Pixmap>> {
     let frame_height = background.height();
@@ -35,7 +35,7 @@ pub async fn animate(
     }
     let out = Arc::new(Mutex::new(out));
     let mut join_set = JoinSet::new();
-    for (index, frame) in frames.into_iter().enumerate() {
+    for (index, frame) in frames.into_iter().cloned().enumerate() {
         let out = out.clone();
         join_set.spawn(frame.map(async move |frame_pixmap: SimpleArcow<MaybeFromPool<Pixmap>>| {
             out.lock().draw_pixmap(
