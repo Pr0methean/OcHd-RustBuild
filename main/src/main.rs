@@ -14,7 +14,7 @@ use log::{info, warn};
 use texture_base::material::Material;
 use tokio::runtime::{Builder, Handle};
 
-use crate::image_tasks::task_spec::{TaskGraphBuildingContext, METADATA_DIR, TaskSpecTraits};
+use crate::image_tasks::task_spec::{TaskGraphBuildingContext, METADATA_DIR, TaskSpecTraits, FileOutputTaskSpec};
 
 mod image_tasks;
 mod materials;
@@ -172,12 +172,26 @@ fn main() -> Result<(), CloneableError> {
         });
         let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
         let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
+        let mut small_tasks = Vec::with_capacity(out_tasks.len());
         for task in out_tasks.iter() {
-            task_futures.build_task().name(&task.to_string()).spawn(task.add_to(&mut ctx, tile_size).map(drop)).unwrap();
+            let small = match task {
+                FileOutputTaskSpec::PngOutput { base, .. } =>
+                    tile_size > GRID_SIZE && base.is_grid_perfect(&mut ctx),
+                FileOutputTaskSpec::Copy { .. } => true
+            };
+            if small {
+                small_tasks.push(task);
+            } else {
+                task_futures.build_task().name(&task.to_string()).spawn(task.add_to(&mut ctx, tile_size).map(drop)).unwrap();
+            }
         }
         drop(out_tasks);
-        info!("All output tasks added to graph");
+        info!("All large output tasks added to graph");
+        small_tasks.into_iter().for_each(|task| {
+            task_futures.spawn(task.add_to(&mut ctx, tile_size).map(drop));
+        });
         drop(ctx);
+        info!("All small output tasks added to graph");
         remove_finished(&mut task_futures);
         while !task_futures.is_empty() {
             task_futures.join_next().await;
