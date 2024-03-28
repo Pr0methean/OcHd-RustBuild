@@ -9,7 +9,6 @@ use std::mem::replace;
 use futures_util::future::{BoxFuture, join_all, Shared};
 use futures_util::FutureExt;
 use std::ops::{Deref, Mul};
-use std::sync::Arc;
 use BitDepth::Sixteen;
 use ColorType::GrayscaleAlpha;
 
@@ -1143,23 +1142,20 @@ impl ToPixmapTaskSpec {
             } => {
                 let bg_task = background.get_color_description_task(ctx);
                 let fg_task = foreground.get_color_description_task(ctx);
-                let bg_and_fg = join_all([bg_task, fg_task]);
-                bg_and_fg.then(async move |mut bg_and_fg: Vec<SimpleArcow<ColorDescription>>| {
-                    let fg = bg_and_fg.pop().unwrap();
-                    let bg = bg_and_fg.pop().unwrap();
-                    let max_colors = Arc::new(pixels + 1);
-                    Arcow::from_owned(fg
-                        .stack_on(&bg, *max_colors))
-                }).boxed()
+                async move {
+                    Arcow::from_owned(fg_task
+                        .await
+                        .stack_on(&*bg_task.await, pixels + 1))
+                }.boxed()
             }
             UpscaleFromGridSize { base } => Box::pin(base.get_color_description_task(ctx)),
         };
-        let max_colors = Box::leak(Box::new(pixels + 1));
         let image_task = self.add_to(ctx, side_length);
-        let wrapped_task = task.then(async move |mut uncapped: SimpleArcow<ColorDescription>| {
-            uncapped.cap_indexed(*max_colors, image_task).await;
+        let wrapped_task = async move {
+            let mut uncapped = task.await;
+            uncapped.cap_indexed(pixels, image_task).await;
             uncapped
-        })
+        }
         .boxed()
         .shared();
         ctx.pixmap_task_to_color_map
@@ -1172,7 +1168,7 @@ impl ToPixmapTaskSpec {
             alphas.to_owned()
         } else {
             let color_task = self.get_color_description_task(ctx);
-            let task = color_task.then(async move |colors| {
+            let task = color_task.then(async move |colors: SimpleArcow<ColorDescription>| {
                 Arcow::from_owned({
                     match colors.transparency() {
                         AlphaChannel => match &*colors {
@@ -1193,7 +1189,7 @@ impl ToPixmapTaskSpec {
                         Opaque => U8BitSet::from_iter([u8::MAX]),
                     }
                 })
-            }
+            })
             .boxed()
             .shared();
             ctx.pixmap_task_to_alpha_map
