@@ -1172,9 +1172,8 @@ impl ToPixmapTaskSpec {
             alphas.to_owned()
         } else {
             let color_task = self.get_color_description_task(ctx);
-            let task = async move {
+            let task = color_task.then(async move |colors| {
                 Arcow::from_owned({
-                    let colors = color_task.await;
                     match colors.transparency() {
                         AlphaChannel => match &*colors {
                             Rgb(_) => U8BitSet::all_u8s(),
