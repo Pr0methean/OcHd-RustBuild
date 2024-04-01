@@ -183,13 +183,12 @@ fn main() -> Result<(), CloneableError> {
             if small {
                 small_tasks.push(task);
             } else {
-                task_futures.build_task().name(&task.to_string()).spawn(task.add_to(&mut ctx, tile_size).map(drop)).unwrap();
+                add_and_spawn(&task, &mut task_futures, tile_size, &mut ctx);
             }
         }
         info!("All large output tasks added to graph");
         small_tasks.into_iter().for_each(|task| {
-            task_futures.build_task().name(&task.to_string()).spawn(task.add_to(&mut ctx, tile_size).map(drop))
-                .expect("Error adding task to graph");
+            add_and_spawn(&task, &mut task_futures, GRID_SIZE, &mut ctx);
         });
         drop(ctx);
         info!("All small output tasks added to graph");
@@ -210,6 +209,11 @@ fn main() -> Result<(), CloneableError> {
     fs::write(out_file.as_path(), zip_contents)?;
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     Ok(())
+}
+
+fn add_and_spawn(task: &FileOutputTaskSpec, mut task_futures: &mut JoinSet<()>, tile_size: u32, mut ctx: &mut TaskGraphBuildingContext) {
+    task_futures.build_task().name(&task.to_string()).spawn(task.add_to(&mut ctx, tile_size).map(drop))
+        .expect("Error adding task to graph");
 }
 
 fn remove_finished<T: 'static>(task_futures: &mut JoinSet<T>) {
