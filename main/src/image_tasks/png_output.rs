@@ -261,6 +261,7 @@ pub fn png_output(
         .create_optimized_png(png_options)?;
     drop(png_span);
     let deflate_span = info_span!("Deflating file");
+    let deflate_span = deflate_span.enter();
     let zip = &*ZIP;
     match zip.try_lock() {
         Some(mut writer_guard) => {
