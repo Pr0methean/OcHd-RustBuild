@@ -176,7 +176,7 @@ fn main() -> Result<(), CloneableError> {
         let mut small_tasks = Vec::with_capacity(out_tasks.len());
         for task in out_tasks.into_vec().into_iter() {
             let small = match task {
-                FileOutputTaskSpec::PngOutput { base, .. } =>
+                FileOutputTaskSpec::PngOutput { ref base, .. } =>
                     tile_size > GRID_SIZE && base.is_grid_perfect(&mut ctx),
                 FileOutputTaskSpec::Copy { .. } => true
             };
@@ -190,7 +190,6 @@ fn main() -> Result<(), CloneableError> {
         small_tasks.into_iter().for_each(|task| {
             task_futures.spawn(task.add_to(&mut ctx, tile_size).map(drop));
         });
-        drop(out_tasks);
         drop(ctx);
         info!("All small output tasks added to graph");
         remove_finished(&mut task_futures);
