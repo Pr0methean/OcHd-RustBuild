@@ -159,6 +159,7 @@ fn main() -> Result<(), CloneableError> {
     });
     let start_time = Instant::now();
     let handle = runtime.handle();
+    let _ = handle.enter();
     handle.block_on(async {
         let mut task_futures = JoinSet::new();
         task_futures.spawn(async {
