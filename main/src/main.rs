@@ -39,7 +39,7 @@ use std::thread::available_parallelism;
 
 use tikv_jemallocator::Jemalloc;
 use tokio::task::JoinSet;
-use tokio::time::{sleep, timeout};
+use tokio::time::sleep;
 
 use tracing_subscriber::fmt::format::FmtSpan;
 
@@ -155,13 +155,6 @@ fn main() -> Result<(), CloneableError> {
             log_metric_per_worker!(m, worker_steal_count);
             log_metric_per_worker!(m, worker_steal_operations);
             log_metric_per_worker!(m, worker_total_busy_duration);
-            if let Ok(dump) = timeout(Duration::from_secs(2), Handle::current().dump()).await {
-                for (i, task) in dump.tasks().iter().enumerate() {
-                    let trace = task.trace();
-                    println!("TASK {i}:");
-                    println!("{trace}\n");
-                }
-            }
         }
     });
     let start_time = Instant::now();
