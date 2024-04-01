@@ -194,9 +194,9 @@ fn main() -> Result<(), CloneableError> {
             }
         }
         info!("All large output tasks added to graph");
-        small_tasks.into_iter().for_each(|task| {
-            task_futures.spawn(task.add_to(&mut ctx, tile_size).map(drop));
-        });
+        small_tasks.into_iter().map(|task| {
+            task_futures.build_task().name(&task.to_string()).spawn(task.add_to(&mut ctx, tile_size).map(drop))
+        }).for_each(Result::unwrap);
         drop(ctx);
         info!("All small output tasks added to graph");
         remove_finished(&mut task_futures);
