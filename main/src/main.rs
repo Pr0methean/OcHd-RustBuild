@@ -159,6 +159,7 @@ fn main() -> Result<(), CloneableError> {
     });
     let start_time = Instant::now();
     let handle = runtime.handle();
+    let _ = handle.enter();
     handle.block_on(async {
         let mut task_futures = JoinSet::new();
         task_futures.spawn(async {
@@ -173,7 +174,7 @@ fn main() -> Result<(), CloneableError> {
         let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
         let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
         let mut small_tasks = Vec::with_capacity(out_tasks.len());
-        for task in out_tasks.iter() {
+        for task in out_tasks.into_vec().into_iter() {
             let small = match task {
                 FileOutputTaskSpec::PngOutput { base, .. } =>
                     tile_size > GRID_SIZE && base.is_grid_perfect(&mut ctx),

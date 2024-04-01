@@ -35,7 +35,7 @@ pub async fn animate(
     }
     let out = Arc::new(Mutex::new(out));
     let mut join_set = JoinSet::new();
-    for (index, frame) in frames.into_iter().cloned().enumerate() {
+    for (index, frame) in frames.into_vec().into_iter().enumerate() {
         let out = out.clone();
         join_set.spawn(frame.map(async move |frame_pixmap: SimpleArcow<MaybeFromPool<Pixmap>>| {
             out.lock().draw_pixmap(
