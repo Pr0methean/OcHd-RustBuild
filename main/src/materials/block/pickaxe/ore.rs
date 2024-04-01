@@ -281,7 +281,7 @@ pub static DIAMOND: Lazy<Ore> = Lazy::new(|| {
 pub static GOLD: Lazy<Ore> = Lazy::new(|| {
     let mut gold = Ore::new("gold", ComparableColor::YELLOW, c(0xeb9d00), c(0xffffb5));
     gold.needs_refining = true;
-    gold.substrates = ALL_SUBSTRATES.to_owned();
+    ALL_SUBSTRATES.clone_into(&mut gold.substrates);
     gold.raw_item = Box::new(|_| {
         stack!(
             paint_svg_task("circle32BottomLeftTopRight", GOLD.colors.highlight),
