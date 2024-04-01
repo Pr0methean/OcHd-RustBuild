@@ -172,10 +172,9 @@ fn main() -> Result<(), CloneableError> {
         });
         let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
         let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
-        for task in out_tasks.iter() {
+        for task in out_tasks.into_vec().into_iter() {
             task_futures.build_task().name(&task.to_string()).spawn(task.add_to(&mut ctx, tile_size).map(drop)).unwrap();
         }
-        drop(out_tasks);
         info!("All output tasks added to graph");
         drop(ctx);
         remove_finished(&mut task_futures);
