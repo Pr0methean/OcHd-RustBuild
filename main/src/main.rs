@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 
 use log::{info, warn};
 use texture_base::material::Material;
-use tokio::runtime::{Builder, Handle};
+use tokio::runtime::{Builder};
 
 use crate::image_tasks::task_spec::{TaskGraphBuildingContext, METADATA_DIR, TaskSpecTraits, FileOutputTaskSpec};
 
@@ -111,11 +111,13 @@ fn main() -> Result<(), CloneableError> {
         }
         Err(e) => warn!("Unable to get available parallelism: {}", e),
     }
-    let runtime = runtime.build()?;
+    let runtime = Box::leak(Box::new(runtime.build()?));
+    let handle = runtime.handle();
+    let _ = handle.enter();
     runtime.spawn(async move {
         loop {
             sleep(MIN_METRICS_INTERVAL).await;
-            let m = Handle::current().metrics();
+            let m = handle.metrics();
             macro_rules! log_metric {
                 ($metrics:expr, $metric:ident) => {
                     info!("{:30}: {:5}", stringify!($metric), $metrics.$metric());
@@ -152,8 +154,6 @@ fn main() -> Result<(), CloneableError> {
         }
     });
     let start_time = Instant::now();
-    let handle = runtime.handle();
-    let _ = handle.enter();
     let mut task_futures = JoinSet::new();
     let out_file_task = handle.spawn(async {
             prewarm_pixmap_pool();
@@ -202,7 +202,6 @@ fn main() -> Result<(), CloneableError> {
         .into_inner();
     info!("ZIP file size is {} bytes", zip_contents.len());
     let out_file = handle.block_on(out_file_task).unwrap();
-    drop(runtime); // Aborts any background tasks
     fs::write(out_file.as_path(), zip_contents)?;
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     Ok(())
