@@ -211,8 +211,8 @@ fn main() -> Result<(), CloneableError> {
     Ok(())
 }
 
-fn add_and_spawn(task: &FileOutputTaskSpec, mut task_futures: &mut JoinSet<()>, tile_size: u32, mut ctx: &mut TaskGraphBuildingContext) {
-    task_futures.build_task().name(&task.to_string()).spawn(task.add_to(&mut ctx, tile_size).map(drop))
+fn add_and_spawn(task: &FileOutputTaskSpec, task_futures: &mut JoinSet<()>, tile_size: u32, ctx: &mut TaskGraphBuildingContext) {
+    task_futures.build_task().name(&task.to_string()).spawn(task.add_to(ctx, tile_size).map(drop))
         .expect("Error adding task to graph");
 }
 

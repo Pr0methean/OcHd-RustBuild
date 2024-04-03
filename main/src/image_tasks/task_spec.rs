@@ -114,14 +114,15 @@ impl TaskSpecTraits<MaybeFromPool<Pixmap>> for ToPixmapTaskSpec {
             } => {
                 let bg_future = background.add_to(ctx, tile_size);
                 let fg_future = foreground.add_to(ctx, tile_size);
-                join_all([bg_future, fg_future]).then(async move |mut bg_and_fg: Vec<SimpleArcow<MaybeFromPool<Pixmap>>>| {
-                    let fg_image = bg_and_fg.pop().unwrap();
-                    let bg_image = bg_and_fg.pop().unwrap();
-                    bg_image.consume(async move |mut out_image: MaybeFromPool<Pixmap>| -> SimpleArcow<MaybeFromPool<Pixmap>> {
-                        stack_layer_on_layer(&mut out_image, fg_image.deref());
-                        Arcow::from_owned(out_image)
-                    }).await
-                }).boxed()
+                let mut join_set = JoinSet::new();
+                join_set.spawn(bg_future);
+                join_set.spawn(fg_future);
+                async move {
+                    let mut bg_image = join_set.join_next().await.unwrap().unwrap();
+                    let fg_image = join_set.join_next().await.unwrap().unwrap();
+                    stack_layer_on_layer(&mut bg_image, &fg_image).await;
+                    bg_image
+                }.boxed()
             }
             ToPixmapTaskSpec::PaintAlphaChannel { base, color } => {
                 let base_future = base.add_to(ctx, tile_size);

@@ -6,7 +6,7 @@ use tracing::instrument;
 use crate::image_tasks::color::ComparableColor;
 
 #[instrument(skip(background, foreground))]
-pub fn stack_layer_on_layer(background: &mut Pixmap, foreground: &Pixmap) {
+pub async fn stack_layer_on_layer(background: &mut Pixmap, foreground: &Pixmap) {
     background.draw_pixmap(
         0,
         0,
