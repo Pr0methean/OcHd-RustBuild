@@ -29,7 +29,7 @@ pub async fn animate(
     // SAFETY: transmuted back to PixmapMut per frame by from_bytes
     let mut remainder: &mut [u8] = unsafe { mem::transmute(out.borrow_mut().pixels_mut()) };
     let mut join_set = JoinSet::new();
-    for (index, frame) in frames.into_vec().into_iter().enumerate() {
+    for frame in frames.into_vec().into_iter() {
         let (frame_pixels, new_remainder)
             = remainder.split_at_mut(frame_height as usize * width as usize * size_of::<PremultipliedColorU8>());
         remainder = new_remainder;
@@ -45,7 +45,7 @@ pub async fn animate(
         join_set.spawn(frame.map(async move |frame_pixmap: SimpleArcow<MaybeFromPool<Pixmap>>| {
             frame_buffer.draw_pixmap(
                 0,
-                (index as i32) * (frame_height as i32),
+                0,
                 frame_pixmap.as_ref(),
                 &PixmapPaint::default(),
                 Transform::default(),
