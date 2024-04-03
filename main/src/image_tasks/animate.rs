@@ -9,6 +9,7 @@ use tracing::instrument;
 use crate::image_tasks::cloneable::{Arcow, SimpleArcow};
 use crate::image_tasks::task_spec::BasicTask;
 use crate::image_tasks::{allocate_pixmap_empty, allocate_pixmap_for_overwrite, MaybeFromPool};
+use crate::join_all;
 
 #[instrument(skip(background))]
 pub async fn animate(
@@ -52,6 +53,6 @@ pub async fn animate(
             );
         }));
     }
-    while join_set.join_next().await.is_some() {}
+    join_all(join_set).await;
     Arcow::from_owned(out.into_inner())
 }

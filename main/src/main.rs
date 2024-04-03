@@ -193,10 +193,7 @@ fn main() -> Result<(), CloneableError> {
         drop(ctx);
         info!("All small output tasks added to graph");
         remove_finished(&mut task_futures);
-        while !task_futures.is_empty() {
-            task_futures.join_next().await;
-            remove_finished(&mut task_futures);
-        }
+        join_all(task_futures).await;
     });
     drop(runtime); // Aborts any background tasks
     let zip_contents = ZIP
@@ -219,5 +216,11 @@ fn add_and_spawn(task: &FileOutputTaskSpec, task_futures: &mut JoinSet<()>, tile
 fn remove_finished<T: 'static>(task_futures: &mut JoinSet<T>) {
     while task_futures.try_join_next().is_some() {
         info!("try_join_next received a finished task");
+    }
+}
+
+pub async fn join_all<T: 'static>(mut join_set: JoinSet<T>) {
+    while join_set.join_next().await.is_some() {
+        remove_finished(&mut join_set);
     }
 }
