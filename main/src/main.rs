@@ -161,7 +161,7 @@ fn main() -> Result<(), CloneableError> {
     let handle = runtime.handle();
     let _ = handle.enter();
     let mut task_futures = JoinSet::new();
-    task_futures.spawn(async {
+    task_futures.spawn_on(async {
         prewarm_pixmap_pool();
         prewarm_mask_pool();
         info!("Caches prewarmed");
@@ -169,7 +169,7 @@ fn main() -> Result<(), CloneableError> {
         info!("Output directory built");
         copy_metadata(&METADATA_DIR);
         info!("Metadata copied");
-    });
+    }, handle);
     handle.block_on(async {
         let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
         let out_tasks = materials::ALL_MATERIALS.get_output_tasks();

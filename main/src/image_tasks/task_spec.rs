@@ -1081,7 +1081,7 @@ impl ToPixmapTaskSpec {
                     .for_each(|task| { frame_desc_join_set.spawn(task); });
                 background_desc_task.then(async move |background_desc: SimpleArcow<ColorDescription>| {
                     let mut current_desc = background_desc.deref().to_owned();
-                    while let Ok(frame_desc) = frame_desc_join_set.join_next().await.unwrap() {
+                    while let Some(Ok(frame_desc)) = frame_desc_join_set.join_next().await {
                         current_desc = current_desc.put_adjacent(frame_desc.deref());
                     }
                     Arcow::from_owned(current_desc)
