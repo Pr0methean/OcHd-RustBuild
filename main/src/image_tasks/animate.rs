@@ -1,7 +1,8 @@
-use std::sync::Arc;
+use core::mem::size_of;
+use std::cell::RefCell;
+use std::mem;
 use futures_util::FutureExt;
-use parking_lot::Mutex;
-use resvg::tiny_skia::{Pixmap, PixmapPaint, Transform};
+use resvg::tiny_skia::{Pixmap, PixmapMut, PixmapPaint, PremultipliedColorU8, Transform};
 use tokio::task::JoinSet;
 use tracing::instrument;
 
@@ -17,28 +18,31 @@ pub async fn animate(
 ) -> SimpleArcow<MaybeFromPool<Pixmap>> {
     let frame_height = background.height();
     let total_height = frame_height * (frames.len() as u32);
-    let mut out = if clear_output {
-        allocate_pixmap_empty(background.width(), total_height)
+    let width = background.width();
+    let out = RefCell::new(if clear_output {
+        allocate_pixmap_empty(width, total_height)
     } else {
         allocate_pixmap_for_overwrite(background.width(), total_height)
-    };
+    });
     let background = (*background).as_ref();
-    for index in 0..frames.len() {
-        out.draw_pixmap(
+    // SAFETY: transmuted back to PixmapMut per frame by from_bytes
+    let mut remainder: &mut [u8] = unsafe { mem::transmute(out.borrow_mut().pixels_mut()) };
+    let mut join_set = JoinSet::new();
+    for (index, frame) in frames.into_vec().into_iter().enumerate() {
+        let (frame_pixels, new_remainder)
+            = remainder.split_at_mut(frame_height as usize * width as usize * size_of::<PremultipliedColorU8>());
+        remainder = new_remainder;
+        let mut frame_buffer = PixmapMut::from_bytes(frame_pixels, width, frame_height).unwrap();
+        frame_buffer.draw_pixmap(
             0,
-            (index as i32) * (frame_height as i32),
+            0,
             background,
             &PixmapPaint::default(),
             Transform::default(),
             None,
         );
-    }
-    let out = Arc::new(Mutex::new(out));
-    let mut join_set = JoinSet::new();
-    for (index, frame) in frames.into_vec().into_iter().enumerate() {
-        let out = out.clone();
         join_set.spawn(frame.map(async move |frame_pixmap: SimpleArcow<MaybeFromPool<Pixmap>>| {
-            out.lock().draw_pixmap(
+            frame_buffer.draw_pixmap(
                 0,
                 (index as i32) * (frame_height as i32),
                 frame_pixmap.as_ref(),
@@ -49,5 +53,5 @@ pub async fn animate(
         }));
     }
     while join_set.join_next().await.is_some() {}
-    Arcow::from_owned(Arc::try_unwrap(out).unwrap().into_inner())
+    Arcow::from_owned(out.into_inner())
 }
