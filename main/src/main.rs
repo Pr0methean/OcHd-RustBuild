@@ -91,6 +91,12 @@ fn main() -> Result<(), CloneableError> {
         .with_writer(File::create("./log.txt")?)
         .with_span_events(FmtSpan::ACTIVE)
         .init();
+    let out_dir = PathBuf::from("./out");
+    let out_file = out_dir.join(format!("OcHD-{}x{}.zip", *TILE_SIZE, *TILE_SIZE));
+    info!(
+        "Writing output to {}",
+        absolute(&out_file)?.to_string_lossy()
+    );
     let tile_size: u32 = *TILE_SIZE;
     info!("Using {} pixels per tile", tile_size);
     let mut runtime = Builder::new_multi_thread();
@@ -154,46 +160,42 @@ fn main() -> Result<(), CloneableError> {
     let start_time = Instant::now();
     let handle = runtime.handle();
     let _ = handle.enter();
-    let mut task_futures = JoinSet::new();
-    let out_file_task = handle.spawn(async {
+    handle.block_on(async {
+        let mut task_futures = JoinSet::new();
+        task_futures.spawn(async {
             prewarm_pixmap_pool();
             prewarm_mask_pool();
             info!("Caches prewarmed");
-            let out_dir = PathBuf::from("./out");
-            let out_file = out_dir.join(format!("OcHD-{}x{}.zip", *TILE_SIZE, *TILE_SIZE));
-            info!(
-                "Writing output to {}",
-                absolute(&out_file).unwrap().to_string_lossy()
-            );
             create_dir_all(out_dir).expect("Failed to create output directory");
             info!("Output directory built");
             copy_metadata(&METADATA_DIR);
             info!("Metadata copied");
-            out_file
-        }.shared());
-    let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
-    let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
-    let mut small_tasks = Vec::with_capacity(out_tasks.len());
-    for task in out_tasks.into_vec().into_iter() {
-        let small = match task {
-            FileOutputTaskSpec::PngOutput { ref base, .. } =>
-                tile_size > GRID_SIZE && base.is_grid_perfect(&mut ctx),
-            FileOutputTaskSpec::Copy { .. } => true
-        };
-        if small {
-            small_tasks.push(task);
-        } else {
-            add_and_spawn(&task, &mut task_futures, tile_size, &mut ctx);
+        });
+        let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
+        let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
+        let mut small_tasks = Vec::with_capacity(out_tasks.len());
+        for task in out_tasks.into_vec().into_iter() {
+            let small = match task {
+                FileOutputTaskSpec::PngOutput { ref base, .. } =>
+                    tile_size > GRID_SIZE && base.is_grid_perfect(&mut ctx),
+                FileOutputTaskSpec::Copy { .. } => true
+            };
+            if small {
+                small_tasks.push(task);
+            } else {
+                add_and_spawn(&task, &mut task_futures, tile_size, &mut ctx);
+            }
         }
-    }
-    info!("All large output tasks added to graph");
-    small_tasks.into_iter().for_each(|task| {
-        add_and_spawn(&task, &mut task_futures, GRID_SIZE, &mut ctx);
+        info!("All large output tasks added to graph");
+        small_tasks.into_iter().for_each(|task| {
+            add_and_spawn(&task, &mut task_futures, GRID_SIZE, &mut ctx);
+        });
+        drop(ctx);
+        info!("All small output tasks added to graph");
+        remove_finished(&mut task_futures);
+        join_all(task_futures).await;
     });
-    drop(ctx);
-    info!("All small output tasks added to graph");
-    remove_finished(&mut task_futures);
-    handle.block_on(join_all(task_futures));
+    drop(runtime); // Aborts any background tasks
     let zip_contents = ZIP
         .lock()
         .deref_mut()
@@ -201,8 +203,6 @@ fn main() -> Result<(), CloneableError> {
         .expect("Failed to finalize ZIP file")
         .into_inner();
     info!("ZIP file size is {} bytes", zip_contents.len());
-    let out_file = handle.block_on(out_file_task).unwrap();
-    drop(runtime); // Aborts any background tasks
     fs::write(out_file.as_path(), zip_contents)?;
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     Ok(())
