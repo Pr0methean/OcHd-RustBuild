@@ -160,17 +160,17 @@ fn main() -> Result<(), CloneableError> {
     let start_time = Instant::now();
     let handle = runtime.handle();
     let _ = handle.enter();
+    let mut task_futures = JoinSet::new();
+    task_futures.spawn(async {
+        prewarm_pixmap_pool();
+        prewarm_mask_pool();
+        info!("Caches prewarmed");
+        create_dir_all(out_dir).expect("Failed to create output directory");
+        info!("Output directory built");
+        copy_metadata(&METADATA_DIR);
+        info!("Metadata copied");
+    });
     handle.block_on(async {
-        let mut task_futures = JoinSet::new();
-        task_futures.spawn(async {
-            prewarm_pixmap_pool();
-            prewarm_mask_pool();
-            info!("Caches prewarmed");
-            create_dir_all(out_dir).expect("Failed to create output directory");
-            info!("Output directory built");
-            copy_metadata(&METADATA_DIR);
-            info!("Metadata copied");
-        });
         let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
         let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
         let mut small_tasks = Vec::with_capacity(out_tasks.len());
@@ -195,7 +195,6 @@ fn main() -> Result<(), CloneableError> {
         remove_finished(&mut task_futures);
         join_all(task_futures).await;
     });
-    drop(runtime); // Aborts any background tasks
     let zip_contents = ZIP
         .lock()
         .deref_mut()
@@ -203,6 +202,7 @@ fn main() -> Result<(), CloneableError> {
         .expect("Failed to finalize ZIP file")
         .into_inner();
     info!("ZIP file size is {} bytes", zip_contents.len());
+    drop(runtime); // Aborts any background tasks
     fs::write(out_file.as_path(), zip_contents)?;
     info!("Finished after {} ns", start_time.elapsed().as_nanos());
     Ok(())
