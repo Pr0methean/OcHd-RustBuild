@@ -1,9 +1,9 @@
 use crate::anyhoo;
 use crate::image_tasks::cloneable::CloneableError;
+use crate::image_tasks::color::ComparableColor;
 use crate::image_tasks::make_semitransparent::ALPHA_STACKING_TABLE;
 use resvg::tiny_skia::{BlendMode, Mask, Paint, Pixmap, PixmapPaint, Rect, Transform};
 use tracing::instrument;
-use crate::image_tasks::color::ComparableColor;
 
 #[instrument(skip(background, foreground))]
 pub async fn stack_layer_on_layer(background: &mut Pixmap, foreground: &Pixmap) {

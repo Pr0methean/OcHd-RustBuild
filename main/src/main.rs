@@ -14,7 +14,9 @@ use log::{info, warn};
 use texture_base::material::Material;
 use tokio::runtime::{Builder, Handle};
 
-use crate::image_tasks::task_spec::{TaskGraphBuildingContext, METADATA_DIR, TaskSpecTraits, FileOutputTaskSpec};
+use crate::image_tasks::task_spec::{
+    FileOutputTaskSpec, TaskGraphBuildingContext, TaskSpecTraits, METADATA_DIR,
+};
 
 mod image_tasks;
 mod materials;
@@ -161,24 +163,28 @@ fn main() -> Result<(), CloneableError> {
     let handle = runtime.handle();
     let _ = handle.enter();
     let mut task_futures = JoinSet::new();
-    task_futures.spawn_on(async {
-        prewarm_pixmap_pool();
-        prewarm_mask_pool();
-        info!("Caches prewarmed");
-        create_dir_all(out_dir).expect("Failed to create output directory");
-        info!("Output directory built");
-        copy_metadata(&METADATA_DIR);
-        info!("Metadata copied");
-    }, handle);
+    task_futures.spawn_on(
+        async {
+            prewarm_pixmap_pool();
+            prewarm_mask_pool();
+            info!("Caches prewarmed");
+            create_dir_all(out_dir).expect("Failed to create output directory");
+            info!("Output directory built");
+            copy_metadata(&METADATA_DIR);
+            info!("Metadata copied");
+        },
+        handle,
+    );
     handle.block_on(async {
         let mut ctx: TaskGraphBuildingContext = TaskGraphBuildingContext::new();
         let out_tasks = materials::ALL_MATERIALS.get_output_tasks();
         let mut small_tasks = Vec::with_capacity(out_tasks.len());
         for task in out_tasks.into_vec().into_iter() {
             let small = match task {
-                FileOutputTaskSpec::PngOutput { ref base, .. } =>
-                    tile_size > GRID_SIZE && base.is_grid_perfect(&mut ctx),
-                FileOutputTaskSpec::Copy { .. } => true
+                FileOutputTaskSpec::PngOutput { ref base, .. } => {
+                    tile_size > GRID_SIZE && base.is_grid_perfect(&mut ctx)
+                }
+                FileOutputTaskSpec::Copy { .. } => true,
             };
             if small {
                 small_tasks.push(task);
@@ -208,8 +214,16 @@ fn main() -> Result<(), CloneableError> {
     Ok(())
 }
 
-fn add_and_spawn(task: &FileOutputTaskSpec, task_futures: &mut JoinSet<()>, tile_size: u32, ctx: &mut TaskGraphBuildingContext) {
-    task_futures.build_task().name(&task.to_string()).spawn(task.add_to(ctx, tile_size).map(drop))
+fn add_and_spawn(
+    task: &FileOutputTaskSpec,
+    task_futures: &mut JoinSet<()>,
+    tile_size: u32,
+    ctx: &mut TaskGraphBuildingContext,
+) {
+    task_futures
+        .build_task()
+        .name(&task.to_string())
+        .spawn(task.add_to(ctx, tile_size).map(drop))
         .expect("Error adding task to graph");
 }
 

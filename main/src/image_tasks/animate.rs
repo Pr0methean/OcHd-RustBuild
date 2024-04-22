@@ -25,9 +25,8 @@ pub async fn animate(
     })) as *mut MaybeFromPool<Pixmap>;
     let background = (*background).as_ref();
     let out_data = unsafe { out.as_mut() }.unwrap().data_mut();
-    let mut frame_chunks = out_data.chunks_mut(
-        frame_height as usize * width as usize * size_of::<PremultipliedColorU8>()
-    );
+    let mut frame_chunks = out_data
+        .chunks_mut(frame_height as usize * width as usize * size_of::<PremultipliedColorU8>());
     let mut join_set = JoinSet::new();
     for frame in frames.into_vec().into_iter() {
         let frame_pixels = frame_chunks.next().unwrap();
@@ -41,16 +40,18 @@ pub async fn animate(
             None,
         );
         let frame_buffer = Box::new(frame_buffer);
-        join_set.spawn(frame.map(async move |frame_pixmap: SimpleArcow<MaybeFromPool<Pixmap>>| {
-            Box::leak(frame_buffer).draw_pixmap(
-                0,
-                0,
-                frame_pixmap.as_ref(),
-                &PixmapPaint::default(),
-                Transform::default(),
-                None,
-            );
-        }));
+        join_set.spawn(frame.map(
+            async move |frame_pixmap: SimpleArcow<MaybeFromPool<Pixmap>>| {
+                Box::leak(frame_buffer).draw_pixmap(
+                    0,
+                    0,
+                    frame_pixmap.as_ref(),
+                    &PixmapPaint::default(),
+                    Transform::default(),
+                    None,
+                );
+            },
+        ));
     }
     let out = unsafe { Box::from_raw(out) };
     join_all(join_set).await;

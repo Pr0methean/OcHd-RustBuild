@@ -7,7 +7,7 @@ use once_cell::sync::Lazy;
 #[cfg(not(debug_assertions))]
 use oxipng::Deflaters;
 use oxipng::{BitDepth, ColorType, IndexSet, Options, RawImage, RowFilter};
-use parking_lot::{Mutex};
+use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::io::{Cursor, Write};
 use std::mem::transmute;
@@ -15,9 +15,9 @@ use std::ops::DerefMut;
 
 use resvg::tiny_skia::{ColorU8, Pixmap, PremultipliedColorU8};
 use tracing::{info_span, instrument};
-use zip_next::write::FileOptions;
-use zip_next::{CompressionMethod, ZipArchive};
-use zip_next::ZipWriter;
+use zip::write::SimpleFileOptions;
+use zip::ZipWriter;
+use zip::{CompressionMethod, ZipArchive};
 
 use crate::image_tasks::cloneable::CloneableError;
 use crate::image_tasks::color::ComparableColor;
@@ -33,7 +33,7 @@ const PNG_BUFFER_SIZE: usize = 1024 * 1024;
 static ZIP_BUFFER_SIZE: Lazy<usize> = Lazy::new(|| (*TILE_SIZE as usize) * 32 * 1024);
 #[cfg(not(debug_assertions))]
 static PNG_ZIP_OPTIONS: Lazy<FileOptions> = Lazy::new(|| {
-    FileOptions::default()
+    SimpleFileOptions::default()
         .compression_method(CompressionMethod::Deflated)
         .with_zopfli_buffer(Some(PNG_BUFFER_SIZE))
         .compression_level(Some(if *TILE_SIZE < 2048 {
@@ -45,11 +45,11 @@ static PNG_ZIP_OPTIONS: Lazy<FileOptions> = Lazy::new(|| {
         }))
 });
 #[cfg(debug_assertions)]
-static PNG_ZIP_OPTIONS: Lazy<FileOptions> =
-    Lazy::new(|| FileOptions::default().compression_method(CompressionMethod::Stored));
+static PNG_ZIP_OPTIONS: Lazy<SimpleFileOptions> =
+    Lazy::new(|| SimpleFileOptions::default().compression_method(CompressionMethod::Stored));
 
-static METADATA_ZIP_OPTIONS: Lazy<FileOptions> = Lazy::new(|| {
-    FileOptions::default()
+static METADATA_ZIP_OPTIONS: Lazy<SimpleFileOptions> = Lazy::new(|| {
+    SimpleFileOptions::default()
         .compression_method(CompressionMethod::Deflated)
         .compression_level(Some(264))
 });
@@ -99,7 +99,7 @@ fn png_filters_to_try(file_path: &str) -> Option<IndexSet<RowFilter>> {
     }
 }
 
-#[instrument(skip(image,color_type))]
+#[instrument(skip(image, color_type))]
 pub fn png_output(
     image: MaybeFromPool<Pixmap>,
     color_type: ColorType,
@@ -269,9 +269,8 @@ pub fn png_output(
             writer_guard.write_all(&png)?;
         }
         None => {
-            let mut single_file_out = ZipWriter::new(Cursor::new(Vec::with_capacity(
-                *ZIP_BUFFER_SIZE,
-            )));
+            let mut single_file_out =
+                ZipWriter::new(Cursor::new(Vec::with_capacity(*ZIP_BUFFER_SIZE)));
             single_file_out.start_file(file_path, PNG_ZIP_OPTIONS.to_owned())?;
             single_file_out.write_all(&png)?;
             let mut single_compressed_file = ZipArchive::new(single_file_out.finish()?)?;
@@ -284,12 +283,11 @@ pub fn png_output(
                     drop(get_lock_span);
                     writer
                 }
-                Some(locked_writer) => locked_writer
+                Some(locked_writer) => locked_writer,
             };
             let write_file_span = info_span!("Adding file to ZIP file");
             let write_file_span = write_file_span.enter();
-            writer
-                .raw_copy_file(single_compressed_file.by_index_raw(0).unwrap())?;
+            writer.raw_copy_file(single_compressed_file.by_index_raw(0).unwrap())?;
             drop(write_file_span);
         }
     }
