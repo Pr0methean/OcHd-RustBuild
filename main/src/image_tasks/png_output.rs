@@ -32,7 +32,7 @@ const PNG_BUFFER_SIZE: usize = 1024 * 1024;
 
 static ZIP_BUFFER_SIZE: Lazy<usize> = Lazy::new(|| (*TILE_SIZE as usize) * 32 * 1024);
 #[cfg(not(debug_assertions))]
-static PNG_ZIP_OPTIONS: Lazy<FileOptions> = Lazy::new(|| {
+static PNG_ZIP_OPTIONS: Lazy<SimpleFileOptions> = Lazy::new(|| {
     SimpleFileOptions::default()
         .compression_method(CompressionMethod::Deflated)
         .with_zopfli_buffer(Some(PNG_BUFFER_SIZE))
