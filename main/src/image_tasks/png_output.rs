@@ -310,6 +310,10 @@ pub fn copy_in_to_out(source: &File, dest_path: Box<str>) -> Result<(), Cloneabl
 }
 
 fn take_demultiplied(image: Pixmap) -> Vec<u8> {
+    const _: () = assert_eq!(
+        Layout::new::<PremultipliedColorU8>(),
+        Layout::new::<ColorU8>()
+    );
     let mut pixels = image.take();
     for pixel in pixels.array_chunks_mut() {
         unsafe {
