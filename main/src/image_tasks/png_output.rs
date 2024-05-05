@@ -1,5 +1,6 @@
 use bitstream_io::{BigEndian, BitWrite, BitWriter};
 use bytemuck::cast;
+use core::mem::{size_of, transmute};
 use include_dir::File;
 use itertools::Itertools;
 use log::{info, warn};
@@ -10,7 +11,6 @@ use oxipng::{BitDepth, ColorType, IndexSet, Options, RawImage, RowFilter};
 use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::io::{Cursor, Write};
-use std::mem::transmute;
 use std::ops::DerefMut;
 
 use resvg::tiny_skia::{ColorU8, Pixmap, PremultipliedColorU8};
@@ -135,9 +135,7 @@ pub fn png_output(
         }
         ColorType::RGBA => {
             info!("Writing {} in RGBA mode", file_path);
-            let mut image = image.unwrap_or_clone();
-            demultiply_image(&mut image);
-            image.take()
+            take_demultiplied(image.unwrap_or_clone())
         }
         ColorType::Grayscale { transparent_shade } => {
             info!("Writing {} in {}-bit grayscale mode", file_path, bit_depth);
@@ -311,11 +309,16 @@ pub fn copy_in_to_out(source: &File, dest_path: Box<str>) -> Result<(), Cloneabl
     Ok(())
 }
 
-fn demultiply_image(image: &mut Pixmap) {
-    for pixel in image.pixels_mut() {
+fn take_demultiplied(image: Pixmap) -> Vec<u8> {
+    let mut pixels = image.take();
+    for pixel in pixels.array_chunks_mut() {
         unsafe {
-            // Treat this PremultipliedColorU8 slice as a ColorU8 slice
-            *pixel = transmute(pixel.demultiply());
+            // Treat this as a PremultipliedColorU8 slice for input and a ColorU8 slice for output
+            *pixel = transmute(
+                transmute::<[u8; size_of::<PremultipliedColorU8>()], PremultipliedColorU8>(*pixel)
+                    .demultiply(),
+            );
         }
     }
+    pixels.to_vec()
 }

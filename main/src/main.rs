@@ -6,6 +6,7 @@
 #![feature(lazy_cell)]
 #![feature(async_closure)]
 #![feature(future_join)]
+#![feature(array_chunks)]
 
 use std::path::{absolute, PathBuf};
 use std::time::{Duration, Instant};
