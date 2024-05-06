@@ -1,6 +1,7 @@
 use bitstream_io::{BigEndian, BitWrite, BitWriter};
-use bytemuck::cast;
-use core::mem::{size_of, transmute};
+use bytemuck::{cast, cast_slice_box};
+use core::alloc::Layout;
+use core::mem::transmute;
 use include_dir::File;
 use itertools::Itertools;
 use log::{info, warn};
@@ -310,19 +311,16 @@ pub fn copy_in_to_out(source: &File, dest_path: Box<str>) -> Result<(), Cloneabl
 }
 
 fn take_demultiplied(image: Pixmap) -> Vec<u8> {
-    const _: () = assert_eq!(
-        Layout::new::<PremultipliedColorU8>(),
-        Layout::new::<ColorU8>()
+    debug_assert!(
+        Layout::new::<PremultipliedColorU8>() ==
+        Layout::new::<ComparableColor>()
     );
-    let mut pixels = image.take();
-    for pixel in pixels.array_chunks_mut() {
+    let mut pixels: Box<[ComparableColor]> = cast_slice_box(image.take().into());
+    for pixel in pixels.iter_mut() {
         unsafe {
             // Treat this as a PremultipliedColorU8 slice for input and a ColorU8 slice for output
-            *pixel = transmute(
-                transmute::<[u8; size_of::<PremultipliedColorU8>()], PremultipliedColorU8>(*pixel)
-                    .demultiply(),
-            );
+            *pixel = transmute::<_, PremultipliedColorU8>(*pixel).demultiply().into();
         }
     }
-    pixels.to_vec()
+    cast_slice_box(pixels).to_vec()
 }

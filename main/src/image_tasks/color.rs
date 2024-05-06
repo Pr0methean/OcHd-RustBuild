@@ -1,3 +1,4 @@
+use core::mem::transmute;
 use oxipng::{BitDepth, RGBA8};
 use palette::blend::Compose;
 use palette::Srgba;
@@ -231,11 +232,8 @@ impl From<PremultipliedColor> for ComparableColor {
 
 impl From<ColorU8> for ComparableColor {
     fn from(value: ColorU8) -> Self {
-        ComparableColor {
-            red: value.red(),
-            green: value.green(),
-            blue: value.blue(),
-            alpha: value.alpha(),
+        unsafe {
+            transmute(value)
         }
     }
 }
@@ -261,7 +259,9 @@ impl From<ComparableColor> for PremultipliedColor {
 
 impl From<ComparableColor> for ColorU8 {
     fn from(val: ComparableColor) -> Self {
-        ColorU8::from_rgba(val.red, val.green, val.blue, val.alpha)
+        unsafe {
+            transmute(val)
+        }
     }
 }
 
