@@ -319,7 +319,7 @@ fn take_demultiplied(image: Pixmap) -> Vec<u8> {
     for pixel in pixels.iter_mut() {
         unsafe {
             // Treat this as a PremultipliedColorU8 slice for input and a ColorU8 slice for output
-            *pixel = transmute::<_, PremultipliedColorU8>(*pixel).demultiply().into();
+            *pixel = transmute::<_, PremultipliedColorU8>(*pixel).into();
         }
     }
     cast_slice_box(pixels).to_vec()
