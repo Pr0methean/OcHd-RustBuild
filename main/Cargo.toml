@@ -25,7 +25,7 @@ lockfree-object-pool = "0.1.5"
 png = "0.17.13"
 include_dir = "0.7.3"
 tikv-jemallocator = "0.5.4"
-zip = {version = "1.2,3", default-features = false, features = ["deflate-zlib-ng", "deflate-zopfli"]}
+zip = {version = "1.2.3", default-features = false, features = ["deflate-zlib-ng", "deflate-zopfli"]}
 oxipng = {version = "9.0.0", default-features = false, features = ["zopfli"]}
 bitstream-io = "2.2.0"
 palette = "0.7.5"
