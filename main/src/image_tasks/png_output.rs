@@ -13,6 +13,7 @@ use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::io::{Cursor, Write};
 use std::ops::DerefMut;
+use std::sync::Arc;
 
 use resvg::tiny_skia::{ColorU8, Pixmap, PremultipliedColorU8};
 use tracing::{info_span, instrument};
@@ -54,11 +55,7 @@ static METADATA_ZIP_OPTIONS: Lazy<SimpleFileOptions> = Lazy::new(|| {
         .compression_method(CompressionMethod::Deflated)
         .compression_level(Some(264))
 });
-pub static ZIP: Lazy<Mutex<ZipWriter<ZipBufferRaw>>> = Lazy::new(|| {
-    Mutex::new(ZipWriter::new(Cursor::new(Vec::with_capacity(
-        *ZIP_BUFFER_SIZE,
-    ))))
-});
+
 #[cfg(not(debug_assertions))]
 static OXIPNG_OPTIONS: Lazy<Options> = Lazy::new(|| {
     let mut options = Options::from_preset(if *TILE_SIZE < 1024 {
@@ -106,6 +103,7 @@ pub fn png_output(
     color_type: ColorType,
     bit_depth: BitDepth,
     file_path: Box<str>,
+    zip: &Arc<Mutex<ZipWriter<ZipBufferRaw>>>
 ) -> Result<(), CloneableError> {
     let width = image.width();
     let height = image.height();
@@ -261,7 +259,6 @@ pub fn png_output(
     drop(png_span);
     let deflate_span = info_span!("Deflating file");
     let deflate_span = deflate_span.enter();
-    let zip = &*ZIP;
     match zip.try_lock() {
         Some(mut writer_guard) => {
             writer_guard.start_file(file_path, PNG_ZIP_OPTIONS.to_owned())?;
@@ -293,15 +290,14 @@ pub fn png_output(
     Ok(())
 }
 
-pub fn copy_out_to_out(source_path: Box<str>, dest_path: Box<str>) -> Result<(), CloneableError> {
-    ZIP.lock()
+pub fn copy_out_to_out(source_path: Box<str>, dest_path: Box<str>, zip: &Arc<Mutex<ZipWriter<ZipBufferRaw>>>) -> Result<(), CloneableError> {
+    zip.lock()
         .deref_mut()
         .deep_copy_file(&source_path, &dest_path)?;
     Ok(())
 }
 
-pub fn copy_in_to_out(source: &File, dest_path: Box<str>) -> Result<(), CloneableError> {
-    let zip = &*ZIP;
+pub fn copy_in_to_out(source: &File, dest_path: Box<str>, zip: Arc<Mutex<ZipWriter<ZipBufferRaw>>>) -> Result<(), CloneableError> {
     let mut writer = zip.lock();
     writer
         .deref_mut()

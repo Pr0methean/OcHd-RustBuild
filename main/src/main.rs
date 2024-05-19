@@ -24,7 +24,7 @@ mod materials;
 mod texture_base;
 mod u8set;
 
-use crate::image_tasks::png_output::{copy_in_to_out, ZIP};
+use crate::image_tasks::png_output::{copy_in_to_out};
 use crate::image_tasks::prewarm_pixmap_pool;
 use crate::image_tasks::repaint::prewarm_mask_pool;
 use futures_util::FutureExt;
@@ -37,7 +37,6 @@ use std::env;
 use std::fs;
 use std::fs::{create_dir_all, File};
 use std::hint::unreachable_unchecked;
-use std::ops::DerefMut;
 use std::thread::available_parallelism;
 
 use tikv_jemallocator::Jemalloc;
@@ -81,7 +80,7 @@ fn copy_metadata(source_dir: &Dir) {
             copy_metadata(dir);
         }
         DirEntry::File(file) => {
-            copy_in_to_out(file, file.path().to_string_lossy().into())
+            copy_in_to_out(file, file.path().to_string_lossy().into(), ctx.zip)
                 .expect("Failed to copy a file");
         }
     });

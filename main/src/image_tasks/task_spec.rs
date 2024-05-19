@@ -9,6 +9,7 @@ use std::mem::replace;
 use futures_util::future::{join_all, BoxFuture, Shared};
 use futures_util::FutureExt;
 use std::ops::{Deref, Mul};
+use std::sync::Arc;
 use BitDepth::Sixteen;
 use ColorType::GrayscaleAlpha;
 
@@ -21,9 +22,11 @@ use oxipng::BitDepth::{Eight, Four, One, Two};
 use oxipng::ColorType;
 use oxipng::ColorType::{Grayscale, Indexed, RGB, RGBA};
 use oxipng::{BitDepth, RGB16, RGBA8};
+use parking_lot::Mutex;
 
 use resvg::tiny_skia::{Mask, Pixmap};
 use tokio::task::JoinSet;
+use zip::ZipWriter;
 
 use crate::image_tasks::animate::animate;
 use crate::image_tasks::cloneable::Arcow::Borrowing;
@@ -33,7 +36,7 @@ use crate::image_tasks::from_svg::{from_svg, COLOR_SVGS, SEMITRANSPARENCY_FREE_S
 use crate::image_tasks::make_semitransparent::{
     make_semitransparent, ALPHA_MULTIPLICATION_TABLE, ALPHA_STACKING_TABLE,
 };
-use crate::image_tasks::png_output::{copy_out_to_out, png_output};
+use crate::image_tasks::png_output::{copy_out_to_out, png_output, ZipBufferRaw};
 use crate::image_tasks::repaint::{paint, pixmap_to_mask};
 use crate::image_tasks::stack::{
     stack_alpha_on_alpha, stack_alpha_on_background, stack_layer_on_background,
@@ -273,6 +276,7 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
                 let base_future = base.add_to(ctx, base_size);
                 let destination_path = self.get_path();
                 let base_name = base.to_string();
+                let zip_ref = ctx.zip_writer.clone();
                 base_color_desc_future
                     .then(
                         async move |base_color_desc: SimpleArcow<ColorDescription>| {
@@ -282,7 +286,8 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
                     .then(async move |(color_type, bit_depth)| {
                         let base_result = base_future.await;
                         base_result.consume(|image| {
-                            png_output(image, color_type, bit_depth, destination_path).unwrap();
+                            png_output(image, color_type, bit_depth, destination_path,
+                                       zip_ref).unwrap();
                             Arcow::from_owned(())
                         })
                     })
@@ -294,7 +299,7 @@ impl TaskSpecTraits<()> for FileOutputTaskSpec {
                 let original_path = original.get_path();
                 base_future
                     .then(async move |_| {
-                        copy_out_to_out(original_path, link).unwrap();
+                        copy_out_to_out(original_path, link, ).unwrap();
                         Arcow::from_owned(())
                     })
                     .boxed()
@@ -1309,6 +1314,7 @@ pub struct TaskGraphBuildingContext {
     pixmap_task_to_color_map: HashMap<ToPixmapTaskSpec, BasicTask<ColorDescription>>,
     alpha_task_to_alpha_map: HashMap<ToAlphaChannelTaskSpec, BasicTask<U8BitSet>>,
     pixmap_task_to_alpha_map: HashMap<ToPixmapTaskSpec, BasicTask<U8BitSet>>,
+    zip_writer: Arc<Mutex<ZipWriter<ZipBufferRaw>>>
 }
 
 impl TaskGraphBuildingContext {
@@ -1320,6 +1326,7 @@ impl TaskGraphBuildingContext {
             pixmap_task_to_color_map: HashMap::new(),
             alpha_task_to_alpha_map: HashMap::new(),
             pixmap_task_to_alpha_map: HashMap::new(),
+            zip_writer: Arc::new(Mutex::new(ZipWriter::new(ZipBufferRaw::new(vec![]))))
         }
     }
 
